@@ -24,6 +24,28 @@ Tambem ja existe uma base inicial de documentacao em:
 - `docs/versionamento-e-publicacao.md`
 - `docs/roteiro-de-homologacao.md`
 
+## Repositorio e versionamento
+
+Repositorio principal:
+
+- `https://github.com/jadsonalves0/grafica-platform`
+
+Fluxo simples recomendado para o time:
+
+1. manter `main` como linha principal estavel;
+2. criar branches curtas por tema:
+   - `feature/...`
+   - `fix/...`
+   - `docs/...`
+3. usar commits pequenos e claros:
+   - `feat: adiciona entrada por documento`
+   - `fix: corrige consumo FIFO na venda`
+   - `docs: atualiza roteiro de homologacao`
+4. validar localmente antes de subir:
+   - `npm run lint`
+   - `npx tsc --noEmit`
+5. subir para o GitHub e homologar por bloco funcional.
+
 ## Visao do produto
 
 O projeto nao deve nascer como um sistema exclusivo para uma unica grafica. A estrategia correta e criar uma plataforma reutilizavel, capaz de atender diferentes graficas com configuracoes proprias.

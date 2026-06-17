@@ -2,11 +2,17 @@
 
 ## Situacao atual
 
-O repositorio Git local ja existe e a base esta pronta para seguir para GitHub, mas ainda nao ha remoto configurado nem primeiro commit consolidado.
+O projeto ja esta conectado ao GitHub em:
+
+- `https://github.com/jadsonalves0/grafica-platform`
+
+A branch principal atual e:
+
+- `main`
 
 ## Estrategia recomendada
 
-### Repositorio local
+### Estrategia de branches
 
 - usar `main` como linha principal
 - criar branches por tema
@@ -15,6 +21,12 @@ O repositorio Git local ja existe e a base esta pronta para seguir para GitHub, 
   - `fix/`
   - `docs/`
   - `release/`
+
+Exemplos:
+
+- `feature/entrada-por-documento`
+- `fix/estoque-fifo-venda`
+- `docs/roteiro-homologacao`
 
 ### Commits
 
@@ -36,11 +48,11 @@ Ja esta protegido no `.gitignore`:
 ## Fluxo recomendado para GitHub
 
 1. revisar a base local e separar o primeiro marco funcional
-2. criar o primeiro commit da plataforma consolidada
-3. criar repositorio remoto privado no GitHub
-4. conectar o remoto `origin`
-5. subir `main`
-6. seguir com branches curtas por modulo
+2. criar commits pequenos por bloco funcional
+3. criar branch curta para cada frente
+4. subir a branch para o GitHub
+5. homologar
+6. mergear em `main`
 
 ## Exemplo de rotina
 
@@ -64,12 +76,42 @@ Ja esta protegido no `.gitignore`:
   - homologacao
   - producao
 
-## O que recomendo fazer amanha
+## Rotina minima recomendada
 
-- inicializar ou revisar o repositorio Git local
-- subir o projeto para um repositorio privado no GitHub
-- criar o primeiro marco como `v0.1.0-piloto`
-- registrar bugs e ajustes de homologacao como issues
+1. atualizar a branch local:
+   - `git pull`
+2. criar uma branch de trabalho:
+   - `git checkout -b feature/nome-da-melhoria`
+3. implementar um bloco pequeno
+4. validar:
+   - `npm run lint`
+   - `npx tsc --noEmit`
+5. salvar:
+   - `git add .`
+   - `git commit -m "feat: descricao objetiva"`
+6. publicar:
+   - `git push -u origin feature/nome-da-melhoria`
+
+## Convencao simples de commits
+
+- `feat:` nova funcionalidade
+- `fix:` correcao de bug
+- `refactor:` reorganizacao interna sem mudar regra
+- `docs:` documentacao
+- `chore:` ajuste tecnico ou operacional
+
+## Releases sugeridas
+
+Para nao complicar nesta fase, use marcos simples:
+
+- `v0.1.0` base operacional inicial
+- `v0.2.0` entradas, FIFO e venda rapida
+- `v0.3.0` relatorios, dashboard e website refinado
+
+Quando quiser marcar uma versao:
+
+- `git tag v0.1.0`
+- `git push origin v0.1.0`
 
 ## Publicacao futura
 
