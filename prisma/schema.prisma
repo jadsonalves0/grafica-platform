@@ -1,0 +1,640 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CompanyStatus {
+  ACTIVE
+  TRIAL
+  SUSPENDED
+  CANCELED
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  BLOCKED
+}
+
+enum AuthTokenType {
+  PASSWORD_RESET
+  USER_INVITE
+}
+
+enum ProductCategoryType {
+  RAW_MATERIAL
+  SERVICE
+  FINISHED_PRODUCT
+}
+
+enum ProductType {
+  RAW_MATERIAL
+  SERVICE
+  FINISHED_PRODUCT
+}
+
+enum StockMovementType {
+  INPUT
+  OUTPUT
+  ADJUSTMENT
+}
+
+enum StockReferenceType {
+  MANUAL
+  QUOTE
+  ORDER
+  PURCHASE
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum OrderStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+}
+
+enum ProductionStatus {
+  PENDING
+  IN_PRODUCTION
+  WAITING_APPROVAL
+  READY
+  DELIVERED
+}
+
+enum FinancialAccountType {
+  CASH
+  BANK
+  DIGITAL_WALLET
+}
+
+enum FinancialEntryType {
+  INCOME
+  EXPENSE
+}
+
+enum FinancialEntryStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELED
+}
+
+enum SiteLeadStatus {
+  NEW
+  CONTACTED
+  CONVERTED
+  ARCHIVED
+}
+
+model Company {
+  id              String               @id @default(uuid()) @db.Uuid
+  legalName       String               @map("legal_name") @db.VarChar(200)
+  tradeName       String               @map("trade_name") @db.VarChar(200)
+  slug            String               @unique @db.VarChar(120)
+  document        String?              @db.VarChar(30)
+  email           String?              @db.VarChar(200)
+  phone           String?              @db.VarChar(30)
+  whatsapp        String?              @db.VarChar(30)
+  status          CompanyStatus        @default(ACTIVE)
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+  companyUsers    CompanyUser[]
+  customers       Customer[]
+  financials      FinancialEntry[]
+  orders          Order[]
+  productCategories ProductCategory[]
+  products        Product[]
+  productRecipeItems ProductRecipeItem[]
+  productionRecords ProductionRecord[]
+  quotes          Quote[]
+  quoteItems      QuoteItem[]
+  roles           Role[]
+  siteBanners     SiteBanner[]
+  siteLeads       SiteLead[]
+  sitePages       SitePage[]
+  siteServices    SiteService[]
+  siteSettings    SiteSetting?
+  stockMovements  StockMovement[]
+  financialAccounts FinancialAccount[]
+  financialCategories FinancialCategory[]
+  orderItems      OrderItem[]
+  authSessions    AuthSession[]
+
+  @@map("companies")
+}
+
+model User {
+  id                   String              @id @default(uuid()) @db.Uuid
+  name                 String              @db.VarChar(200)
+  email                String              @unique @db.VarChar(200)
+  passwordHash         String              @map("password_hash") @db.VarChar(255)
+  phone                String?             @db.VarChar(30)
+  isPlatformAdmin      Boolean             @default(false) @map("is_platform_admin")
+  status               UserStatus          @default(ACTIVE)
+  lastLoginAt          DateTime?           @map("last_login_at")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
+  approvedQuotes       Quote[]             @relation("approved_quotes")
+  companyUsers         CompanyUser[]
+  createdFinancials    FinancialEntry[]
+  createdOrders        Order[]
+  createdQuotes        Quote[]             @relation("created_quotes")
+  createdStockMoves    StockMovement[]
+  productionRecords    ProductionRecord[]
+  authSessions         AuthSession[]
+  authTokens           AuthToken[]
+
+  @@map("users")
+}
+
+model CompanyUser {
+  id          String            @id @default(uuid()) @db.Uuid
+  companyId   String            @map("company_id") @db.Uuid
+  userId      String            @map("user_id") @db.Uuid
+  isActive    Boolean           @default(true) @map("is_active")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  company     Company           @relation(fields: [companyId], references: [id])
+  user        User              @relation(fields: [userId], references: [id])
+  userRoles   CompanyUserRole[]
+
+  @@unique([companyId, userId])
+  @@map("company_users")
+}
+
+model Role {
+  id               String            @id @default(uuid()) @db.Uuid
+  companyId        String?           @map("company_id") @db.Uuid
+  name             String            @db.VarChar(120)
+  code             String            @db.VarChar(120)
+  isSystem         Boolean           @default(false) @map("is_system")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  company          Company?          @relation(fields: [companyId], references: [id])
+  rolePermissions  RolePermission[]
+  userRoles        CompanyUserRole[]
+
+  @@unique([companyId, code])
+  @@map("roles")
+}
+
+model Permission {
+  id               String            @id @default(uuid()) @db.Uuid
+  module           String            @db.VarChar(80)
+  action           String            @db.VarChar(80)
+  code             String            @unique @db.VarChar(120)
+  description      String?           @db.VarChar(255)
+  rolePermissions  RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id            String       @id @default(uuid()) @db.Uuid
+  roleId        String       @map("role_id") @db.Uuid
+  permissionId  String       @map("permission_id") @db.Uuid
+  role          Role         @relation(fields: [roleId], references: [id])
+  permission    Permission   @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model CompanyUserRole {
+  id             String        @id @default(uuid()) @db.Uuid
+  companyUserId  String        @map("company_user_id") @db.Uuid
+  roleId         String        @map("role_id") @db.Uuid
+  companyUser    CompanyUser   @relation(fields: [companyUserId], references: [id])
+  role           Role          @relation(fields: [roleId], references: [id])
+
+  @@unique([companyUserId, roleId])
+  @@map("company_user_roles")
+}
+
+model Customer {
+  id              String      @id @default(uuid()) @db.Uuid
+  companyId       String      @map("company_id") @db.Uuid
+  name            String      @db.VarChar(200)
+  document        String?     @db.VarChar(30)
+  email           String?     @db.VarChar(200)
+  phone           String?     @db.VarChar(30)
+  whatsapp        String?     @db.VarChar(30)
+  isActive        Boolean     @default(true) @map("is_active")
+  addressZipCode  String?     @map("address_zip_code") @db.VarChar(20)
+  addressStreet   String?     @map("address_street") @db.VarChar(200)
+  addressNumber   String?     @map("address_number") @db.VarChar(20)
+  addressDistrict String?     @map("address_district") @db.VarChar(120)
+  addressCity     String?     @map("address_city") @db.VarChar(120)
+  addressState    String?     @map("address_state") @db.VarChar(80)
+  notes           String?
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  company         Company     @relation(fields: [companyId], references: [id])
+  financials      FinancialEntry[]
+  orders          Order[]
+  quotes          Quote[]
+
+  @@unique([companyId, email])
+  @@unique([companyId, document])
+  @@map("customers")
+}
+
+model ProductCategory {
+  id         String                @id @default(uuid()) @db.Uuid
+  companyId  String                @map("company_id") @db.Uuid
+  name       String                @db.VarChar(120)
+  type       ProductCategoryType
+  createdAt  DateTime              @default(now()) @map("created_at")
+  company    Company               @relation(fields: [companyId], references: [id])
+  products   Product[]
+
+  @@map("product_categories")
+}
+
+model Product {
+  id            String            @id @default(uuid()) @db.Uuid
+  companyId     String            @map("company_id") @db.Uuid
+  categoryId    String?           @map("category_id") @db.Uuid
+  name          String            @db.VarChar(200)
+  sku           String?           @db.VarChar(80)
+  barcode       String?           @db.VarChar(14)
+  unit          String            @db.VarChar(20)
+  type          ProductType
+  costPrice     Decimal           @default(0) @map("cost_price") @db.Decimal(12, 2)
+  salePrice     Decimal           @default(0) @map("sale_price") @db.Decimal(12, 2)
+  minimumStock  Decimal           @default(0) @map("minimum_stock") @db.Decimal(12, 3)
+  currentStock  Decimal           @default(0) @map("current_stock") @db.Decimal(12, 3)
+  isActive      Boolean           @default(true) @map("is_active")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  category      ProductCategory?  @relation(fields: [categoryId], references: [id])
+  company       Company           @relation(fields: [companyId], references: [id])
+  financialEntryItems FinancialEntryItem[]
+  orderItems    OrderItem[]
+  recipeItems   ProductRecipeItem[] @relation("recipe_product")
+  quoteItems    QuoteItem[]
+  stockMoves    StockMovement[]
+  usedAsMaterialIn ProductRecipeItem[] @relation("recipe_material")
+  productionRecords ProductionRecord[]
+  productionConsumptions ProductionConsumption[]
+
+  @@unique([companyId, sku])
+  @@unique([companyId, barcode])
+  @@map("products")
+}
+
+model StockMovement {
+  id              String              @id @default(uuid()) @db.Uuid
+  companyId       String              @map("company_id") @db.Uuid
+  productId       String              @map("product_id") @db.Uuid
+  movementType    StockMovementType   @map("movement_type")
+  quantity        Decimal             @db.Decimal(12, 3)
+  unitCost        Decimal?            @map("unit_cost") @db.Decimal(12, 2)
+  referenceType   StockReferenceType? @map("reference_type")
+  referenceId     String?             @map("reference_id") @db.VarChar(80)
+  notes           String?
+  createdByUserId String?             @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime            @default(now()) @map("created_at")
+  company         Company             @relation(fields: [companyId], references: [id])
+  createdByUser   User?               @relation(fields: [createdByUserId], references: [id])
+  product         Product             @relation(fields: [productId], references: [id])
+
+  @@map("stock_movements")
+}
+
+model Quote {
+  id               String        @id @default(uuid()) @db.Uuid
+  companyId        String        @map("company_id") @db.Uuid
+  customerId       String        @map("customer_id") @db.Uuid
+  code             String        @db.VarChar(60)
+  status           QuoteStatus   @default(DRAFT)
+  issueDate        DateTime      @map("issue_date") @db.Date
+  validUntil       DateTime?     @map("valid_until") @db.Date
+  subtotal         Decimal       @default(0) @db.Decimal(12, 2)
+  discountAmount   Decimal       @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  totalAmount      Decimal       @default(0) @map("total_amount") @db.Decimal(12, 2)
+  notes            String?
+  createdByUserId  String?       @map("created_by_user_id") @db.Uuid
+  approvedByUserId String?       @map("approved_by_user_id") @db.Uuid
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  approvedByUser   User?         @relation("approved_quotes", fields: [approvedByUserId], references: [id])
+  company          Company       @relation(fields: [companyId], references: [id])
+  createdByUser    User?         @relation("created_quotes", fields: [createdByUserId], references: [id])
+  customer         Customer      @relation(fields: [customerId], references: [id])
+  financials       FinancialEntry[]
+  items            QuoteItem[]
+  orders           Order[]
+
+  @@unique([companyId, code])
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  quoteId     String    @map("quote_id") @db.Uuid
+  productId   String?   @map("product_id") @db.Uuid
+  description String    @db.VarChar(255)
+  quantity    Decimal   @db.Decimal(12, 3)
+  unitPrice   Decimal   @map("unit_price") @db.Decimal(12, 2)
+  totalPrice  Decimal   @map("total_price") @db.Decimal(12, 2)
+  company     Company   @relation(fields: [companyId], references: [id])
+  product     Product?  @relation(fields: [productId], references: [id])
+  quote       Quote     @relation(fields: [quoteId], references: [id])
+
+  @@map("quote_items")
+}
+
+model Order {
+  id               String            @id @default(uuid()) @db.Uuid
+  companyId        String            @map("company_id") @db.Uuid
+  customerId       String            @map("customer_id") @db.Uuid
+  quoteId          String?           @map("quote_id") @db.Uuid
+  code             String            @db.VarChar(60)
+  status           OrderStatus       @default(OPEN)
+  productionStatus ProductionStatus  @default(PENDING) @map("production_status")
+  deliveryDate     DateTime?         @map("delivery_date") @db.Date
+  totalAmount      Decimal           @default(0) @map("total_amount") @db.Decimal(12, 2)
+  notes            String?
+  createdByUserId  String?           @map("created_by_user_id") @db.Uuid
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  company          Company           @relation(fields: [companyId], references: [id])
+  createdByUser    User?             @relation(fields: [createdByUserId], references: [id])
+  customer         Customer          @relation(fields: [customerId], references: [id])
+  financials       FinancialEntry[]
+  items            OrderItem[]
+  quote            Quote?            @relation(fields: [quoteId], references: [id])
+
+  @@unique([companyId, code])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  orderId     String    @map("order_id") @db.Uuid
+  productId   String?   @map("product_id") @db.Uuid
+  description String    @db.VarChar(255)
+  quantity    Decimal   @db.Decimal(12, 3)
+  unitPrice   Decimal   @map("unit_price") @db.Decimal(12, 2)
+  totalPrice  Decimal   @map("total_price") @db.Decimal(12, 2)
+  company     Company   @relation(fields: [companyId], references: [id])
+  order       Order     @relation(fields: [orderId], references: [id])
+  product     Product?  @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+model FinancialAccount {
+  id             String                @id @default(uuid()) @db.Uuid
+  companyId      String                @map("company_id") @db.Uuid
+  name           String                @db.VarChar(120)
+  type           FinancialAccountType
+  initialBalance Decimal               @default(0) @map("initial_balance") @db.Decimal(12, 2)
+  isActive       Boolean               @default(true) @map("is_active")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  company        Company               @relation(fields: [companyId], references: [id])
+  entries        FinancialEntry[]
+
+  @@map("financial_accounts")
+}
+
+model FinancialCategory {
+  id         String             @id @default(uuid()) @db.Uuid
+  companyId  String             @map("company_id") @db.Uuid
+  name       String             @db.VarChar(120)
+  type       FinancialEntryType @map("entry_type")
+  isActive   Boolean            @default(true) @map("is_active")
+  createdAt  DateTime           @default(now()) @map("created_at")
+  updatedAt  DateTime           @updatedAt @map("updated_at")
+  company    Company            @relation(fields: [companyId], references: [id])
+  entries    FinancialEntry[]
+
+  @@unique([companyId, type, name])
+  @@map("financial_categories")
+}
+
+model FinancialEntry {
+  id              String                @id @default(uuid()) @db.Uuid
+  companyId       String                @map("company_id") @db.Uuid
+  accountId       String                @map("account_id") @db.Uuid
+  financialCategoryId String?          @map("financial_category_id") @db.Uuid
+  customerId      String?               @map("customer_id") @db.Uuid
+  orderId         String?               @map("order_id") @db.Uuid
+  quoteId         String?               @map("quote_id") @db.Uuid
+  entryType       FinancialEntryType    @map("entry_type")
+  category        String                @db.VarChar(80)
+  description     String                @db.VarChar(255)
+  amount          Decimal               @db.Decimal(12, 2)
+  dueDate         DateTime              @map("due_date") @db.Date
+  paidAt          DateTime?             @map("paid_at")
+  status          FinancialEntryStatus  @default(PENDING)
+  createdByUserId String?               @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+  account         FinancialAccount      @relation(fields: [accountId], references: [id])
+  company         Company               @relation(fields: [companyId], references: [id])
+  createdByUser   User?                 @relation(fields: [createdByUserId], references: [id])
+  customer        Customer?             @relation(fields: [customerId], references: [id])
+  financialCategory FinancialCategory?  @relation(fields: [financialCategoryId], references: [id])
+  items           FinancialEntryItem[]
+  order           Order?                @relation(fields: [orderId], references: [id])
+  quote           Quote?                @relation(fields: [quoteId], references: [id])
+
+  @@map("financial_entries")
+}
+
+model FinancialEntryItem {
+  id          String          @id @default(uuid()) @db.Uuid
+  entryId     String          @map("entry_id") @db.Uuid
+  productId   String?         @map("product_id") @db.Uuid
+  description String          @db.VarChar(255)
+  quantity    Decimal         @db.Decimal(12, 3)
+  unitPrice   Decimal         @map("unit_price") @db.Decimal(12, 2)
+  totalPrice  Decimal         @map("total_price") @db.Decimal(12, 2)
+  entry       FinancialEntry  @relation(fields: [entryId], references: [id])
+  product     Product?        @relation(fields: [productId], references: [id])
+
+  @@map("financial_entry_items")
+}
+
+model ProductRecipeItem {
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  productId         String    @map("product_id") @db.Uuid
+  materialProductId String    @map("material_product_id") @db.Uuid
+  quantityPerUnit   Decimal   @map("quantity_per_unit") @db.Decimal(12, 4)
+  lossPercent       Decimal   @default(0) @map("loss_percent") @db.Decimal(5, 2)
+  notes             String?
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  company           Company   @relation(fields: [companyId], references: [id])
+  materialProduct   Product   @relation("recipe_material", fields: [materialProductId], references: [id])
+  product           Product   @relation("recipe_product", fields: [productId], references: [id])
+
+  @@unique([productId, materialProductId])
+  @@map("product_recipe_items")
+}
+
+model ProductionRecord {
+  id               String                 @id @default(uuid()) @db.Uuid
+  companyId        String                 @map("company_id") @db.Uuid
+  productId        String                 @map("product_id") @db.Uuid
+  quantityProduced Decimal                @map("quantity_produced") @db.Decimal(12, 3)
+  totalCost        Decimal                @map("total_cost") @db.Decimal(12, 2)
+  unitCost         Decimal                @map("unit_cost") @db.Decimal(12, 2)
+  notes            String?
+  producedByUserId String?                @map("produced_by_user_id") @db.Uuid
+  createdAt        DateTime               @default(now()) @map("created_at")
+  company          Company                @relation(fields: [companyId], references: [id])
+  consumptions     ProductionConsumption[]
+  producedByUser   User?                  @relation(fields: [producedByUserId], references: [id])
+  product          Product                @relation(fields: [productId], references: [id])
+
+  @@map("production_records")
+}
+
+model ProductionConsumption {
+  id                 String            @id @default(uuid()) @db.Uuid
+  productionRecordId String            @map("production_record_id") @db.Uuid
+  materialProductId  String            @map("material_product_id") @db.Uuid
+  quantityConsumed   Decimal           @map("quantity_consumed") @db.Decimal(12, 3)
+  unitCost           Decimal           @map("unit_cost") @db.Decimal(12, 2)
+  totalCost          Decimal           @map("total_cost") @db.Decimal(12, 2)
+  materialProduct    Product           @relation(fields: [materialProductId], references: [id])
+  productionRecord   ProductionRecord  @relation(fields: [productionRecordId], references: [id])
+
+  @@map("production_consumptions")
+}
+
+model SiteSetting {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @unique @map("company_id") @db.Uuid
+  primaryColor    String?   @map("primary_color") @db.VarChar(20)
+  secondaryColor  String?   @map("secondary_color") @db.VarChar(20)
+  accentColor     String?   @map("accent_color") @db.VarChar(20)
+  logoUrl         String?   @map("logo_url")
+  faviconUrl      String?   @map("favicon_url")
+  heroTitle       String?   @map("hero_title") @db.VarChar(255)
+  heroSubtitle    String?   @map("hero_subtitle")
+  aboutText       String?   @map("about_text")
+  contactEmail    String?   @map("contact_email") @db.VarChar(200)
+  contactPhone    String?   @map("contact_phone") @db.VarChar(30)
+  contactWhatsapp String?   @map("contact_whatsapp") @db.VarChar(30)
+  instagramUrl    String?   @map("instagram_url")
+  facebookUrl     String?   @map("facebook_url")
+  addressFull     String?   @map("address_full")
+  isSitePublished Boolean   @default(false) @map("is_site_published")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  company         Company   @relation(fields: [companyId], references: [id])
+
+  @@map("site_settings")
+}
+
+model SitePage {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  pageKey         String    @map("page_key") @db.VarChar(80)
+  title           String    @db.VarChar(200)
+  slug            String    @db.VarChar(160)
+  metaTitle       String?   @map("meta_title") @db.VarChar(200)
+  metaDescription String?   @map("meta_description") @db.VarChar(255)
+  contentJson     String?   @map("content_json")
+  isPublished     Boolean   @default(false) @map("is_published")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  company         Company   @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, slug])
+  @@map("site_pages")
+}
+
+model SiteService {
+  id               String    @id @default(uuid()) @db.Uuid
+  companyId        String    @map("company_id") @db.Uuid
+  title            String    @db.VarChar(160)
+  shortDescription String?   @map("short_description")
+  imageUrl         String?   @map("image_url")
+  sortOrder        Int       @default(0) @map("sort_order")
+  isActive         Boolean   @default(true) @map("is_active")
+  company          Company   @relation(fields: [companyId], references: [id])
+
+  @@map("site_services")
+}
+
+model SiteBanner {
+  id         String    @id @default(uuid()) @db.Uuid
+  companyId  String    @map("company_id") @db.Uuid
+  title      String?   @db.VarChar(160)
+  subtitle   String?
+  imageUrl   String?   @map("image_url")
+  ctaLabel   String?   @map("cta_label") @db.VarChar(80)
+  ctaLink    String?   @map("cta_link")
+  sortOrder  Int       @default(0) @map("sort_order")
+  isActive   Boolean   @default(true) @map("is_active")
+  company    Company   @relation(fields: [companyId], references: [id])
+
+  @@map("site_banners")
+}
+
+model SiteLead {
+  id               String          @id @default(uuid()) @db.Uuid
+  companyId        String          @map("company_id") @db.Uuid
+  name             String          @db.VarChar(200)
+  email            String?         @db.VarChar(200)
+  phone            String?         @db.VarChar(30)
+  whatsapp         String?         @db.VarChar(30)
+  subject          String?         @db.VarChar(160)
+  message          String?
+  requestedService String?         @map("requested_service") @db.VarChar(160)
+  status           SiteLeadStatus  @default(NEW)
+  createdAt        DateTime        @default(now()) @map("created_at")
+  company          Company         @relation(fields: [companyId], references: [id])
+
+  @@map("site_leads")
+}
+
+model AuthSession {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  companyId      String    @map("company_id") @db.Uuid
+  token          String    @unique @db.VarChar(255)
+  expiresAt      DateTime  @map("expires_at")
+  revokedAt      DateTime? @map("revoked_at")
+  lastActivityAt DateTime? @map("last_activity_at")
+  ipAddress      String?   @map("ip_address") @db.VarChar(64)
+  userAgent      String?   @map("user_agent") @db.VarChar(255)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  company        Company   @relation(fields: [companyId], references: [id])
+  user           User      @relation(fields: [userId], references: [id])
+
+  @@index([userId, companyId])
+  @@map("auth_sessions")
+}
+
+model AuthToken {
+  id         String        @id @default(uuid()) @db.Uuid
+  userId     String        @map("user_id") @db.Uuid
+  tokenHash  String        @map("token_hash") @unique @db.VarChar(255)
+  type       AuthTokenType
+  expiresAt  DateTime      @map("expires_at")
+  consumedAt DateTime?     @map("consumed_at")
+  createdAt  DateTime      @default(now()) @map("created_at")
+  user       User          @relation(fields: [userId], references: [id])
+
+  @@index([userId, type])
+  @@map("auth_tokens")
+}

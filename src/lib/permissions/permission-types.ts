@@ -1,0 +1,30 @@
+export const PERMISSIONS = {
+  companiesView: "companies.view",
+  companiesCreate: "companies.create",
+  companiesUpdate: "companies.update",
+  usersView: "users.view",
+  usersCreate: "users.create",
+  customersView: "customers.view",
+  customersCreate: "customers.create",
+  customersUpdate: "customers.update",
+  customersDelete: "customers.delete",
+  inventoryView: "inventory.view",
+  inventoryCreate: "inventory.create",
+  inventoryUpdate: "inventory.update",
+  quotesView: "quotes.view",
+  quotesCreate: "quotes.create",
+  quotesUpdate: "quotes.update",
+  quotesDelete: "quotes.delete",
+  quotesApprove: "quotes.approve",
+  ordersView: "orders.view",
+  ordersCreate: "orders.create",
+  ordersUpdate: "orders.update",
+  ordersManageStatus: "orders.manage_status",
+  financialView: "financial.view",
+  financialManage: "financial.manage",
+  siteView: "site.view",
+  siteUpdate: "site.update",
+} as const;
+
+export type PermissionCode =
+  (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
