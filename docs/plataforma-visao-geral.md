@@ -153,7 +153,9 @@ Os indicadores devem ser tratados como ponto de partida para o trabalho diario.
 - wrappers de `novo`, `editar` e `detalhe` padronizados com larguras consistentes e sem padding local
 - `orcamentos`, `pedidos`, `vendas`, `entradas`, `producao`, `relatorios`, `leads do site`, `empresa`, `parametros` e `movimentacoes` alinhados ao mesmo shell visual
 - `vendas` com fluxo proprio de operacao, separado do formulario generico do financeiro
+- `vendas` com reflexo de estoque para itens fisicos na mesma transacao do registro comercial
 - `financeiro` com leitura de origem operacional, incluindo entrada, pedido, orcamento e lancamento manual
+- `financeiro` com origem clicavel tambem para vendas registradas pela tela propria
 - `lancamento manual` tratado visualmente como excecao e nao como fluxo concorrente a venda
 - `producao` com destaque para impedimento por falta de material no lote atual
 - `ficha tecnica` tratada com linguagem operacional voltada a materiais, consumo padrao e custo estimado
@@ -170,7 +172,7 @@ Os modulos abaixo ja funcionam e ja seguem o shell atual, mas ainda merecem roda
 - detalhes profundos finais de `producao` e `composicao`
 - refinamentos finais de relatorios detalhados e filtros avancados por relatorio
 - execucao completa da bateria automatizada no ambiente local de homologacao
-- fechamento operacional do reflexo de estoque das vendas com itens fisicos, que ainda precisa ser validado contra a base local antes da homologacao final
+- validacao funcional completa do reflexo de estoque das vendas com itens fisicos na base local de homologacao
 
 ## Principios operacionais definidos
 
@@ -201,6 +203,7 @@ A plataforma possui uma base inicial de testes de interface com `Playwright`, co
 - cadastro de item
 - entrada salva e confirmada
 - venda concluida
+- venda com item fisico reduzindo saldo em estoque
 - configuracao e publicacao do website
 
 Essa cobertura ainda e incremental, mas ja serve para detectar regressao visual e de fluxo nos principais caminhos do piloto.

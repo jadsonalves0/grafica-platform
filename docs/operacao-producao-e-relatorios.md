@@ -43,6 +43,8 @@ A tela de `Vendas` concentra o registro operacional da venda com itens:
 - descontos
 - totais
 - conclusao da venda
+- saida automatica de estoque para itens fisicos
+- bloqueio por saldo insuficiente quando estoque negativo estiver desabilitado
 - bloco final de sucesso com proxima acao
 - alerta de alteracoes nao salvas
 
@@ -60,6 +62,8 @@ Quando existir origem automatica, a tela deve deixar claro:
 - `Origem: Entrada`
 - `Origem: Pedido`
 - `Origem: Orcamento`
+
+Para vendas com itens, a origem deve apontar para a propria tela comercial da venda, sem parecer um lancamento manual generico.
 
 Lancamento manual continua existindo, mas como excecao operacional.
 
@@ -148,6 +152,7 @@ Os relatorios estao sendo consolidados para um mesmo padrao:
 - entrada confirmada com revisao final
 - movimentacao administrativa com motivo
 - producao com disponibilidade de material
+- venda fisica reduzindo saldo e gerando rastro em movimentacoes
 
 ### Financeiro
 
@@ -167,4 +172,4 @@ Na fase atual, os principais pontos ainda sujeitos a refinamento sao:
 - formularios longos de `vendas` e `financeiro`
 - rodada final de responsividade e acessibilidade nos fluxos mais densos
 - cobertura automatizada inicial de interface antes da homologacao ampla
-- validacao do reflexo de estoque das vendas fisicas na base local
+- validacao manual final do reflexo de estoque das vendas fisicas na base local de homologacao

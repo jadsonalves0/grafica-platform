@@ -145,6 +145,7 @@ type SaleCompletionState = {
   total: number;
   status: "PENDING" | "PAID" | "OVERDUE" | "CANCELED";
   itemCount: number;
+  stockUpdated: boolean;
 };
 
 const defaultState: SaleFormState = {
@@ -677,6 +678,7 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
           total: totals.net,
           status: result.data.status,
           itemCount: computedItems.length,
+          stockUpdated: computedItems.some((item) => item.product?.controlsStock),
         });
         allowNextNavigation();
         return;
@@ -714,7 +716,9 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
       <SectionCard title="Venda concluida" description="A operacao foi registrada com sucesso e ja esta disponivel na lista de vendas.">
         <div className="admin-page-stack">
           <Alert variant="success" title="Venda concluida com sucesso.">
-            O financeiro foi atualizado e os itens desta venda ficaram registrados no historico comercial.
+            {completion.stockUpdated
+              ? "O financeiro foi atualizado e o estoque dos itens fisicos ja foi refletido nesta venda."
+              : "O financeiro foi atualizado e os itens desta venda ficaram registrados no historico comercial."}
           </Alert>
 
           <div className="admin-card-grid">

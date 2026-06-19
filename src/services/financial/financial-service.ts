@@ -282,6 +282,7 @@ export class FinancialService extends BaseService {
       dueDate: normalized.dueDate,
       status: normalized.status,
       paidAt: normalized.paidAt,
+      updatedByUserId: tenantContext.userId,
       items: normalized.items,
     });
   }
@@ -308,6 +309,7 @@ export class FinancialService extends BaseService {
     return this.financialRepository.updateEntryStatus(entryId, {
       status: input.status,
       paidAt: input.status === "PAID" ? parseOptionalDate(input.paidAt) ?? new Date() : null,
+      updatedByUserId: tenantContext.userId,
     });
   }
 

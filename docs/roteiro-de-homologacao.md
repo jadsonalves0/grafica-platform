@@ -29,7 +29,8 @@ Jornadas automatizadas iniciais:
 2. cadastro de item
 3. entrada salva e confirmada
 4. venda concluida
-5. configuracao e publicacao do website
+5. venda fisica reduzindo saldo em estoque
+6. configuracao e publicacao do website
 
 Observacao da bateria automatizada:
 
@@ -170,9 +171,12 @@ Se a bateria falhar logo no primeiro login, confirmar antes de tudo:
    - total
    - situacao financeira
    - quantidade de itens
-15. abrir a venda criada
-16. editar a venda sem perder os itens
-17. validar alerta ao tentar sair com alteracoes nao salvas
+15. repetir com item fisico em estoque
+16. validar queda do saldo em `Estoque > Posicao de estoque`
+17. validar rastro da saida em `Estoque > Movimentacoes`
+18. abrir a venda criada
+19. editar a venda sem perder os itens
+20. validar alerta ao tentar sair com alteracoes nao salvas
 
 ## Bloco 8. Estoque e entradas
 
@@ -276,7 +280,7 @@ Se a bateria falhar logo no primeiro login, confirmar antes de tudo:
 9. exportar CSV
 10. validar feedback de exportacao
 
-## Pendencia bloqueadora a observar
+## Ponto critico a observar
 
 Antes de considerar a homologacao operacional do painel como concluida, validar especificamente o reflexo das `vendas com itens fisicos` sobre:
 
@@ -285,7 +289,7 @@ Antes de considerar a homologacao operacional do painel como concluida, validar 
 - custo
 - financeiro
 
-Se a base local ainda nao refletir saida de estoque na venda, tratar isso como bloqueador real e nao como ajuste visual.
+Se algum desses quatro pontos falhar na base local, tratar isso como bloqueador real e nao como ajuste visual.
 
 ## Bloco 14. Mobile e acessibilidade
 

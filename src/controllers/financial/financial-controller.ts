@@ -402,6 +402,7 @@ function mapEntryDetail(entry: {
 }
 
 function buildOrigin(entry: {
+  id: string;
   originType: "MANUAL" | "ENTRY" | "PRODUCTION" | "ORDER" | "QUOTE" | "WEBSITE";
   inventoryEntryId?: string | null;
   inventoryEntry?: { documentNumber: string } | null;
@@ -434,8 +435,8 @@ function buildOrigin(entry: {
 
   if (entry.items?.length) {
     return {
-      label: "Venda do balcao",
-      href: null,
+      label: `Venda #${entry.id.slice(0, 8)}`,
+      href: `/admin/vendas/${entry.id}`,
     };
   }
 
