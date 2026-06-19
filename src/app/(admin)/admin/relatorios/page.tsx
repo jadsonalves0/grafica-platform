@@ -1,7 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+
+import {
+  Alert,
+  EmptyState,
+  MetricCard,
+  PageHeader,
+  SectionCard,
+  Skeleton,
+  Tabs,
+} from "@/components/admin/ui";
 
 type CustomerRow = {
   id: string;
@@ -46,7 +55,7 @@ type ProductRow = {
   sku?: string | null;
   barcode?: string | null;
   unit: string;
-  type: "RAW_MATERIAL" | "SERVICE" | "FINISHED_PRODUCT";
+  type: "RAW_MATERIAL" | "SERVICE" | "FINISHED_PRODUCT" | "RESALE";
   currentStock: number;
   minimumStock: number;
   costPrice: number;
@@ -129,6 +138,7 @@ type ReportData = {
 };
 
 export default function RelatoriosPage() {
+  const [activeTab, setActiveTab] = useState("comercial");
   const [data, setData] = useState<ReportData>({
     customers: [],
     quotes: [],
@@ -230,7 +240,7 @@ export default function RelatoriosPage() {
       }
     }
 
-    loadReports();
+    void loadReports();
 
     return () => controller.abort();
   }, []);
@@ -257,273 +267,208 @@ export default function RelatoriosPage() {
     };
   }, [data.entries, data.orders, data.products, data.quotes]);
 
-  const lowStockItems = useMemo(
-    () => data.products.filter((product) => product.currentStock <= product.minimumStock).slice(0, 6),
-    [data.products],
-  );
-
-  const recentOrders = useMemo(() => data.orders.slice(0, 6), [data.orders]);
-  const recentFinancialEntries = useMemo(() => data.entries.slice(0, 6), [data.entries]);
-  const recentProductions = useMemo(() => data.productions.slice(0, 6), [data.productions]);
-  const recentLeads = useMemo(() => data.leads.slice(0, 6), [data.leads]);
+  const tabs = [
+    { id: "comercial", label: "Comercial" },
+    { id: "estoque", label: "Estoque" },
+    { id: "producao", label: "Producao" },
+    { id: "financeiro", label: "Financeiro" },
+    { id: "leads", label: "Leads" },
+  ];
 
   return (
-    <main style={{ padding: 32, display: "grid", gap: 24 }}>
-      <section style={heroPanelStyle}>
-        <div style={{ display: "grid", gap: 10, maxWidth: 840 }}>
-          <p style={eyebrowStyle}>Gestao e auditoria</p>
-          <h1 style={{ margin: 0, fontFamily: "var(--font-heading)", fontSize: 46 }}>
-            Relatorios
-          </h1>
-          <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.7, fontSize: 18 }}>
-            Consolide comercial, operacao, producao, estoque, financeiro e leads em um unico painel, com exportacao rapida para analise externa.
-          </p>
-        </div>
+    <main className="admin-page-stack">
+      <PageHeader
+        title="Central de relatorios"
+        description="Consulte os principais recortes operacionais por area e exporte rapidamente os dados."
+      />
 
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <Link href="/dashboard" style={secondaryButtonStyle}>
-            Voltar para dashboard
-          </Link>
-          <button type="button" onClick={() => exportCsv("clientes", data.customers)} style={primaryButtonStyle}>
-            Exportar base de clientes
-          </button>
-        </div>
+      <section className="admin-card-grid">
+        <MetricCard label="Orcamentos aprovados" value={String(summary.approvedQuotes)} />
+        <MetricCard label="Pedidos em aberto" value={String(summary.openOrders)} />
+        <MetricCard label="Itens abaixo do minimo" value={String(summary.lowStock)} />
+        <MetricCard label="Receita pendente" value={formatCurrency(summary.pendingIncome)} />
+        <MetricCard label="Despesa vencida" value={formatCurrency(summary.overdueExpense)} />
+        <MetricCard label="Vendas com itens" value={String(summary.itemizedSales)} />
       </section>
 
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-          gap: 16,
-        }}
+      {errorMessage ? (
+        <Alert variant="danger" title="Nao foi possivel consolidar os relatorios">
+          {errorMessage}
+        </Alert>
+      ) : null}
+
+      <SectionCard
+        title="Categorias de relatorio"
       >
-        <SummaryCard label="Orcamentos aprovados" value={String(summary.approvedQuotes)} />
-        <SummaryCard label="Pedidos em aberto" value={String(summary.openOrders)} />
-        <SummaryCard label="Itens com estoque baixo" value={String(summary.lowStock)} />
-        <SummaryCard label="Receita pendente" value={formatCurrency(summary.pendingIncome)} accent />
-        <SummaryCard label="Despesa vencida" value={formatCurrency(summary.overdueExpense)} />
-        <SummaryCard label="Vendas avulsas lancadas" value={String(summary.itemizedSales)} />
-      </section>
+        <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
 
-      {errorMessage ? <p style={{ ...feedbackStyle, ...errorStyle }}>{errorMessage}</p> : null}
+        {isLoading ? (
+          <Skeleton lines={8} />
+        ) : (
+          <>
+            {activeTab === "comercial" ? (
+              <div className="admin-page-stack">
+                <ReportSection
+                  title="Orcamentos e pedidos"
+                  description="Carteira comercial recente com valor, cliente e situacao."
+                  actionLabel="Exportar comercial"
+                  onAction={() =>
+                    exportCsv("comercial", [
+                      ...data.quotes.map((quote) => ({ bloco: "orcamento", ...quote })),
+                      ...data.orders.map((order) => ({ bloco: "pedido", ...order })),
+                    ])
+                  }
+                  rows={[
+                    ...data.quotes.slice(0, 5).map((quote) => ({
+                      title: quote.code,
+                      subtitle: `${quote.customerName} | ${formatQuoteStatus(quote.status)}`,
+                      value: formatCurrency(quote.totalAmount),
+                      meta: formatDate(quote.issueDate),
+                    })),
+                    ...data.orders.slice(0, 5).map((order) => ({
+                      title: order.code,
+                      subtitle: `${order.customerName} | ${formatOrderStatus(order.status)}`,
+                      value: formatCurrency(order.totalAmount),
+                      meta: formatDate(order.createdAt),
+                    })),
+                  ]}
+                  emptyText="Nenhum dado comercial encontrado."
+                />
+              </div>
+            ) : null}
 
-      {isLoading ? (
-        <section style={loadingPanelStyle}>
-          <strong>Carregando relatorios...</strong>
-          <span style={{ color: "var(--muted)" }}>Estamos reunindo os dados de todos os modulos.</span>
-        </section>
-      ) : (
-        <>
-          <section style={sectionStyle}>
-            <SectionHeader
-              title="Comercial"
-              description="Leads, clientes, orcamentos e pedidos para acompanhar conversao e carteira."
-              actionLabel="Exportar comercial"
-              onAction={() =>
-                exportCsv("comercial", [
-                  ...data.leads.map((lead) => ({ origem: "lead", ...lead })),
-                  ...data.customers.map((customer) => ({ origem: "cliente", ...customer })),
-                  ...data.quotes.map((quote) => ({ origem: "orcamento", ...quote })),
-                  ...data.orders.map((order) => ({ origem: "pedido", ...order })),
-                ])
-              }
-            />
-
-            <div style={gridTwoColumnsStyle}>
-              <ReportCard
-                title="Pedidos recentes"
-                rows={recentOrders}
-                emptyText="Nenhum pedido registrado."
-                renderRow={(order) => (
-                  <div style={rowStyle}>
-                    <div>
-                      <strong>{order.code}</strong>
-                      <span style={rowMetaStyle}>{order.customerName}</span>
-                    </div>
-                    <div>
-                      <strong>{formatCurrency(order.totalAmount)}</strong>
-                      <span style={rowMetaStyle}>{formatOrderStatus(order.status)} | {formatProductionStatus(order.productionStatus)}</span>
-                    </div>
-                  </div>
-                )}
+            {activeTab === "estoque" ? (
+              <ReportSection
+                title="Posicao e movimentacoes"
+                description="Itens com risco de ruptura e movimentacoes recentes."
+                actionLabel="Exportar estoque"
+                onAction={() =>
+                  exportCsv("estoque", [
+                    ...data.products.map((product) => ({ bloco: "item", ...product })),
+                    ...data.movements.map((movement) => ({ bloco: "movimentacao", ...movement })),
+                  ])
+                }
+                rows={[
+                  ...data.products
+                    .filter((product) => product.currentStock <= product.minimumStock)
+                    .slice(0, 5)
+                    .map((product) => ({
+                      title: product.name,
+                      subtitle: `${formatType(product.type)} | minimo ${formatNumber(product.minimumStock)}`,
+                      value: formatNumber(product.currentStock),
+                      meta: formatCurrency(product.costPrice),
+                    })),
+                  ...data.movements.slice(0, 5).map((movement) => ({
+                    title: movement.productName,
+                    subtitle: movement.movementType,
+                    value: formatNumber(movement.quantity),
+                    meta: formatDate(movement.createdAt),
+                  })),
+                ]}
+                emptyText="Nenhum dado de estoque encontrado."
               />
+            ) : null}
 
-              <ReportCard
-                title="Leads recentes"
-                rows={recentLeads}
-                emptyText="Nenhum lead recebido ainda."
-                renderRow={(lead) => (
-                  <div style={rowStyle}>
-                    <div>
-                      <strong>{lead.name}</strong>
-                      <span style={rowMetaStyle}>{lead.requestedService || lead.subject || "Contato comercial"}</span>
-                    </div>
-                    <div>
-                      <strong>{formatLeadStatus(lead.status)}</strong>
-                      <span style={rowMetaStyle}>{formatDate(lead.createdAt)}</span>
-                    </div>
-                  </div>
-                )}
-              />
-            </div>
-          </section>
-
-          <section style={sectionStyle}>
-            <SectionHeader
-              title="Operacao e producao"
-              description="Itens com risco de ruptura, movimentacoes recentes e lotes produzidos."
-              actionLabel="Exportar operacao"
-              onAction={() =>
-                exportCsv("operacao", [
-                  ...data.products.map((product) => ({ bloco: "item", ...product })),
-                  ...data.movements.map((movement) => ({ bloco: "movimentacao", ...movement })),
-                  ...data.productions.map((production) => ({ bloco: "producao", ...production })),
-                ])
-              }
-            />
-
-            <div style={gridTwoColumnsStyle}>
-              <ReportCard
-                title="Estoque em reposicao"
-                rows={lowStockItems}
-                emptyText="Nenhum item abaixo do minimo."
-                renderRow={(product) => (
-                  <div style={rowStyle}>
-                    <div>
-                      <strong>{product.name}</strong>
-                      <span style={rowMetaStyle}>{formatType(product.type)} | {product.unit}</span>
-                    </div>
-                    <div>
-                      <strong>{formatNumber(product.currentStock)}</strong>
-                      <span style={rowMetaStyle}>Minimo {formatNumber(product.minimumStock)}</span>
-                    </div>
-                  </div>
-                )}
-              />
-
-              <ReportCard
-                title="Producoes recentes"
-                rows={recentProductions}
+            {activeTab === "producao" ? (
+              <ReportSection
+                title="Producoes"
+                description="Ultimos apontamentos de producao e custo unitario gerado."
+                actionLabel="Exportar producao"
+                onAction={() => exportCsv("producao", data.productions)}
+                rows={data.productions.slice(0, 8).map((production) => ({
+                  title: production.productName,
+                  subtitle: `${production.consumptions.length} materiais consumidos`,
+                  value: formatCurrency(production.totalCost),
+                  meta: `${formatNumber(production.quantityProduced)} un. | ${formatDate(production.createdAt)}`,
+                }))}
                 emptyText="Nenhuma producao registrada."
-                renderRow={(production) => (
-                  <div style={rowStyle}>
-                    <div>
-                      <strong>{production.productName}</strong>
-                      <span style={rowMetaStyle}>{production.consumptions.length} materiais consumidos</span>
-                    </div>
-                    <div>
-                      <strong>{formatNumber(production.quantityProduced)}</strong>
-                      <span style={rowMetaStyle}>{formatCurrency(production.totalCost)}</span>
-                    </div>
-                  </div>
-                )}
               />
-            </div>
-          </section>
+            ) : null}
 
-          <section style={sectionStyle}>
-            <SectionHeader
-              title="Financeiro"
-              description="Fluxo de caixa com receitas, despesas e vendas avulsas que nasceram do proprio sistema."
-              actionLabel="Exportar financeiro"
-              onAction={() => exportCsv("financeiro", data.entries)}
-            />
+            {activeTab === "financeiro" ? (
+              <ReportSection
+                title="Lancamentos financeiros"
+                description="Receitas e despesas recentes com status e categoria."
+                actionLabel="Exportar financeiro"
+                onAction={() => exportCsv("financeiro", data.entries)}
+                rows={data.entries.slice(0, 10).map((entry) => ({
+                  title: entry.description || "Lancamento financeiro",
+                  subtitle: `${entry.accountName} | ${entry.category}`,
+                  value: formatCurrency(entry.amount),
+                  meta: `${formatEntryType(entry.entryType)} | ${formatFinancialStatus(entry.status)}`,
+                }))}
+                emptyText="Nenhum lancamento financeiro encontrado."
+              />
+            ) : null}
 
-            <ReportCard
-              title="Lancamentos recentes"
-              rows={recentFinancialEntries}
-              emptyText="Nenhum lancamento registrado."
-              renderRow={(entry) => (
-                <div style={rowStyle}>
-                  <div>
-                    <strong>{entry.description}</strong>
-                    <span style={rowMetaStyle}>{entry.accountName} | {entry.category}</span>
-                  </div>
-                  <div>
-                    <strong>{formatCurrency(entry.amount)}</strong>
-                    <span style={rowMetaStyle}>
-                      {formatEntryType(entry.entryType)} | {formatFinancialStatus(entry.status)}
-                      {entry.itemCount ? ` | ${entry.itemCount} item(ns)` : ""}
-                    </span>
-                  </div>
-                </div>
-              )}
-            />
-          </section>
-        </>
-      )}
+            {activeTab === "leads" ? (
+              <ReportSection
+                title="Leads do site"
+                description="Leads mais recentes para acompanhamento de conversao."
+                actionLabel="Exportar leads"
+                onAction={() => exportCsv("leads", data.leads)}
+                rows={data.leads.slice(0, 10).map((lead) => ({
+                  title: lead.name,
+                  subtitle: lead.requestedService || lead.subject || "Contato geral",
+                  value: formatLeadStatus(lead.status),
+                  meta: formatDate(lead.createdAt),
+                }))}
+                emptyText="Nenhum lead recebido."
+              />
+            ) : null}
+          </>
+        )}
+      </SectionCard>
     </main>
   );
 }
 
-function SectionHeader({
+function ReportSection({
   title,
   description,
   actionLabel,
   onAction,
-}: Readonly<{ title: string; description: string; actionLabel: string; onAction: () => void }>) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        gap: 16,
-        flexWrap: "wrap",
-      }}
-    >
-      <div>
-        <h2 style={{ margin: 0 }}>{title}</h2>
-        <p style={{ margin: "6px 0 0", color: "var(--muted)", lineHeight: 1.6 }}>{description}</p>
-      </div>
-
-      <button type="button" onClick={onAction} style={secondaryButtonStyle}>
-        {actionLabel}
-      </button>
-    </div>
-  );
-}
-
-function ReportCard<T>({
-  title,
   rows,
   emptyText,
-  renderRow,
 }: Readonly<{
   title: string;
-  rows: T[];
+  description: string;
+  actionLabel: string;
+  onAction: () => void;
+  rows: Array<{ title: string; subtitle: string; value: string; meta: string }>;
   emptyText: string;
-  renderRow: (row: T) => React.ReactNode;
 }>) {
   return (
-    <article style={reportCardStyle}>
-      <strong style={{ fontSize: 20 }}>{title}</strong>
-      {rows.length === 0 ? (
-        <div style={emptyMiniStateStyle}>{emptyText}</div>
-      ) : (
-        <div style={{ display: "grid", gap: 10 }}>{rows.map((row, index) => <div key={index}>{renderRow(row)}</div>)}</div>
-      )}
-    </article>
-  );
-}
-
-function SummaryCard({
-  label,
-  value,
-  accent,
-}: Readonly<{ label: string; value: string; accent?: boolean }>) {
-  return (
-    <article
-      style={{
-        padding: 20,
-        borderRadius: 22,
-        background: accent ? "rgba(43, 110, 82, 0.12)" : "rgba(255,255,255,0.74)",
-        border: "1px solid rgba(232, 217, 202, 0.9)",
-      }}
+    <SectionCard
+      title={title}
+      description={description}
+      actions={
+        <button type="button" className="admin-button admin-button--secondary" onClick={onAction}>
+          {actionLabel}
+        </button>
+      }
     >
-      <p style={cardEyebrowStyle(accent)}>{label}</p>
-      <h2 style={{ margin: "10px 0 0", fontSize: 34 }}>{value}</h2>
-    </article>
+      {rows.length === 0 ? (
+        <EmptyState title="Sem resultados" description={emptyText} />
+      ) : (
+        <div className="admin-list-stack">
+          {rows.map((row, index) => (
+            <article key={`${row.title}-${index}`} className="admin-list-card">
+              <div className="admin-list-card__header">
+                <div className="admin-list-card__heading">
+                  <strong className="admin-list-card__title">{row.title}</strong>
+                  <span className="admin-list-card__subtitle">{row.subtitle}</span>
+                </div>
+                <div className="admin-list-card__heading" style={{ textAlign: "right" }}>
+                  <strong className="admin-list-card__title">{row.value}</strong>
+                  <span className="admin-list-card__subtitle">{row.meta}</span>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </SectionCard>
   );
 }
 
@@ -592,6 +537,7 @@ function formatType(type: string) {
     RAW_MATERIAL: "Materia-prima",
     SERVICE: "Servico",
     FINISHED_PRODUCT: "Produto final",
+    RESALE: "Revenda",
   };
   return labels[type] ?? type;
 }
@@ -602,17 +548,6 @@ function formatOrderStatus(status: string) {
     IN_PROGRESS: "Em andamento",
     COMPLETED: "Concluido",
     CANCELED: "Cancelado",
-  };
-  return labels[status] ?? status;
-}
-
-function formatProductionStatus(status: string) {
-  const labels: Record<string, string> = {
-    PENDING: "Pendente",
-    IN_PRODUCTION: "Em producao",
-    WAITING_APPROVAL: "Aguardando aprovacao",
-    READY: "Pronto",
-    DELIVERED: "Entregue",
   };
   return labels[status] ?? status;
 }
@@ -641,137 +576,13 @@ function formatEntryType(type: string) {
   return type === "INCOME" ? "Receita" : "Despesa";
 }
 
-const heroPanelStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: 16,
-  flexWrap: "wrap",
-  padding: 28,
-  borderRadius: 28,
-  background: "linear-gradient(135deg, rgba(255,250,244,0.96) 0%, rgba(244,232,217,0.9) 100%)",
-  border: "1px solid var(--border)",
-  boxShadow: "0 18px 50px rgba(77, 39, 22, 0.08)",
-} as const;
-
-const sectionStyle = {
-  display: "grid",
-  gap: 18,
-  padding: 24,
-  borderRadius: 24,
-  border: "1px solid var(--border)",
-  background: "var(--surface)",
-} as const;
-
-const reportCardStyle = {
-  display: "grid",
-  gap: 14,
-  padding: 20,
-  borderRadius: 20,
-  border: "1px solid rgba(232, 217, 202, 0.9)",
-  background: "rgba(255,255,255,0.78)",
-} as const;
-
-const gridTwoColumnsStyle = {
-  display: "grid",
-  gap: 18,
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-} as const;
-
-const rowStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 16,
-  padding: "12px 14px",
-  borderRadius: 14,
-  background: "rgba(245, 239, 231, 0.85)",
-} as const;
-
-const rowMetaStyle = {
-  display: "block",
-  marginTop: 6,
-  color: "var(--muted)",
-  lineHeight: 1.5,
-} as const;
-
-const emptyMiniStateStyle = {
-  padding: 18,
-  borderRadius: 16,
-  border: "1px dashed var(--border)",
-  background: "rgba(255,255,255,0.62)",
-  color: "var(--muted)",
-  lineHeight: 1.6,
-} as const;
-
-const loadingPanelStyle = {
-  display: "grid",
-  gap: 10,
-  placeItems: "center",
-  padding: 42,
-  borderRadius: 24,
-  border: "1px dashed var(--border)",
-  background: "rgba(255,255,255,0.62)",
-} as const;
-
-const eyebrowStyle = {
-  margin: 0,
-  color: "var(--primary)",
-  textTransform: "uppercase",
-  letterSpacing: "0.14em",
-  fontSize: 12,
-  fontWeight: 700,
-} as const;
-
-function cardEyebrowStyle(accent?: boolean) {
-  return {
-    margin: 0,
-    color: accent ? "#245844" : "var(--primary)",
-    textTransform: "uppercase",
-    letterSpacing: "0.12em",
-    fontSize: 12,
-    fontWeight: 700,
-  } as const;
+function formatQuoteStatus(status: string) {
+  const labels: Record<string, string> = {
+    DRAFT: "Rascunho",
+    SENT: "Enviado",
+    APPROVED: "Aprovado",
+    REJECTED: "Recusado",
+    EXPIRED: "Expirado",
+  };
+  return labels[status] ?? status;
 }
-
-const primaryButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: 0,
-  background: "var(--primary)",
-  color: "#fff",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  cursor: "pointer",
-} as const;
-
-const secondaryButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  color: "inherit",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  cursor: "pointer",
-} as const;
-
-const feedbackStyle = {
-  margin: 0,
-  padding: "14px 16px",
-  borderRadius: 14,
-  lineHeight: 1.6,
-} as const;
-
-const errorStyle = {
-  background: "rgba(181, 66, 31, 0.12)",
-  color: "var(--primary)",
-} as const;

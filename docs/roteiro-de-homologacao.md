@@ -2,99 +2,281 @@
 
 ## Objetivo
 
-Validar o fluxo completo da plataforma com foco no piloto da `Ponto Print`.
+Validar o fluxo operacional da `Grafica Platform` com foco no piloto da `Ponto Print`, considerando a interface atual do painel administrativo e do website.
 
-## Bloco 1. Acesso
+## Preparacao
+
+Antes de iniciar:
+
+1. confirmar que o sistema sobe sem erro
+2. validar login com usuario administrador
+3. repetir depois a navegacao com pelo menos um perfil operacional
+4. testar sempre em desktop e em mobile
+
+## Validacao automatizada
+
+Antes da homologacao manual completa, rodar a bateria inicial de interface:
+
+1. instalar dependencias do projeto
+2. garantir que o banco esteja com seed valido para `ponto-print`
+3. executar `npx playwright install chromium`
+4. executar `npm run test:e2e`
+5. abrir o relatorio HTML quando houver falha
+
+Jornadas automatizadas iniciais:
+
+1. login e shell principal
+2. cadastro de item
+3. entrada salva e confirmada
+4. venda concluida
+5. configuracao e publicacao do website
+
+Observacao da bateria automatizada:
+
+- a jornada `login e shell principal` valida o acesso pela tela real de login
+- as demais jornadas reutilizam autenticacao automatizada por API para reduzir fragilidade e isolar melhor o fluxo que esta sendo testado
+- se a jornada de login falhar, tratar esse erro antes de interpretar as demais falhas
+
+Se a bateria falhar logo no primeiro login, confirmar antes de tudo:
+
+- seed aplicado
+- credenciais de `admin@pontoprint.local`
+- empresa `ponto-print`
+- servidor respondendo em `http://127.0.0.1:3000`
+- tela de login saindo de `Preparando...` para `Entrar` antes da submissao
+
+## Bloco 1. Navegacao e shell
 
 1. entrar no login
-2. validar dashboard
-3. validar menu lateral
-4. validar permissao de acesso por modulo
+2. abrir o dashboard
+3. validar `Início` no menu
+4. validar breadcrumb na barra superior
+5. recolher e expandir o menu no desktop
+   - validar controle integrado na propria sidebar
+   - validar largura expandida mais compacta
+   - validar largura recolhida apenas com icones dos modulos
+6. abrir e fechar o `drawer` de menu no celular
+7. validar que o menu recolhido continua exibindo atalhos compactos para os modulos
+8. validar que o `drawer` mobile abre expandido, mesmo que o menu desktop tenha sido recolhido antes
+9. validar item ativo no menu
+10. validar que a topbar nao repete o titulo principal da pagina
+11. validar que nao existe botao circular `Menu` no desktop
+12. validar saida da sessao
+13. validar menu diferente por perfil:
+   - administrador
+   - gerente
+   - comercial
+   - producao
+   - financeiro
 
-## Bloco 2. Catalogo e clientes
+## Bloco 2. Estados globais
 
-1. cadastrar item com SKU
-2. cadastrar item com `EAN/GTIN`
-3. buscar item por nome
-4. buscar item por SKU
-5. buscar item por EAN/GTIN
-6. editar item
-7. cadastrar cliente
-8. editar cliente
-9. inativar cliente
+1. validar paginas com carregamento visivel
+2. validar estado vazio em pelo menos:
+   - clientes
+   - orcamentos
+   - pedidos
+   - vendas
+   - entradas
+3. validar mensagem de erro com orientacao de correcao
+4. validar que formularios mantem dados digitados em erro
+5. validar que botoes de envio entram em estado de carregamento
+6. validar bloqueio de duplo clique nas acoes criticas
 
-## Bloco 3. Orcamento
+## Bloco 3. Clientes
 
-1. criar orcamento
-2. pesquisar cliente por busca
-3. pesquisar item do catalogo por nome ou SKU
-4. selecionar item e conferir preenchimento automatico
-5. ajustar descricao manualmente
-6. salvar
-7. editar
-8. aprovar proposta
+1. abrir `Cadastros > Clientes`
+2. buscar cliente por nome
+3. filtrar ativos e inativos
+4. limpar filtros
+5. cadastrar cliente
+6. validar foco no primeiro erro quando houver campo invalido
+7. editar cliente
+8. validar retorno para a lista com feedback
+9. tentar excluir cliente com filhos
+10. validar mensagem orientando inativacao
+11. inativar cliente
+12. reativar cliente
 
-## Bloco 4. Pedido
+## Bloco 4. Itens e grupos de itens
 
-1. criar pedido manual
-2. pesquisar cliente
-3. pesquisar item catalogado
-4. salvar pedido manual
-5. criar pedido a partir de orcamento aprovado
-6. alterar status do pedido
-7. alterar status de producao
+1. abrir `Cadastros > Grupos de itens`
+2. cadastrar grupo
+3. editar grupo
+4. inativar grupo
+5. abrir `Cadastros > Itens`
+6. buscar item por nome
+7. buscar item por SKU
+8. buscar item por EAN/GTIN
+9. filtrar por grupo
+10. cadastrar item
+11. validar tipo `servico` sem controle de estoque
+12. validar secoes recolhiveis do formulario
+13. editar item
+14. revisar historico de custo e preco
 
-## Bloco 5. Estoque
+## Bloco 5. Orcamentos
 
-1. registrar entrada
-2. registrar saida
-3. registrar ajuste
-4. buscar item por nome, SKU ou EAN/GTIN
-5. validar saldo atualizado
-6. abrir movimentacao a partir de dois itens diferentes e confirmar que o item corrente troca corretamente
-7. abrir composicao do produto final
-8. salvar ficha tecnica com materias-primas
-9. apontar producao e conferir baixa dos materiais e entrada do produto final
+1. abrir `Vendas > Orcamentos`
+2. buscar por codigo ou cliente
+3. filtrar por status
+4. criar orcamento
+5. pesquisar cliente por busca
+6. pesquisar item do catalogo por nome, SKU ou EAN
+7. selecionar item e conferir preenchimento automatico
+8. ajustar descricao manualmente
+9. validar desconto
+10. validar resumo lateral com subtotal, desconto e total
+11. salvar
+12. editar
+13. aprovar proposta
+14. validar confirmacao de exclusao
 
-## Bloco 6. Financeiro
+## Bloco 6. Pedidos
 
-1. cadastrar conta financeira
-2. cadastrar lancamento
-3. vincular cliente
-4. vincular pedido
-5. vincular orcamento
-6. alterar status financeiro
+1. abrir `Vendas > Pedidos`
+2. validar que o titulo aparece apenas no `PageHeader`
+3. validar que indicadores, filtros e pelo menos parte da listagem aparecem na primeira dobra
+4. buscar por codigo ou cliente
+5. filtrar por status comercial
+6. filtrar por producao
+7. criar pedido manual
+8. cadastrar cliente rapido sem perder o pedido
+9. criar pedido a partir de orcamento aprovado
+10. editar entrega e observacoes
+11. alterar status comercial
+12. alterar status de producao
+13. validar resumo lateral com origem e total previsto
+14. validar orientacao da proxima acao apos salvar
+
+## Bloco 7. Vendas
+
+1. abrir `Vendas > Vendas`
+2. criar venda
+3. pesquisar item por nome, SKU ou EAN
+4. adicionar mais de um item
+5. alterar quantidade sem perder o carrinho
+6. testar consumidor nao identificado
+7. testar cadastro rapido de cliente
+8. validar desconto no item
+9. validar total da venda
+10. concluir venda
+11. validar mensagem de sucesso
+12. validar retorno ou proximo passo
+13. abrir a venda criada
+
+## Bloco 8. Estoque e entradas
+
+1. abrir `Estoque > Posição de estoque`
+2. validar leitura de saldo
+3. abrir `Estoque > Entradas`
+4. criar entrada
+5. avancar entre:
+   - Documento
+   - Itens
+   - Financeiro e revisao
+6. voltar de etapa sem perder dados
+7. confirmar entrada
+8. cancelar entrada confirmada
+9. abrir `Estoque > Movimentações`
+10. registrar ajuste administrativo
+11. registrar saida administrativa
+12. validar motivo obrigatorio
+13. validar troca correta do item corrente ao abrir movimentacao por itens diferentes
+
+## Bloco 9. Producao
+
+1. abrir `Produção`
+2. validar listas de:
+   - pendentes
+   - em andamento
+   - concluidas
+3. abrir item com composicao
+4. revisar ficha tecnica
+5. apontar producao
+6. validar mensagem clara quando faltar material
+7. concluir producao
+8. validar custo, consumo e entrada do produto final
+
+## Bloco 10. Financeiro
+
+1. abrir `Financeiro`
+2. validar blocos:
+   - a receber
+   - a pagar
+   - caixa e bancos
+3. abrir receita pendente
+4. abrir despesa pendente
+5. validar origem clicavel quando houver:
+   - venda
+   - entrada
+6. cadastrar conta financeira
 7. cadastrar categoria de receita
 8. cadastrar categoria de despesa
-9. registrar venda avulsa com itens
-10. registrar despesa avulsa sem itens
+9. criar lancamento manual simples
+10. validar que venda continua sendo criada em `Vendas`, nao no financeiro
 
-## Bloco 7. Site e leads
+## Bloco 11. Website e leads
 
-1. configurar texto principal do site
-2. cadastrar servico com imagem
-3. editar servico existente
-4. inativar banner
-5. publicar site
-6. abrir preview por `slug`
-7. enviar lead
-8. converter lead em cliente
-9. gerar orcamento a partir do lead
+1. abrir `Website`
+2. validar etapas:
+   - Identidade
+   - Página inicial
+   - Serviços
+   - Contato
+   - Revisar e publicar
+3. salvar rascunho
+4. validar aviso de alteracoes nao publicadas
+5. validar checklist antes da publicacao
+6. abrir previa desktop
+7. abrir previa mobile
+8. publicar
+9. abrir o site publico pelo `slug`
+10. enviar lead
+11. abrir `Website > Leads do site`
+12. converter lead em cliente
+13. gerar orcamento a partir do lead
 
-## Bloco 8. Cenarios de risco
+## Bloco 12. Relatorios
 
-1. tentar duplicar cliente por e-mail
-2. tentar duplicar cliente por documento
-3. tentar cadastrar item com SKU repetido
-4. tentar cadastrar item com EAN/GTIN repetido
-5. tentar excluir cliente com filhos
-6. tentar movimentar estoque para saldo negativo
+1. abrir `Relatórios`
+2. validar categorias de relatorio
+3. abrir um relatorio comercial
+4. aplicar periodo
+5. aplicar filtro
+6. limpar filtros
+7. validar filtros na URL
+8. voltar para a lista e conferir preservacao
+9. exportar CSV
+10. validar feedback de exportacao
+
+## Bloco 13. Mobile e acessibilidade
+
+1. validar layout em `360px`
+2. validar ausencia de rolagem horizontal indevida
+3. validar listagem de `Pedidos` sem quebra horizontal
+4. validar formularios em uma coluna no celular
+5. validar navegacao por teclado no desktop
+6. validar foco visivel
+7. validar dialogs com foco ao abrir
+8. validar retorno de foco ao fechar dialogs
+9. validar tabs navegaveis
+10. validar drawer navegavel
+11. validar areas de toque adequadas
+
+## Bloco 14. Permissoes
+
+1. validar menu por perfil
+2. validar rota bloqueada para perfil sem acesso
+3. validar que ocultar menu nao substitui autorizacao do backend
+4. validar acoes visiveis compativeis com o perfil
+5. validar acoes bloqueadas quando o backend negar
 
 ## Resultado esperado
 
-Ao final dessa rodada, a plataforma deve estar apta para:
+Ao final da rodada, a plataforma deve estar pronta para:
 
-- operacao assistida do piloto
-- refinamento visual
-- priorizacao de backlog
-- preparacao de deploy de homologacao
+- homologacao funcional assistida com a `Ponto Print`
+- identificacao de ajustes finos reais de operacao
+- consolidacao dos testes de interface
+- preparacao de ambiente de homologacao mais estavel

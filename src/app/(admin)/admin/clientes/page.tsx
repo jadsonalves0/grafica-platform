@@ -1,8 +1,24 @@
 "use client";
 
 import Link from "next/link";
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+
+import {
+  Alert,
+  EmptyState,
+  FilterBar,
+  MetricCard,
+  PageHeader,
+  SearchField,
+  SectionCard,
+  Skeleton,
+  StatusBadge,
+} from "@/components/admin/ui";
 
 type CustomerListItem = {
   id: string;
@@ -23,13 +39,53 @@ type CustomersResponse = {
   data?: CustomerListItem[];
 };
 
+type StatusFilter = "all" | "active" | "inactive";
+
+function readStatusFilter(value: string | null): StatusFilter {
+  return value === "active" || value === "inactive" ? value : "all";
+}
+
 export default function ClientesPage() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("search") ?? "");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
+    readStatusFilter(searchParams.get("status")),
+  );
   const [customers, setCustomers] = useState<CustomerListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const feedbackCode = searchParams.get("feedback");
+
+  useEffect(() => {
+    setSearch(searchParams.get("search") ?? "");
+    setStatusFilter(readStatusFilter(searchParams.get("status")));
+  }, [searchParams]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (search.trim()) {
+      params.set("search", search.trim());
+    } else {
+      params.delete("search");
+    }
+
+    if (statusFilter === "all") {
+      params.delete("status");
+    } else {
+      params.set("status", statusFilter);
+    }
+
+    const nextQuery = params.toString();
+    const currentQuery = searchParams.toString();
+
+    if (nextQuery !== currentQuery) {
+      router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, {
+        scroll: false,
+      });
+    }
+  }, [pathname, router, search, searchParams, statusFilter]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -39,17 +95,24 @@ export default function ClientesPage() {
       setErrorMessage(null);
 
       try {
-        const query = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : "";
+        const query = search.trim()
+          ? `?search=${encodeURIComponent(search.trim())}`
+          : "";
         const separator = query ? "&" : "?";
-        const response = await fetch(`/api/customers${query}${separator}includeInactive=true`, {
-          signal: controller.signal,
-          cache: "no-store",
-        });
+        const response = await fetch(
+          `/api/customers${query}${separator}includeInactive=true`,
+          {
+            signal: controller.signal,
+            cache: "no-store",
+          },
+        );
 
         const result = (await response.json()) as CustomersResponse;
 
         if (!response.ok || !result.success || !result.data) {
-          setErrorMessage(result.message ?? "Nao foi possivel carregar os clientes.");
+          setErrorMessage(
+            result.message ?? "Nao foi possivel carregar os clientes.",
+          );
           setCustomers([]);
           return;
         }
@@ -60,7 +123,9 @@ export default function ClientesPage() {
           return;
         }
 
-        setErrorMessage("Falha ao consultar os clientes.");
+        setErrorMessage(
+          "Nao foi possivel carregar os clientes. Tente novamente.",
+        );
         setCustomers([]);
       } finally {
         setIsLoading(false);
@@ -75,279 +140,196 @@ export default function ClientesPage() {
     };
   }, [search]);
 
+  const filteredCustomers = useMemo(() => {
+    if (statusFilter === "active") {
+      return customers.filter((customer) => customer.isActive);
+    }
+
+    if (statusFilter === "inactive") {
+      return customers.filter((customer) => !customer.isActive);
+    }
+
+    return customers;
+  }, [customers, statusFilter]);
+
   const stats = useMemo(() => {
-    const withEmail = customers.filter((customer) => customer.email).length;
-    const withWhatsapp = customers.filter((customer) => customer.whatsapp).length;
-    const withCity = customers.filter((customer) => customer.city).length;
-    const inactive = customers.filter((customer) => !customer.isActive).length;
+    const activeCustomers = customers.filter((customer) => customer.isActive);
+    const withContact = customers.filter(
+      (customer) => customer.email || customer.phone || customer.whatsapp,
+    );
+    const withLocation = customers.filter(
+      (customer) => customer.city || customer.state,
+    );
 
     return [
       {
-        label: "Base total",
-        value: String(customers.length),
-        description: "Clientes prontos para orcamentos e pedidos.",
+        label: "Clientes ativos",
+        value: String(activeCustomers.length),
+        description: "Disponiveis para novas vendas, pedidos e propostas.",
       },
       {
-        label: "Com e-mail",
-        value: String(withEmail),
-        description: "Contatos aptos para proposta e acompanhamento.",
+        label: "Clientes inativos",
+        value: String(customers.length - activeCustomers.length),
+        description: "Mantidos no historico, fora das novas operacoes.",
       },
       {
-        label: "Com WhatsApp",
-        value: String(withWhatsapp),
-        description: "Relacionamento rapido para a operacao comercial.",
+        label: "Com contato",
+        value: String(withContact.length),
+        description: "Cadastros com pelo menos um canal de comunicacao.",
       },
       {
-        label: "Com cidade",
-        value: String(withCity),
-        description: "Cadastros com localizacao preenchida.",
-      },
-      {
-        label: "Inativos",
-        value: String(inactive),
-        description: "Cadastros preservados no historico, fora de novas operacoes.",
+        label: "Com localizacao",
+        value: String(withLocation.length),
+        description: "Cadastros com cidade ou estado preenchidos.",
       },
     ];
   }, [customers]);
 
   const feedbackMessage = useMemo(() => {
+    const code = searchParams.get("feedback");
     const dictionary: Record<string, string> = {
+      created: "Cliente cadastrado com sucesso.",
       updated: "Cliente atualizado com sucesso.",
       deleted: "Cliente excluido com sucesso.",
       deactivated: "Cliente inativado com sucesso.",
       activated: "Cliente reativado com sucesso.",
     };
 
-    if (!feedbackCode) {
-      return null;
-    }
-
-    return dictionary[feedbackCode] ?? null;
-  }, [feedbackCode]);
+    return code ? dictionary[code] ?? null : null;
+  }, [searchParams]);
 
   return (
-    <main style={{ padding: 32, display: "grid", gap: 24 }}>
-      <section
-        style={{
-          display: "grid",
-          gap: 18,
-          padding: 28,
-          borderRadius: 28,
-          background:
-            "linear-gradient(135deg, rgba(255,250,244,0.96) 0%, rgba(244,232,217,0.9) 100%)",
-          border: "1px solid var(--border)",
-          boxShadow: "0 18px 50px rgba(77, 39, 22, 0.08)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 16,
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ maxWidth: 760 }}>
-            <p
-              style={{
-                margin: 0,
-                color: "var(--primary)",
-                textTransform: "uppercase",
-                letterSpacing: "0.14em",
-                fontSize: 12,
-                fontWeight: 700,
-              }}
-            >
-              Relacionamento comercial
-            </p>
-            <h1 style={{ margin: "12px 0 10px", fontFamily: "var(--font-heading)", fontSize: 46 }}>
-              Clientes
-            </h1>
-            <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.7, fontSize: 18 }}>
-              Aqui fica a base que alimenta orcamentos, pedidos e o historico financeiro
-              da grafica. O foco desta tela agora e consultar rapido, evitar duplicidade
-              e cadastrar com menos atrito.
-            </p>
-          </div>
+    <main className="admin-page-stack">
+      <PageHeader
+        title="Clientes"
+        description="Consulte a base comercial, revise contatos e siga para o proximo atendimento."
+        primaryAction={{ href: "/admin/clientes/novo", label: "Novo cliente" }}
+      />
 
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <Link href="/admin/clientes/novo" style={primaryButtonStyle}>
-              Novo cliente
-            </Link>
-          </div>
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-            gap: 16,
-          }}
-        >
-          {stats.map((stat) => (
-            <article
-              key={stat.label}
-              style={{
-                padding: 20,
-                borderRadius: 22,
-                background: "rgba(255,255,255,0.72)",
-                border: "1px solid rgba(232, 217, 202, 0.9)",
-              }}
-            >
-              <p
-                style={{
-                  margin: 0,
-                  color: "var(--primary)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.12em",
-                  fontSize: 12,
-                  fontWeight: 700,
-                }}
-              >
-                {stat.label}
-              </p>
-              <h2 style={{ margin: "10px 0 6px", fontSize: 34 }}>{stat.value}</h2>
-              <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.6 }}>{stat.description}</p>
-            </article>
-          ))}
-        </div>
+      <section className="admin-card-grid">
+        {stats.map((stat) => (
+          <MetricCard
+            key={stat.label}
+            label={stat.label}
+            value={stat.value}
+            description={stat.description}
+          />
+        ))}
       </section>
 
-      <section
-        style={{
-          display: "grid",
-          gap: 16,
-          padding: 24,
-          borderRadius: 24,
-          border: "1px solid var(--border)",
-          background: "var(--surface)",
-        }}
+      {feedbackMessage ? <Alert variant="success">{feedbackMessage}</Alert> : null}
+      {errorMessage ? (
+        <Alert variant="danger" title="Nao foi possivel carregar os clientes.">
+          {errorMessage}
+        </Alert>
+      ) : null}
+
+      <SectionCard
+        title="Base cadastrada"
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 16,
-            flexWrap: "wrap",
-          }}
+        <FilterBar
+          resultsCount={filteredCustomers.length}
+          activeFilters={statusFilter !== "all" ? [`Status: ${statusFilter === "active" ? "Ativos" : "Inativos"}`] : []}
+          onClear={
+            search || statusFilter !== "all"
+              ? () => {
+                  setSearch("");
+                  setStatusFilter("all");
+                }
+              : undefined
+          }
         >
-          <div>
-            <h2 style={{ margin: 0 }}>Base cadastrada</h2>
-            <p style={{ margin: "6px 0 0", color: "var(--muted)", lineHeight: 1.6 }}>
-              Busque por nome, e-mail, documento ou WhatsApp.
-            </p>
-          </div>
-
-          <input
+          <SearchField
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar cliente..."
-            style={{
-              ...inputStyle,
-              width: "100%",
-              maxWidth: 340,
-              background: "#fff",
-            }}
+            onChange={setSearch}
+            placeholder="Buscar cliente, documento ou contato"
+            label="Buscar cliente, documento ou contato"
           />
-        </div>
-
-        {errorMessage ? <p style={{ ...feedbackStyle, ...errorStyle }}>{errorMessage}</p> : null}
-        {feedbackMessage ? <p style={{ ...feedbackStyle, ...successStyle }}>{feedbackMessage}</p> : null}
+          <label className="admin-field">
+            <span className="admin-field__label">Status</span>
+            <select
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(
+                  readStatusFilter(event.target.value),
+                )
+              }
+              className="admin-select"
+            >
+              <option value="all">Todos</option>
+              <option value="active">Ativos</option>
+              <option value="inactive">Inativos</option>
+            </select>
+          </label>
+        </FilterBar>
 
         {isLoading ? (
-          <div style={{ ...emptyStateStyle, minHeight: 220 }}>
-            <strong>Carregando clientes...</strong>
-            <span style={{ color: "var(--muted)" }}>Estamos consultando a base da empresa.</span>
-          </div>
-        ) : customers.length === 0 ? (
-          <div style={emptyStateStyle}>
-            <strong>Nenhum cliente encontrado.</strong>
-            <span style={{ color: "var(--muted)" }}>
-              Cadastre o primeiro cliente ou ajuste o termo de busca.
-            </span>
-            <Link href="/admin/clientes/novo" style={secondaryButtonStyle}>
-              Cadastrar cliente
-            </Link>
-          </div>
+          <Skeleton lines={7} />
+        ) : filteredCustomers.length === 0 ? (
+          <EmptyState
+            title="Nenhum cliente encontrado"
+            description="Ajuste os filtros ou cadastre o primeiro cliente para iniciar a base comercial."
+            action={{ href: "/admin/clientes/novo", label: "Cadastrar cliente" }}
+          />
         ) : (
-          <div style={{ display: "grid", gap: 14 }}>
-            {customers.map((customer) => (
-              <article
-                key={customer.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 1.2fr) auto",
-                  gap: 16,
-                  alignItems: "center",
-                  padding: 20,
-                  borderRadius: 22,
-                  background: "rgba(255,255,255,0.82)",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <h3 style={{ margin: "0 0 6px", fontSize: 24 }}>{customer.name}</h3>
-                  <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.6 }}>
-                    {customer.document || "Sem CPF/CNPJ informado"}
-                  </p>
+          <div className="admin-list-stack">
+            {filteredCustomers.map((customer) => (
+              <article key={customer.id} className="admin-list-card">
+                <div className="admin-list-card__header">
+                  <div className="admin-list-card__heading">
+                    <strong className="admin-list-card__title">{customer.name}</strong>
+                    <span className="admin-list-card__subtitle">
+                      {customer.document || "Sem CPF/CNPJ informado"}
+                    </span>
+                  </div>
+                  <StatusBadge
+                    status={customer.isActive ? "Ativo" : "Inativo"}
+                    tone={customer.isActive ? "success" : "neutral"}
+                  />
                 </div>
 
-                <div style={{ minWidth: 0 }}>
-                  <strong style={{ display: "block", marginBottom: 6 }}>Contato</strong>
-                  <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.6 }}>
-                    {customer.email || customer.phone || customer.whatsapp || "Sem contato informado"}
-                  </p>
+                <div className="admin-list-card__meta">
+                  <InfoBox
+                    label="Contato"
+                    value={
+                      customer.email ||
+                      customer.phone ||
+                      customer.whatsapp ||
+                      "Sem contato informado"
+                    }
+                  />
+                  <InfoBox
+                    label="Localizacao"
+                    value={
+                      customer.city || customer.state
+                        ? [customer.city, customer.state]
+                            .filter(Boolean)
+                            .join(" - ")
+                        : "Nao informada"
+                    }
+                  />
+                  <InfoBox
+                    label="Cadastro"
+                    value={formatDate(customer.createdAt)}
+                  />
                 </div>
 
-                <div style={{ minWidth: 0 }}>
-                  <strong style={{ display: "block", marginBottom: 6 }}>Localizacao</strong>
-                  <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.6 }}>
-                    {customer.city || customer.state
-                      ? [customer.city, customer.state].filter(Boolean).join(" - ")
-                      : "Nao informada"}
-                  </p>
-                </div>
-
-                <div
-                  style={{
-                    padding: "10px 12px",
-                    borderRadius: 999,
-                    background: customer.isActive
-                      ? "rgba(43, 110, 82, 0.12)"
-                      : "rgba(161, 111, 37, 0.16)",
-                    color: customer.isActive ? "#245844" : "#7a4f17",
-                    fontWeight: 700,
-                    whiteSpace: "nowrap",
-                    justifySelf: "end",
-                  }}
-                >
-                  {customer.isActive ? "Ativo" : "Inativo"}
-                </div>
-
-                <div
-                  style={{
-                    gridColumn: "1 / -1",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 12,
-                    flexWrap: "wrap",
-                    paddingTop: 8,
-                    borderTop: "1px solid rgba(232, 217, 202, 0.85)",
-                  }}
-                >
-                  <span style={{ color: "var(--muted)", fontSize: 14 }}>
-                    Cadastro em {formatDate(customer.createdAt)}
+                <div className="admin-list-card__footer">
+                  <span className="admin-list-card__hint">
+                    Revise os dados, inative quando necessario ou siga para o proximo passo comercial.
                   </span>
-
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                    <Link href={`/admin/clientes/${customer.id}`} style={secondaryButtonStyle}>
-                      Editar cadastro
+                  <div className="admin-row">
+                    <Link
+                      href="/admin/orcamentos/novo"
+                      className="admin-button admin-button--secondary"
+                    >
+                      Novo orcamento
                     </Link>
-                    <Link href="/admin/orcamentos/novo" style={ghostButtonStyle}>
-                      Criar orcamento
+                    <Link
+                      href={`/admin/clientes/${customer.id}`}
+                      className="admin-button admin-button--secondary"
+                    >
+                      Abrir cadastro
                     </Link>
                   </div>
                 </div>
@@ -355,89 +337,22 @@ export default function ClientesPage() {
             ))}
           </div>
         )}
-      </section>
+      </SectionCard>
     </main>
   );
 }
 
-const inputStyle = {
-  height: 50,
-  padding: "0 16px",
-  borderRadius: 16,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  boxSizing: "border-box" as const,
-} as const;
-
-const primaryButtonStyle = {
-  height: 50,
-  padding: "0 20px",
-  borderRadius: 14,
-  border: 0,
-  background: "var(--primary)",
-  color: "#fff",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const secondaryButtonStyle = {
-  height: 42,
-  padding: "0 16px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  color: "inherit",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const ghostButtonStyle = {
-  height: 42,
-  padding: "0 16px",
-  borderRadius: 14,
-  border: "1px solid rgba(181, 66, 31, 0.18)",
-  background: "rgba(181, 66, 31, 0.08)",
-  color: "var(--primary)",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const feedbackStyle = {
-  margin: 0,
-  padding: "14px 16px",
-  borderRadius: 14,
-  lineHeight: 1.6,
-} as const;
-
-const errorStyle = {
-  background: "rgba(181, 66, 31, 0.12)",
-  color: "var(--primary)",
-} as const;
-
-const successStyle = {
-  background: "rgba(43, 110, 82, 0.12)",
-  color: "#245844",
-} as const;
-
-const emptyStateStyle = {
-  display: "grid",
-  gap: 10,
-  placeItems: "center",
-  textAlign: "center" as const,
-  padding: 36,
-  borderRadius: 22,
-  border: "1px dashed var(--border)",
-  background: "rgba(255,255,255,0.6)",
-} as const;
+function InfoBox({
+  label,
+  value,
+}: Readonly<{ label: string; value: string }>) {
+  return (
+    <div className="admin-surface-muted">
+      <span className="admin-list-card__subtitle">{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("pt-BR").format(new Date(value));

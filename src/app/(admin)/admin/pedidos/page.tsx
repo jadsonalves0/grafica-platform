@@ -1,14 +1,38 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+
+import {
+  Alert,
+  EmptyState,
+  FilterBar,
+  MetricCard,
+  PageHeader,
+  SearchField,
+  SectionCard,
+  Skeleton,
+  StatusBadge,
+} from "@/components/admin/ui";
+
+type CommercialStatus = "OPEN" | "IN_PROGRESS" | "COMPLETED" | "CANCELED";
+type ProductionStatus =
+  | "PENDING"
+  | "IN_PRODUCTION"
+  | "WAITING_APPROVAL"
+  | "READY"
+  | "DELIVERED";
 
 type OrderListItem = {
   id: string;
   code: string;
-  status: string;
-  productionStatus: string;
+  status: CommercialStatus;
+  productionStatus: ProductionStatus;
   customerName: string;
   totalAmount: number;
   deliveryDate?: string | null;
@@ -21,9 +45,39 @@ type OrdersResponse = {
   data?: OrderListItem[];
 };
 
+type StatusFilter = "all" | CommercialStatus;
+type ProductionFilter = "all" | ProductionStatus;
+
+function readStatusFilter(value: string | null): StatusFilter {
+  return value === "OPEN" ||
+    value === "IN_PROGRESS" ||
+    value === "COMPLETED" ||
+    value === "CANCELED"
+    ? value
+    : "all";
+}
+
+function readProductionFilter(value: string | null): ProductionFilter {
+  return value === "PENDING" ||
+    value === "IN_PRODUCTION" ||
+    value === "WAITING_APPROVAL" ||
+    value === "READY" ||
+    value === "DELIVERED"
+    ? value
+    : "all";
+}
+
 export default function PedidosPage() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("search") ?? "");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
+    readStatusFilter(searchParams.get("status")),
+  );
+  const [productionFilter, setProductionFilter] = useState<ProductionFilter>(
+    readProductionFilter(searchParams.get("production")),
+  );
   const [orders, setOrders] = useState<OrderListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -38,8 +92,46 @@ export default function PedidosPage() {
       return () => window.clearTimeout(timeout);
     }
 
+    setSuccessMessage(null);
     return undefined;
   }, [searchParams]);
+
+  useEffect(() => {
+    setSearch(searchParams.get("search") ?? "");
+    setStatusFilter(readStatusFilter(searchParams.get("status")));
+    setProductionFilter(readProductionFilter(searchParams.get("production")));
+  }, [searchParams]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (search.trim()) {
+      params.set("search", search.trim());
+    } else {
+      params.delete("search");
+    }
+
+    if (statusFilter === "all") {
+      params.delete("status");
+    } else {
+      params.set("status", statusFilter);
+    }
+
+    if (productionFilter === "all") {
+      params.delete("production");
+    } else {
+      params.set("production", productionFilter);
+    }
+
+    const nextQuery = params.toString();
+    const currentQuery = searchParams.toString();
+
+    if (nextQuery !== currentQuery) {
+      router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, {
+        scroll: false,
+      });
+    }
+  }, [pathname, productionFilter, router, search, searchParams, statusFilter]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -49,7 +141,9 @@ export default function PedidosPage() {
       setErrorMessage(null);
 
       try {
-        const query = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : "";
+        const query = search.trim()
+          ? `?search=${encodeURIComponent(search.trim())}`
+          : "";
         const response = await fetch(`/api/orders${query}`, {
           signal: controller.signal,
           cache: "no-store",
@@ -57,7 +151,9 @@ export default function PedidosPage() {
         const result = (await response.json()) as OrdersResponse;
 
         if (!response.ok || !result.success || !result.data) {
-          setErrorMessage(result.message ?? "Nao foi possivel carregar os pedidos.");
+          setErrorMessage(
+            result.message ?? "Nao foi possivel carregar os pedidos.",
+          );
           setOrders([]);
           return;
         }
@@ -68,7 +164,9 @@ export default function PedidosPage() {
           return;
         }
 
-        setErrorMessage("Falha ao consultar os pedidos.");
+        setErrorMessage(
+          "Nao foi possivel carregar os pedidos. Tente novamente.",
+        );
         setOrders([]);
       } finally {
         setIsLoading(false);
@@ -83,224 +181,231 @@ export default function PedidosPage() {
     };
   }, [search]);
 
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      const matchesCommercialStatus =
+        statusFilter === "all" ? true : order.status === statusFilter;
+      const matchesProductionStatus =
+        productionFilter === "all"
+          ? true
+          : order.productionStatus === productionFilter;
+
+      return matchesCommercialStatus && matchesProductionStatus;
+    });
+  }, [orders, productionFilter, statusFilter]);
+
   const stats = useMemo(() => {
-    const open = orders.filter((order) => order.status === "OPEN").length;
-    const inProgress = orders.filter((order) => order.status === "IN_PROGRESS").length;
-    const ready = orders.filter((order) => order.productionStatus === "READY").length;
-    const total = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const openOrders = orders.filter((order) => order.status === "OPEN");
+    const runningProduction = orders.filter(
+      (order) => order.productionStatus === "IN_PRODUCTION",
+    );
+    const completedOrders = orders.filter(
+      (order) => order.status === "COMPLETED",
+    );
 
     return [
-      { label: "Pedidos", value: String(orders.length), description: "Volume operacional ativo." },
-      { label: "Abertos", value: String(open), description: "Pedidos aguardando tratamento." },
-      { label: "Em producao", value: String(inProgress), description: "Execucao em andamento." },
-      { label: "Valor total", value: formatCurrency(total), description: "Carteira de pedidos listada." },
+      {
+        label: "Pedidos em aberto",
+        value: String(openOrders.length),
+        description: "Aguardando andamento.",
+      },
+      {
+        label: "Em producao",
+        value: String(runningProduction.length),
+        description: "Ja em execucao.",
+      },
+      {
+        label: "Concluidos",
+        value: String(completedOrders.length),
+        description: "Fechados neste ciclo.",
+      },
+      {
+        label: "Carteira atual",
+        value: formatCurrency(
+          orders.reduce((sum, order) => sum + order.totalAmount, 0),
+        ),
+        description: "Total dos pedidos listados.",
+      },
     ];
   }, [orders]);
 
+  const activeFilters = useMemo(() => {
+    const filters: string[] = [];
+
+    if (statusFilter !== "all") {
+      filters.push(`Status: ${formatCommercialStatus(statusFilter)}`);
+    }
+
+    if (productionFilter !== "all") {
+      filters.push(`Producao: ${formatProductionStatus(productionFilter)}`);
+    }
+
+    return filters;
+  }, [productionFilter, statusFilter]);
+
   return (
-    <main style={{ padding: 32, display: "grid", gap: 24 }}>
-      <section
-        style={{
-          display: "grid",
-          gap: 18,
-          padding: 28,
-          borderRadius: 28,
-          background:
-            "linear-gradient(135deg, rgba(255,250,244,0.96) 0%, rgba(244,232,217,0.9) 100%)",
-          border: "1px solid var(--border)",
-          boxShadow: "0 18px 50px rgba(77, 39, 22, 0.08)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 16,
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ maxWidth: 760 }}>
-            <p
-              style={{
-                margin: 0,
-                color: "var(--primary)",
-                textTransform: "uppercase",
-                letterSpacing: "0.14em",
-                fontSize: 12,
-                fontWeight: 700,
-              }}
-            >
-              Operacao comercial
-            </p>
-            <h1 style={{ margin: "12px 0 10px", fontFamily: "var(--font-heading)", fontSize: 46 }}>
-              Pedidos
-            </h1>
-            <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.7, fontSize: 18 }}>
-              Acompanhe o que saiu do orçamento e entrou em execução, com visão de cliente, prazo e produção.
-            </p>
-          </div>
+    <main className="admin-page-stack">
+      <PageHeader
+        title="Pedidos"
+        description="Acompanhe prazos, producao e a proxima acao de cada pedido."
+        primaryAction={{ href: "/admin/pedidos/novo", label: "Novo pedido" }}
+      />
 
-          <Link href="/admin/pedidos/novo" style={primaryButtonStyle}>
-            Novo pedido
-          </Link>
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-            gap: 16,
-          }}
-        >
-          {stats.map((stat) => (
-            <article
-              key={stat.label}
-              style={{
-                padding: 20,
-                borderRadius: 22,
-                background: "rgba(255,255,255,0.72)",
-                border: "1px solid rgba(232, 217, 202, 0.9)",
-              }}
-            >
-              <p
-                style={{
-                  margin: 0,
-                  color: "var(--primary)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.12em",
-                  fontSize: 12,
-                  fontWeight: 700,
-                }}
-              >
-                {stat.label}
-              </p>
-              <h2 style={{ margin: "10px 0 6px", fontSize: 34 }}>{stat.value}</h2>
-              <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.6 }}>{stat.description}</p>
-            </article>
-          ))}
-        </div>
+      <section className="admin-card-grid">
+        {stats.map((stat) => (
+          <MetricCard
+            key={stat.label}
+            label={stat.label}
+            value={stat.value}
+            description={stat.description}
+          />
+        ))}
       </section>
 
-      <section
-        style={{
-          display: "grid",
-          gap: 16,
-          padding: 24,
-          borderRadius: 24,
-          border: "1px solid var(--border)",
-          background: "var(--surface)",
-        }}
+      {successMessage ? <Alert variant="success">{successMessage}</Alert> : null}
+      {errorMessage ? (
+        <Alert variant="danger" title="Nao foi possivel carregar os pedidos.">
+          {errorMessage}
+        </Alert>
+      ) : null}
+
+      <SectionCard
+        title="Pedidos cadastrados"
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 16,
-            flexWrap: "wrap",
-          }}
+        <FilterBar
+          resultsCount={filteredOrders.length}
+          activeFilters={activeFilters}
+          onClear={
+            search || statusFilter !== "all" || productionFilter !== "all"
+              ? () => {
+                  setSearch("");
+                  setStatusFilter("all");
+                  setProductionFilter("all");
+                }
+              : undefined
+          }
         >
-          <div>
-            <h2 style={{ margin: 0 }}>Pedidos cadastrados</h2>
-            <p style={{ margin: "6px 0 0", color: "var(--muted)", lineHeight: 1.6 }}>
-              Busque por codigo do pedido ou nome do cliente.
-            </p>
-          </div>
-
-          <input
+          <SearchField
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar pedido..."
-            style={{ ...inputStyle, width: "100%", maxWidth: 340, background: "#fff" }}
+            onChange={setSearch}
+            placeholder="Buscar pedido ou cliente"
+            label="Buscar pedido ou cliente"
+            autoFocus
           />
-        </div>
-
-        {errorMessage ? <p style={{ ...feedbackStyle, ...errorStyle }}>{errorMessage}</p> : null}
-        {successMessage ? <p style={{ ...feedbackStyle, ...successStyle }}>{successMessage}</p> : null}
+          <label className="admin-field">
+            <span className="admin-field__label">Status comercial</span>
+            <select
+              className="admin-select"
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(readStatusFilter(event.target.value))
+              }
+            >
+              <option value="all">Todos</option>
+              <option value="OPEN">Aberto</option>
+              <option value="IN_PROGRESS">Em andamento</option>
+              <option value="COMPLETED">Concluido</option>
+              <option value="CANCELED">Cancelado</option>
+            </select>
+          </label>
+          <label className="admin-field">
+            <span className="admin-field__label">Producao</span>
+            <select
+              className="admin-select"
+              value={productionFilter}
+              onChange={(event) =>
+                setProductionFilter(readProductionFilter(event.target.value))
+              }
+            >
+              <option value="all">Todas</option>
+              <option value="PENDING">Pendente</option>
+              <option value="IN_PRODUCTION">Em producao</option>
+              <option value="WAITING_APPROVAL">Aguardando aprovacao</option>
+              <option value="READY">Pronto</option>
+              <option value="DELIVERED">Entregue</option>
+            </select>
+          </label>
+        </FilterBar>
 
         {isLoading ? (
-          <div style={{ ...emptyStateStyle, minHeight: 220 }}>
-            <strong>Carregando pedidos...</strong>
-            <span style={{ color: "var(--muted)" }}>Estamos consultando a base operacional.</span>
-          </div>
-        ) : orders.length === 0 ? (
-          <div style={emptyStateStyle}>
-            <strong>Nenhum pedido encontrado.</strong>
-            <span style={{ color: "var(--muted)" }}>Crie o primeiro pedido ou refine a busca.</span>
-            <Link href="/admin/pedidos/novo" style={secondaryButtonStyle}>
-              Criar pedido
-            </Link>
-          </div>
+          <Skeleton lines={7} />
+        ) : filteredOrders.length === 0 ? (
+          <EmptyState
+            title="Nenhum pedido encontrado"
+            description="Crie o primeiro pedido ou ajuste os filtros para localizar uma operacao existente."
+            action={{ href: "/admin/pedidos/novo", label: "Criar pedido" }}
+          />
         ) : (
-          <div style={{ display: "grid", gap: 14 }}>
-            {orders.map((order) => (
-              <article
-                key={order.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto",
-                  gap: 16,
-                  alignItems: "center",
-                  padding: 20,
-                  borderRadius: 22,
-                  background: "rgba(255,255,255,0.82)",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                <div>
-                  <h3 style={{ margin: "0 0 6px", fontSize: 24 }}>{order.code}</h3>
-                  <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.6 }}>
-                    Cadastro em {formatDate(order.createdAt)}
-                  </p>
+          <div className="admin-list-stack">
+            {filteredOrders.map((order) => (
+              <article key={order.id} className="admin-list-card">
+                <div className="admin-list-card__header">
+                  <div className="admin-list-card__heading">
+                    <strong className="admin-list-card__title">{order.code}</strong>
+                    <span className="admin-list-card__subtitle">
+                      {order.customerName}
+                    </span>
+                  </div>
+                  <div className="admin-row">
+                    <StatusBadge
+                      status={formatCommercialStatus(order.status)}
+                      tone={mapCommercialTone(order.status)}
+                    />
+                    <StatusBadge
+                      status={formatProductionStatus(order.productionStatus)}
+                      tone={mapProductionTone(order.productionStatus)}
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <strong style={{ display: "block", marginBottom: 6 }}>Cliente</strong>
-                  <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.6 }}>{order.customerName}</p>
+                <div className="admin-list-card__meta">
+                  <InfoBox
+                    label="Entrega"
+                    value={
+                      order.deliveryDate
+                        ? formatDate(order.deliveryDate)
+                        : "Sem prazo definido"
+                    }
+                  />
+                  <InfoBox
+                    label="Total"
+                    value={formatCurrency(order.totalAmount)}
+                  />
+                  <InfoBox
+                    label="Cadastro"
+                    value={formatDate(order.createdAt)}
+                  />
                 </div>
 
-                <div>
-                  <strong style={{ display: "block", marginBottom: 6 }}>Entrega</strong>
-                  <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.6 }}>
-                    {order.deliveryDate ? formatDate(order.deliveryDate) : "Sem data definida"}
-                  </p>
-                </div>
-
-                <div>
-                  <strong style={{ display: "block", marginBottom: 6 }}>Valor</strong>
-                  <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.6 }}>
-                    {formatCurrency(order.totalAmount)}
-                  </p>
-                </div>
-
-                <div style={statusBadgeStyle(order.productionStatus)}>{formatProductionStatus(order.productionStatus)}</div>
-
-                <div
-                  style={{
-                    gridColumn: "1 / -1",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 12,
-                    flexWrap: "wrap",
-                    paddingTop: 8,
-                    borderTop: "1px solid rgba(232, 217, 202, 0.85)",
-                  }}
-                >
-                  <span style={{ color: "var(--muted)", fontSize: 14 }}>
-                    {formatOrderStatus(order.status)} | {formatProductionStatus(order.productionStatus)}
+                <div className="admin-list-card__footer">
+                  <span className="admin-list-card__hint">
+                    Atualize o andamento, revise a producao ou siga para a proxima etapa valida.
                   </span>
-                  <Link href={`/admin/pedidos/${order.id}`} style={secondaryButtonStyle}>
-                    Editar pedido
+                  <Link
+                    href={`/admin/pedidos/${order.id}`}
+                    className="admin-button admin-button--secondary"
+                  >
+                    Abrir pedido
                   </Link>
                 </div>
               </article>
             ))}
           </div>
         )}
-      </section>
+      </SectionCard>
     </main>
+  );
+}
+
+function InfoBox({
+  label,
+  value,
+}: Readonly<{ label: string; value: string }>) {
+  return (
+    <div className="admin-surface-muted">
+      <span className="admin-list-card__subtitle">{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
@@ -315,19 +420,19 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("pt-BR").format(new Date(value));
 }
 
-function formatOrderStatus(status: string) {
-  const labels: Record<string, string> = {
+function formatCommercialStatus(status: CommercialStatus) {
+  const labels: Record<CommercialStatus, string> = {
     OPEN: "Aberto",
     IN_PROGRESS: "Em andamento",
     COMPLETED: "Concluido",
     CANCELED: "Cancelado",
   };
 
-  return labels[status] ?? status;
+  return labels[status];
 }
 
-function formatProductionStatus(status: string) {
-  const labels: Record<string, string> = {
+function formatProductionStatus(status: ProductionStatus) {
+  const labels: Record<ProductionStatus, string> = {
     PENDING: "Pendente",
     IN_PRODUCTION: "Em producao",
     WAITING_APPROVAL: "Aguardando aprovacao",
@@ -335,92 +440,34 @@ function formatProductionStatus(status: string) {
     DELIVERED: "Entregue",
   };
 
-  return labels[status] ?? status;
+  return labels[status];
 }
 
-function statusBadgeStyle(status: string) {
-  const colorMap: Record<string, { background: string; color: string }> = {
-    READY: { background: "rgba(43, 110, 82, 0.12)", color: "#245844" },
-    DELIVERED: { background: "rgba(43, 110, 82, 0.12)", color: "#245844" },
-    IN_PRODUCTION: { background: "rgba(191, 132, 25, 0.12)", color: "#8d5a0a" },
-    WAITING_APPROVAL: { background: "rgba(191, 132, 25, 0.12)", color: "#8d5a0a" },
-    PENDING: { background: "rgba(181, 66, 31, 0.12)", color: "var(--primary)" },
+function mapCommercialTone(status: CommercialStatus) {
+  const tones: Record<
+    CommercialStatus,
+    "warning" | "info" | "success" | "danger"
+  > = {
+    OPEN: "warning",
+    IN_PROGRESS: "info",
+    COMPLETED: "success",
+    CANCELED: "danger",
   };
 
-  const palette = colorMap[status] ?? colorMap.PENDING;
-
-  return {
-    padding: "10px 12px",
-    borderRadius: 999,
-    background: palette.background,
-    color: palette.color,
-    fontWeight: 700,
-    whiteSpace: "nowrap" as const,
-    justifySelf: "end",
-  };
+  return tones[status];
 }
 
-const inputStyle = {
-  height: 50,
-  padding: "0 16px",
-  borderRadius: 16,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  boxSizing: "border-box" as const,
-} as const;
+function mapProductionTone(status: ProductionStatus) {
+  const tones: Record<
+    ProductionStatus,
+    "warning" | "info" | "success"
+  > = {
+    PENDING: "warning",
+    IN_PRODUCTION: "info",
+    WAITING_APPROVAL: "warning",
+    READY: "success",
+    DELIVERED: "success",
+  };
 
-const primaryButtonStyle = {
-  height: 50,
-  padding: "0 20px",
-  borderRadius: 14,
-  border: 0,
-  background: "var(--primary)",
-  color: "#fff",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const secondaryButtonStyle = {
-  height: 42,
-  padding: "0 16px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  color: "inherit",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const feedbackStyle = {
-  margin: 0,
-  padding: "14px 16px",
-  borderRadius: 14,
-  lineHeight: 1.6,
-} as const;
-
-const errorStyle = {
-  background: "rgba(181, 66, 31, 0.12)",
-  color: "var(--primary)",
-} as const;
-
-const successStyle = {
-  background: "rgba(43, 110, 82, 0.12)",
-  color: "#245844",
-} as const;
-
-const emptyStateStyle = {
-  display: "grid",
-  gap: 10,
-  placeItems: "center",
-  textAlign: "center" as const,
-  padding: 36,
-  borderRadius: 22,
-  border: "1px dashed var(--border)",
-  background: "rgba(255,255,255,0.6)",
-} as const;
+  return tones[status];
+}
