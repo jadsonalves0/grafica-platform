@@ -1,7 +1,17 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+
+import {
+  Alert,
+  EmptyState,
+  MetricCard,
+  PageHeader,
+  SectionCard,
+  Skeleton,
+  StatusBadge,
+  Tabs,
+} from "@/components/admin/ui";
 import { formatPhone } from "@/lib/forms/br-utils";
 
 type LeadStatus = "NEW" | "CONTACTED" | "CONVERTED" | "ARCHIVED";
@@ -36,14 +46,15 @@ export default function SiteLeadsPage() {
     void loadLeads(statusFilter);
   }, [statusFilter]);
 
-  const leadStats = useMemo(() => {
-    return {
+  const leadStats = useMemo(
+    () => ({
       total: leads.length,
       newCount: leads.filter((lead) => lead.status === "NEW").length,
       contacted: leads.filter((lead) => lead.status === "CONTACTED").length,
       converted: leads.filter((lead) => lead.status === "CONVERTED").length,
-    };
-  }, [leads]);
+    }),
+    [leads],
+  );
 
   async function loadLeads(filter: "ALL" | LeadStatus) {
     setIsLoading(true);
@@ -114,9 +125,7 @@ export default function SiteLeadsPage() {
         body: JSON.stringify({}),
       });
 
-      const result = (await response.json()) as ApiResult<{
-        customerName: string;
-      }>;
+      const result = (await response.json()) as ApiResult<{ customerName: string }>;
 
       if (!response.ok || !result.success || !result.data) {
         setErrorMessage(result.message ?? "Nao foi possivel converter o lead em cliente.");
@@ -146,10 +155,7 @@ export default function SiteLeadsPage() {
         body: JSON.stringify({
           items: [
             {
-              description:
-                lead.requestedService ||
-                lead.subject ||
-                "Servico solicitado pelo site",
+              description: lead.requestedService || lead.subject || "Servico solicitado pelo site",
               quantity: 1,
               unitPrice: 0,
             },
@@ -158,10 +164,7 @@ export default function SiteLeadsPage() {
         }),
       });
 
-      const result = (await response.json()) as ApiResult<{
-        quoteId: string;
-        quoteCode: string;
-      }>;
+      const result = (await response.json()) as ApiResult<{ quoteId: string; quoteCode: string }>;
 
       if (!response.ok || !result.success || !result.data) {
         setErrorMessage(result.message ?? "Nao foi possivel gerar o orcamento.");
@@ -177,258 +180,130 @@ export default function SiteLeadsPage() {
   }
 
   return (
-    <main style={{ padding: 32, display: "grid", gap: 24 }}>
-      <section
-        style={{
-          display: "grid",
-          gap: 18,
-          padding: 28,
-          borderRadius: 28,
-          background:
-            "linear-gradient(135deg, rgba(255,250,244,0.96) 0%, rgba(244,232,217,0.9) 100%)",
-          border: "1px solid var(--border)",
-          boxShadow: "0 18px 50px rgba(77, 39, 22, 0.08)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 16,
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ maxWidth: 760 }}>
-            <p style={eyebrowStyle}>Captacao comercial</p>
-            <h1 style={{ margin: "12px 0 10px", fontFamily: "var(--font-heading)", fontSize: 46 }}>
-              Leads do site
-            </h1>
-            <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.7, fontSize: 18 }}>
-              Centralize contatos recebidos no site, avance o atendimento e transforme a
-              entrada comercial em cliente ou orcamento sem recadastro manual.
-            </p>
-          </div>
+    <main className="admin-page-stack">
+      <PageHeader
+        breadcrumbs={[{ label: "Website" }, { label: "Leads do site" }]}
+        title="Leads do site"
+        description="Acompanhe contatos recebidos, avance o atendimento e transforme a oportunidade em cliente ou orcamento."
+        secondaryActions={[{ href: "/admin/site", label: "Voltar para website", variant: "secondary" }]}
+      />
 
-          <Link href="/admin/site" style={secondaryLinkStyle}>
-            Voltar para site institucional
-          </Link>
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-            gap: 16,
-          }}
-        >
-          <SummaryCard label="Leads na tela" value={String(leadStats.total)} />
-          <SummaryCard label="Novos" value={String(leadStats.newCount)} />
-          <SummaryCard label="Em atendimento" value={String(leadStats.contacted)} />
-          <SummaryCard label="Convertidos" value={String(leadStats.converted)} accent />
-        </div>
+      <section className="admin-card-grid">
+        <MetricCard label="Leads na tela" value={String(leadStats.total)} />
+        <MetricCard label="Novos" value={String(leadStats.newCount)} />
+        <MetricCard label="Em atendimento" value={String(leadStats.contacted)} />
+        <MetricCard label="Convertidos" value={String(leadStats.converted)} />
       </section>
 
-      <section
-        style={{
-          display: "flex",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
+      {errorMessage ? (
+        <Alert variant="danger" title="Nao foi possivel concluir a operacao.">
+          {errorMessage}
+        </Alert>
+      ) : null}
+      {successMessage ? <Alert variant="success">{successMessage}</Alert> : null}
+
+      <SectionCard
+        title="Fila de atendimento"
+        description="Filtre os leads por status e avance o atendimento sem perder o historico."
       >
-        {[
-          { label: "Todos", value: "ALL" },
-          { label: "Novos", value: "NEW" },
-          { label: "Em atendimento", value: "CONTACTED" },
-          { label: "Convertidos", value: "CONVERTED" },
-          { label: "Arquivados", value: "ARCHIVED" },
-        ].map((filter) => {
-          const isActive = statusFilter === filter.value;
-          return (
-            <button
-              key={filter.value}
-              type="button"
-              onClick={() => setStatusFilter(filter.value as "ALL" | LeadStatus)}
-              style={{
-                ...filterButtonStyle,
-                background: isActive ? "var(--primary)" : "#fff",
-                color: isActive ? "#fff" : "inherit",
-                borderColor: isActive ? "var(--primary)" : "var(--border)",
-              }}
-            >
-              {filter.label}
-            </button>
-          );
-        })}
-      </section>
+        <Tabs
+          tabs={[
+            { id: "ALL", label: "Todos" },
+            { id: "NEW", label: "Novos" },
+            { id: "CONTACTED", label: "Em atendimento" },
+            { id: "CONVERTED", label: "Convertidos" },
+            { id: "ARCHIVED", label: "Arquivados" },
+          ]}
+          activeTab={statusFilter}
+          onChange={(value) => setStatusFilter(value as "ALL" | LeadStatus)}
+        />
 
-      {errorMessage ? <p style={{ ...feedbackStyle, ...errorStyle }}>{errorMessage}</p> : null}
-      {successMessage ? <p style={{ ...feedbackStyle, ...successStyle }}>{successMessage}</p> : null}
+        {isLoading ? (
+          <Skeleton lines={8} />
+        ) : leads.length === 0 ? (
+          <EmptyState
+            title="Nenhum lead encontrado"
+            description="Quando novos contatos chegarem pelo site, eles aparecerao aqui para atendimento."
+          />
+        ) : (
+          <div className="admin-list-stack">
+            {leads.map((lead) => {
+              const isBusy = busyLeadId === lead.id;
 
-      {isLoading ? (
-        <section style={loadingPanelStyle}>
-          <strong>Carregando leads...</strong>
-          <span style={{ color: "var(--muted)" }}>Estamos consultando os contatos mais recentes.</span>
-        </section>
-      ) : leads.length === 0 ? (
-        <section style={emptyPanelStyle}>
-          Nenhum lead encontrado para esse filtro.
-        </section>
-      ) : (
-        <section style={{ display: "grid", gap: 16 }}>
-          {leads.map((lead) => {
-            const isBusy = busyLeadId === lead.id;
-
-            return (
-              <article
-                key={lead.id}
-                style={{
-                  display: "grid",
-                  gap: 16,
-                  padding: 22,
-                  borderRadius: 22,
-                  border: "1px solid var(--border)",
-                  background: "var(--surface)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    gap: 16,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div style={{ maxWidth: 720 }}>
-                    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                      <h2 style={{ margin: 0, fontSize: 28 }}>{lead.name}</h2>
-                      <span style={statusBadgeStyle(lead.status)}>{formatLeadStatus(lead.status)}</span>
+              return (
+                <article key={lead.id} className="admin-list-card">
+                  <div className="admin-list-card__header">
+                    <div className="admin-list-card__heading">
+                      <strong className="admin-list-card__title">{lead.name}</strong>
+                      <span className="admin-list-card__subtitle">
+                        {lead.requestedService || lead.subject || "Contato geral"}
+                      </span>
                     </div>
-                    <p style={{ margin: "10px 0 0", color: "var(--muted)", lineHeight: 1.6 }}>
-                      {lead.requestedService || lead.subject || "Lead geral de contato"}
-                    </p>
+                    <StatusBadge status={formatLeadStatus(lead.status)} tone={leadTone(lead.status)} />
                   </div>
 
-                  <div style={{ color: "var(--muted)", fontSize: 14 }}>
-                    Recebido em {formatDateTime(lead.createdAt)}
+                  <div className="admin-list-card__meta">
+                    <InfoBox label="E-mail" value={lead.email || "Nao informado"} />
+                    <InfoBox label="Telefone" value={lead.phone ? formatPhone(lead.phone) : "Nao informado"} />
+                    <InfoBox label="WhatsApp" value={lead.whatsapp ? formatPhone(lead.whatsapp) : "Nao informado"} />
+                    <InfoBox label="Recebido em" value={formatDateTime(lead.createdAt)} />
                   </div>
-                </div>
 
-                <div
-                  style={{
-                    display: "grid",
-                    gap: 14,
-                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                  }}
-                >
-                  <InfoCard label="E-mail" value={lead.email || "Nao informado"} />
-                  <InfoCard
-                    label="Telefone"
-                    value={lead.phone ? formatPhone(lead.phone) : "Nao informado"}
-                  />
-                  <InfoCard
-                    label="WhatsApp"
-                    value={lead.whatsapp ? formatPhone(lead.whatsapp) : "Nao informado"}
-                  />
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 12,
-                    flexWrap: "wrap",
-                    paddingTop: 4,
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => void updateStatus(lead.id, "CONTACTED")}
-                    disabled={isBusy}
-                    style={secondaryButtonStyle}
-                  >
-                    {isBusy ? "Processando..." : "Marcar em atendimento"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void convertLead(lead.id)}
-                    disabled={isBusy}
-                    style={secondaryButtonStyle}
-                  >
-                    {isBusy ? "Processando..." : "Converter em cliente"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void createQuoteFromLead(lead)}
-                    disabled={isBusy}
-                    style={primaryButtonStyle}
-                  >
-                    {isBusy ? "Processando..." : "Gerar orcamento"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void updateStatus(lead.id, "ARCHIVED")}
-                    disabled={isBusy}
-                    style={ghostButtonStyle}
-                  >
-                    {isBusy ? "Processando..." : "Arquivar"}
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-        </section>
-      )}
+                  <div className="admin-list-card__footer">
+                    <span className="admin-list-card__hint">
+                      Avance o atendimento, converta o contato em cliente ou gere um orcamento sem sair do contexto.
+                    </span>
+                    <div className="admin-row">
+                      <button
+                        type="button"
+                        onClick={() => void updateStatus(lead.id, "CONTACTED")}
+                        disabled={isBusy}
+                        className="admin-button admin-button--secondary"
+                      >
+                        {isBusy ? "Processando..." : "Marcar em atendimento"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void convertLead(lead.id)}
+                        disabled={isBusy}
+                        className="admin-button admin-button--ghost"
+                      >
+                        {isBusy ? "Processando..." : "Converter em cliente"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void createQuoteFromLead(lead)}
+                        disabled={isBusy}
+                        className="admin-button admin-button--primary"
+                      >
+                        {isBusy ? "Processando..." : "Gerar orcamento"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void updateStatus(lead.id, "ARCHIVED")}
+                        disabled={isBusy}
+                        className="admin-button admin-button--danger"
+                      >
+                        {isBusy ? "Processando..." : "Arquivar"}
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </SectionCard>
     </main>
   );
 }
 
-function SummaryCard({
-  label,
-  value,
-  accent,
-}: Readonly<{ label: string; value: string; accent?: boolean }>) {
+function InfoBox({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
-    <article
-      style={{
-        padding: 20,
-        borderRadius: 22,
-        background: accent ? "rgba(43, 110, 82, 0.12)" : "rgba(255,255,255,0.72)",
-        border: "1px solid rgba(232, 217, 202, 0.9)",
-      }}
-    >
-      <p
-        style={{
-          margin: 0,
-          color: accent ? "#245844" : "var(--primary)",
-          textTransform: "uppercase",
-          letterSpacing: "0.12em",
-          fontSize: 12,
-          fontWeight: 700,
-        }}
-      >
-        {label}
-      </p>
-      <h2 style={{ margin: "10px 0 0", fontSize: 34 }}>{value}</h2>
-    </article>
-  );
-}
-
-function InfoCard({ label, value }: Readonly<{ label: string; value: string }>) {
-  return (
-    <article
-      style={{
-        display: "grid",
-        gap: 8,
-        padding: 16,
-        borderRadius: 18,
-        background: "rgba(255,255,255,0.78)",
-        border: "1px solid var(--border)",
-      }}
-    >
-      <span style={{ color: "var(--muted)", fontSize: 13 }}>{label}</span>
+    <div className="admin-surface-muted">
+      <span className="admin-list-card__subtitle">{label}</span>
       <strong>{value}</strong>
-    </article>
+    </div>
   );
 }
 
@@ -450,120 +325,13 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
-function statusBadgeStyle(status: LeadStatus) {
-  const palette: Record<LeadStatus, { background: string; color: string }> = {
-    NEW: { background: "rgba(191, 132, 25, 0.12)", color: "#8d5a0a" },
-    CONTACTED: { background: "rgba(43, 110, 82, 0.12)", color: "#245844" },
-    CONVERTED: { background: "rgba(50, 92, 168, 0.12)", color: "#204f8a" },
-    ARCHIVED: { background: "rgba(117, 117, 117, 0.16)", color: "#4b4b4b" },
+function leadTone(status: LeadStatus) {
+  const tones: Record<LeadStatus, "warning" | "info" | "success" | "neutral"> = {
+    NEW: "warning",
+    CONTACTED: "info",
+    CONVERTED: "success",
+    ARCHIVED: "neutral",
   };
 
-  return {
-    padding: "8px 12px",
-    borderRadius: 999,
-    background: palette[status].background,
-    color: palette[status].color,
-    fontWeight: 700,
-  };
+  return tones[status];
 }
-
-const eyebrowStyle = {
-  margin: 0,
-  color: "var(--primary)",
-  textTransform: "uppercase",
-  letterSpacing: "0.14em",
-  fontSize: 12,
-  fontWeight: 700,
-} as const;
-
-const feedbackStyle = {
-  margin: 0,
-  padding: "14px 16px",
-  borderRadius: 14,
-  lineHeight: 1.6,
-} as const;
-
-const errorStyle = {
-  background: "rgba(181, 66, 31, 0.12)",
-  color: "var(--primary)",
-} as const;
-
-const successStyle = {
-  background: "rgba(43, 110, 82, 0.12)",
-  color: "#245844",
-} as const;
-
-const primaryButtonStyle = {
-  height: 46,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: 0,
-  background: "var(--primary)",
-  color: "#fff",
-  fontWeight: 700,
-  cursor: "pointer",
-} as const;
-
-const secondaryButtonStyle = {
-  height: 46,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  color: "inherit",
-  fontWeight: 700,
-  cursor: "pointer",
-} as const;
-
-const ghostButtonStyle = {
-  height: 46,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: "1px solid rgba(181, 66, 31, 0.18)",
-  background: "rgba(181, 66, 31, 0.08)",
-  color: "var(--primary)",
-  fontWeight: 700,
-  cursor: "pointer",
-} as const;
-
-const secondaryLinkStyle = {
-  height: 46,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  color: "inherit",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const filterButtonStyle = {
-  height: 42,
-  padding: "0 16px",
-  borderRadius: 999,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  fontWeight: 700,
-  cursor: "pointer",
-} as const;
-
-const loadingPanelStyle = {
-  display: "grid",
-  gap: 10,
-  placeItems: "center",
-  padding: 42,
-  borderRadius: 24,
-  border: "1px dashed var(--border)",
-  background: "rgba(255,255,255,0.62)",
-} as const;
-
-const emptyPanelStyle = {
-  padding: 24,
-  borderRadius: 24,
-  border: "1px dashed var(--border)",
-  background: "rgba(255,255,255,0.62)",
-  color: "var(--muted)",
-} as const;

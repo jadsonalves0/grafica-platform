@@ -68,6 +68,13 @@ No `Topbar`:
 - manter o botao de abrir navegacao apenas no mobile
 - concentrar empresa, usuario e saida no menu de perfil
 
+Nos wrappers de pagina:
+
+- usar `admin-page-shell`
+- aplicar `admin-page-shell--narrow`, `admin-page-shell--medium` ou `admin-page-shell--wide` conforme a densidade do formulario
+- evitar `padding` local no `main`
+- evitar repetir `eyebrow` quando o breadcrumb ja contextualizar a pagina
+
 ### Formularios
 
 - `FormSection`
@@ -83,6 +90,14 @@ Nos formularios de `orcamentos` e `pedidos`:
 - concentrar observacoes e revisao no final
 - deixar apenas uma acao principal de salvamento
 - usar confirmacao explicita para exclusao
+
+No fluxo de `vendas`:
+
+- usar tela propria, separada do lancamento manual
+- manter a pesquisa e a inclusao de itens na area principal
+- manter resumo, total e acao principal sempre visiveis
+- esconder custo, margem detalhada e informacoes tecnicas ate quando forem realmente necessarias
+- usar alerta de saida sem salvar quando houver carrinho em andamento
 
 ### Feedback
 
@@ -197,6 +212,7 @@ Sempre que possivel:
 - indicadores compactos
 - pelo menos alguns registros visiveis na primeira dobra
 - uma unica superficie para filtros e conteudo principal
+- mesma largura operacional entre listagem e telas de `novo`, `editar` e `detalhe`
 
 Filtros devem:
 
@@ -249,6 +265,12 @@ Usar mensagens curtas e especificas:
 - `Entrada confirmada e estoque atualizado.`
 
 ### Erro
+
+Nos relatórios:
+
+- exportacao deve mostrar `Gerando arquivo...`
+- bloquear clique duplicado enquanto o arquivo estiver sendo preparado
+- devolver confirmacao de sucesso ou falha visivel
 
 Mostrar contexto e correcao esperada.
 

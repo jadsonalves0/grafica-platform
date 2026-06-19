@@ -18,6 +18,7 @@ type SearchableSelectProps = {
   emptyMessage?: string;
   clearable?: boolean;
   maxResults?: number;
+  autoFocus?: boolean;
 };
 
 export function SearchableSelect({
@@ -29,19 +30,30 @@ export function SearchableSelect({
   emptyMessage = "Nenhum resultado encontrado.",
   clearable = false,
   maxResults = 8,
+  autoFocus = false,
 }: Readonly<SearchableSelectProps>) {
   const listboxId = useId();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const selectedOption = useMemo(
     () => options.find((option) => option.value === value) ?? null,
     [options, value],
   );
   const [query, setQuery] = useState(selectedOption?.label ?? "");
   const [isOpen, setIsOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
 
   useEffect(() => {
     setQuery(selectedOption?.label ?? "");
   }, [selectedOption?.label]);
+
+  useEffect(() => {
+    if (!autoFocus || disabled) {
+      return;
+    }
+
+    inputRef.current?.focus();
+  }, [autoFocus, disabled]);
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -71,9 +83,19 @@ export function SearchableSelect({
     return source.slice(0, maxResults);
   }, [maxResults, options, query]);
 
+  useEffect(() => {
+    if (!filteredOptions.length) {
+      setHighlightedIndex(0);
+      return;
+    }
+
+    setHighlightedIndex((current) => Math.min(current, filteredOptions.length - 1));
+  }, [filteredOptions]);
+
   function handleInputChange(nextValue: string) {
     setQuery(nextValue);
     setIsOpen(true);
+    setHighlightedIndex(0);
 
     if (value) {
       onChange("");
@@ -84,27 +106,77 @@ export function SearchableSelect({
     onChange(option.value);
     setQuery(option.label);
     setIsOpen(false);
+    setHighlightedIndex(0);
   }
 
   function handleClear() {
     onChange("");
     setQuery("");
     setIsOpen(false);
+    setHighlightedIndex(0);
+    inputRef.current?.focus();
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (!filteredOptions.length && ["ArrowDown", "ArrowUp", "Enter"].includes(event.key)) {
+      event.preventDefault();
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setIsOpen(true);
+      setHighlightedIndex((current) =>
+        filteredOptions.length ? (current + 1) % filteredOptions.length : 0,
+      );
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setIsOpen(true);
+      setHighlightedIndex((current) =>
+        filteredOptions.length ? (current - 1 + filteredOptions.length) % filteredOptions.length : 0,
+      );
+      return;
+    }
+
+    if (event.key === "Enter" && isOpen) {
+      event.preventDefault();
+      const option = filteredOptions[highlightedIndex];
+      if (option) {
+        handleSelect(option);
+      }
+      return;
+    }
+
+    if (event.key === "Escape") {
+      setIsOpen(false);
+      setQuery(selectedOption?.label ?? "");
+    }
   }
 
   return (
     <div ref={containerRef} style={{ position: "relative", display: "grid", gap: 8 }}>
       <div style={inputShellStyle(disabled)}>
         <input
+          ref={inputRef}
           value={query}
           onChange={(event) => handleInputChange(event.target.value)}
           onFocus={() => setIsOpen(true)}
+          onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
+          autoFocus={autoFocus}
           autoComplete="off"
           role="combobox"
           aria-expanded={isOpen}
           aria-controls={listboxId}
+          aria-activedescendant={
+            isOpen && filteredOptions[highlightedIndex]
+              ? `${listboxId}-${filteredOptions[highlightedIndex].value}`
+              : undefined
+          }
           style={inputStyle}
         />
 
@@ -125,10 +197,14 @@ export function SearchableSelect({
             filteredOptions.map((option) => (
               <button
                 key={option.value}
+                id={`${listboxId}-${option.value}`}
                 type="button"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => handleSelect(option)}
-                style={optionButtonStyle(option.value === value)}
+                style={optionButtonStyle(
+                  option.value === value,
+                  filteredOptions[highlightedIndex]?.value === option.value,
+                )}
               >
                 <strong>{option.label}</strong>
                 {option.description ? (
@@ -209,14 +285,14 @@ const dropdownStyle = {
   overflowY: "auto" as const,
 } as const;
 
-function optionButtonStyle(isSelected: boolean) {
+function optionButtonStyle(isSelected: boolean, isHighlighted: boolean) {
   return {
     display: "grid",
     gap: 4,
     textAlign: "left" as const,
-    border: "1px solid rgba(232, 217, 202, 0.9)",
+    border: isHighlighted ? "1px solid rgba(180, 83, 42, 0.34)" : "1px solid rgba(232, 217, 202, 0.9)",
     borderRadius: 14,
-    background: isSelected ? "rgba(181, 66, 31, 0.08)" : "#fff",
+    background: isSelected || isHighlighted ? "rgba(181, 66, 31, 0.08)" : "#fff",
     padding: "12px 14px",
     cursor: "pointer",
     color: "inherit",

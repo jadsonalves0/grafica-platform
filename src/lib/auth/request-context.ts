@@ -6,6 +6,10 @@ import { AuthSessionRepository } from "@/repositories/auth/auth-session-reposito
 export type AuthenticatedRequestContext = {
   companyId: string;
   userId: string;
+  userName: string;
+  userEmail: string;
+  companyTradeName: string;
+  companySlug: string;
   isPlatformAdmin: boolean;
   permissions: string[];
 };
@@ -35,6 +39,10 @@ export async function resolveRequestContext(): Promise<AuthenticatedRequestConte
   return {
     companyId: session.companyId,
     userId: session.userId,
+    userName: session.userName,
+    userEmail: session.userEmail,
+    companyTradeName: session.companyTradeName,
+    companySlug: session.companySlug,
     isPlatformAdmin: session.isPlatformAdmin,
     permissions,
   };

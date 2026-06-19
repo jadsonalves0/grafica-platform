@@ -5,21 +5,40 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { EntryForm } from "@/app/(admin)/admin/financeiro/_components/entry-form";
+import {
+  Alert,
+  EmptyState,
+  PageHeader,
+  SectionCard,
+  Skeleton,
+  StatusBadge,
+} from "@/components/admin/ui";
 
 type EntryDetail = {
   id: string;
   accountId: string;
+  accountName: string;
   financialCategoryId?: string | null;
   customerId?: string | null;
+  customerName?: string | null;
+  inventoryEntryId?: string | null;
+  inventoryEntryDocumentNumber?: string | null;
   orderId?: string | null;
+  orderCode?: string | null;
   quoteId?: string | null;
-  entryType: "INCOME" | "EXPENSE";
+  quoteCode?: string | null;
+  entryType: "INCOME" | "EXPENSE" | "RECEIVABLE" | "PAYABLE" | "TRANSFER";
+  originType: "MANUAL" | "ENTRY" | "PRODUCTION" | "ORDER" | "QUOTE" | "WEBSITE";
+  originLabel: string;
+  originHref?: string | null;
   category: string;
   description: string;
   amount: number;
   dueDate: string;
   status: "PENDING" | "PAID" | "OVERDUE" | "CANCELED";
   paidAt?: string | null;
+  installmentNumber?: number | null;
+  installmentCount?: number | null;
   createdAt: string;
   updatedAt: string;
   items: Array<{
@@ -76,129 +95,147 @@ export default function EditarLancamentoPage() {
       }
     }
 
-    loadEntry();
+    void loadEntry();
 
     return () => controller.abort();
   }, [entryId]);
 
-  if (isLoading) {
-    return (
-      <main style={{ padding: 32 }}>
-        <section style={loadingPanelStyle}>
-          <strong>Carregando lancamento...</strong>
-          <span style={{ color: "var(--muted)" }}>Estamos preparando os dados financeiros.</span>
-        </section>
-      </main>
-    );
-  }
-
   return (
-    <main style={{ padding: 32, maxWidth: 1120, display: "grid", gap: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-        <div style={{ maxWidth: 760 }}>
-          <p
-            style={{
-              margin: 0,
-              color: "var(--primary)",
-              textTransform: "uppercase",
-              letterSpacing: "0.14em",
-              fontSize: 12,
-              fontWeight: 700,
-            }}
-          >
-            Fluxo de caixa
-          </p>
-          <h1 style={{ margin: "12px 0 8px", fontFamily: "var(--font-heading)", fontSize: 46 }}>
-            Editar lancamento
-          </h1>
-          <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.7, fontSize: 18 }}>
-            Revise vencimento, conta, vinculos e status financeiro sem sair da operacao.
-          </p>
-        </div>
+    <main className="admin-page-stack admin-page-shell admin-page-shell--medium">
+      <PageHeader
+        title="Detalhe financeiro"
+        description="Revise vencimento, origem, parcelas e situacao financeira sem confundir este registro com o fluxo comercial da venda."
+        secondaryActions={[{ href: "/admin/financeiro", label: "Voltar para financeiro", variant: "secondary" }]}
+      />
 
-        <Link href="/admin/financeiro" style={secondaryButtonStyle}>
-          Voltar para financeiro
-        </Link>
-      </div>
+      {errorMessage ? (
+        <Alert variant="danger" title="Nao foi possivel abrir o lancamento.">
+          {errorMessage}
+        </Alert>
+      ) : null}
 
-      {errorMessage ? <p style={{ ...feedbackStyle, ...errorStyle }}>{errorMessage}</p> : null}
+      {isLoading ? (
+        <SectionCard title="Carregando lancamento">
+          <Skeleton lines={7} />
+        </SectionCard>
+      ) : entry ? (
+        <>
+          <SectionCard title="Resumo do lancamento" description="Veja primeiro a origem e o papel desse valor dentro da operacao.">
+            <div className="admin-summary-list">
+              <div className="admin-summary-row">
+                <span style={{ color: "var(--muted)" }}>Origem</span>
+                {entry.originHref ? (
+                  <Link href={entry.originHref} className="admin-link-button">
+                    {entry.originLabel}
+                  </Link>
+                ) : (
+                  <strong>{entry.originLabel}</strong>
+                )}
+              </div>
+              <div className="admin-summary-row">
+                <span style={{ color: "var(--muted)" }}>Natureza</span>
+                <strong>{formatEntryType(entry.entryType)}</strong>
+              </div>
+              <div className="admin-summary-row">
+                <span style={{ color: "var(--muted)" }}>Conta</span>
+                <strong>{entry.accountName}</strong>
+              </div>
+              <div className="admin-summary-row">
+                <span style={{ color: "var(--muted)" }}>Valor</span>
+                <strong>{formatCurrency(entry.amount)}</strong>
+              </div>
+              <div className="admin-summary-row">
+                <span style={{ color: "var(--muted)" }}>Status</span>
+                <StatusBadge status={formatFinancialStatus(entry.status)} tone={mapFinancialTone(entry.status)} />
+              </div>
+              {entry.installmentCount ? (
+                <div className="admin-summary-row">
+                  <span style={{ color: "var(--muted)" }}>Parcela</span>
+                  <strong>
+                    {entry.installmentNumber ?? 1} de {entry.installmentCount}
+                  </strong>
+                </div>
+              ) : null}
+            </div>
+          </SectionCard>
 
-      {entry ? (
-        <EntryForm
-          mode="edit"
-          entryId={entry.id}
-          initialState={{
-            accountId: entry.accountId,
-            financialCategoryId: entry.financialCategoryId ?? "",
-            customerId: entry.customerId ?? "",
-            orderId: entry.orderId ?? "",
-            quoteId: entry.quoteId ?? "",
-            entryType: entry.entryType,
-            category: entry.category,
-            description: entry.description,
-            amount: new Intl.NumberFormat("pt-BR", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            }).format(entry.amount),
-            dueDate: entry.dueDate.slice(0, 10),
-            status: entry.status,
-            items: entry.items.map((item) => ({
-              id: item.id,
-              productId: item.productId ?? "",
-              description: item.description,
-              quantity: new Intl.NumberFormat("pt-BR", {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 3,
-              }).format(item.quantity),
-              unitPrice: new Intl.NumberFormat("pt-BR", {
+          <EntryForm
+            mode="edit"
+            entryId={entry.id}
+            initialState={{
+              accountId: entry.accountId,
+              financialCategoryId: entry.financialCategoryId ?? "",
+              customerId: entry.customerId ?? "",
+              orderId: entry.orderId ?? "",
+              quoteId: entry.quoteId ?? "",
+              entryType:
+                entry.entryType === "INCOME" || entry.entryType === "RECEIVABLE"
+                  ? "INCOME"
+                  : "EXPENSE",
+              category: entry.category,
+              description: entry.description,
+              amount: new Intl.NumberFormat("pt-BR", {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
-              }).format(item.unitPrice),
-            })),
-          }}
-          metadata={{
-            createdAt: entry.createdAt,
-            updatedAt: entry.updatedAt,
-            paidAt: entry.paidAt,
-          }}
+              }).format(entry.amount),
+              dueDate: entry.dueDate.slice(0, 10),
+              status: entry.status,
+              items: entry.items.map((item) => ({
+                id: item.id,
+                productId: item.productId ?? "",
+                description: item.description,
+                quantity: new Intl.NumberFormat("pt-BR", {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 3,
+                }).format(item.quantity),
+                unitPrice: new Intl.NumberFormat("pt-BR", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                }).format(item.unitPrice),
+              })),
+            }}
+            metadata={{
+              createdAt: entry.createdAt,
+              updatedAt: entry.updatedAt,
+              paidAt: entry.paidAt,
+            }}
+          />
+        </>
+      ) : (
+        <EmptyState
+          title="Lancamento nao encontrado"
+          description="Volte para a visao financeira e tente abrir o registro novamente."
+          action={{ href: "/admin/financeiro", label: "Ir para financeiro" }}
         />
-      ) : null}
+      )}
     </main>
   );
 }
 
-const secondaryButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  color: "inherit",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(value || 0);
+}
 
-const feedbackStyle = {
-  margin: 0,
-  padding: "14px 16px",
-  borderRadius: 14,
-  lineHeight: 1.6,
-} as const;
+function formatEntryType(type: EntryDetail["entryType"]) {
+  if (type === "RECEIVABLE") return "Conta a receber";
+  if (type === "PAYABLE") return "Conta a pagar";
+  if (type === "TRANSFER") return "Transferencia";
+  return type === "INCOME" ? "Receita" : "Despesa";
+}
 
-const errorStyle = {
-  background: "rgba(181, 66, 31, 0.12)",
-  color: "var(--primary)",
-} as const;
+function formatFinancialStatus(status: EntryDetail["status"]) {
+  if (status === "PAID") return "Pago";
+  if (status === "OVERDUE") return "Vencido";
+  if (status === "CANCELED") return "Cancelado";
+  return "Pendente";
+}
 
-const loadingPanelStyle = {
-  display: "grid",
-  gap: 10,
-  placeItems: "center",
-  padding: 42,
-  borderRadius: 24,
-  border: "1px dashed var(--border)",
-  background: "rgba(255,255,255,0.62)",
-} as const;
+function mapFinancialTone(status: EntryDetail["status"]) {
+  if (status === "PAID") return "success" as const;
+  if (status === "OVERDUE") return "danger" as const;
+  if (status === "CANCELED") return "neutral" as const;
+  return "warning" as const;
+}

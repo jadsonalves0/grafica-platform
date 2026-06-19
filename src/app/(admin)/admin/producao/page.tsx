@@ -37,6 +37,10 @@ type ProductOption = {
   isActive: boolean;
 };
 
+type OperationalSettings = {
+  allowNegativeStock: boolean;
+};
+
 type RecipeDetail = {
   product: {
     id: string;
@@ -63,9 +67,12 @@ type ProductionRecord = {
   id: string;
   productId: string;
   productName: string;
+  orderId?: string | null;
+  orderCode?: string | null;
   quantityProduced: number;
   totalCost: number;
   unitCost: number;
+  status: "PENDING" | "IN_PRODUCTION" | "COMPLETED" | "CANCELED";
   notes?: string | null;
   createdAt: string;
   producedByName?: string | null;
@@ -92,6 +99,7 @@ export default function ProducaoPage() {
   const [selectedProductId, setSelectedProductId] = useState(initialProductId);
   const [recipe, setRecipe] = useState<RecipeDetail | null>(null);
   const [records, setRecords] = useState<ProductionRecord[]>([]);
+  const [settings, setSettings] = useState<OperationalSettings | null>(null);
   const [quantityProduced, setQuantityProduced] = useState("1");
   const [notes, setNotes] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -108,15 +116,26 @@ export default function ProducaoPage() {
       setErrorMessage(null);
 
       try {
-        const response = await fetch("/api/inventory/products", {
-          signal: controller.signal,
-          cache: "no-store",
-        });
-        const result = (await response.json()) as ApiResult<ProductOption[]>;
+        const [productsResponse, settingsResponse] = await Promise.all([
+          fetch("/api/inventory/products", {
+            signal: controller.signal,
+            cache: "no-store",
+          }),
+          fetch("/api/inventory/settings", {
+            signal: controller.signal,
+            cache: "no-store",
+          }),
+        ]);
+        const result = (await productsResponse.json()) as ApiResult<ProductOption[]>;
+        const settingsResult = (await settingsResponse.json()) as ApiResult<OperationalSettings>;
 
-        if (!response.ok || !result.success || !result.data) {
+        if (!productsResponse.ok || !result.success || !result.data) {
           setErrorMessage(result.message ?? "Nao foi possivel carregar os itens.");
           return;
+        }
+
+        if (settingsResponse.ok && settingsResult.success && settingsResult.data) {
+          setSettings(settingsResult.data);
         }
 
         setProducts(result.data);
@@ -255,6 +274,26 @@ export default function ProducaoPage() {
     [estimatedTotalCost, simulatedQuantity],
   );
 
+  const shortageItems = useMemo(
+    () =>
+      estimatedConsumptions.filter(
+        (item) =>
+          item.materialCurrentStock < item.quantityConsumed &&
+          !(settings?.allowNegativeStock ?? false),
+      ),
+    [estimatedConsumptions, settings?.allowNegativeStock],
+  );
+
+  const productionBuckets = useMemo(
+    () => ({
+      pending: records.filter((record) => record.status === "PENDING").length,
+      inProgress: records.filter((record) => record.status === "IN_PRODUCTION").length,
+      completed: records.filter((record) => record.status === "COMPLETED").length,
+      blocked: shortageItems.length > 0 ? 1 : 0,
+    }),
+    [records, shortageItems.length],
+  );
+
   const selectedProduct = finishedProducts.find((product) => product.id === selectedProductId) ?? null;
 
   async function refreshContext(productId = selectedProductId) {
@@ -305,6 +344,13 @@ export default function ProducaoPage() {
 
     if (simulatedQuantity <= 0) {
       return "Informe uma quantidade produzida maior que zero.";
+    }
+
+    if (shortageItems.length > 0) {
+      const firstShortage = shortageItems[0];
+      return `Nao e possivel iniciar esta producao. Faltam ${formatNumber(
+        roundQuantity(firstShortage.quantityConsumed - firstShortage.materialCurrentStock),
+      )} ${firstShortage.materialUnit} de ${firstShortage.materialProductName}.`;
     }
 
     return null;
@@ -370,13 +416,23 @@ export default function ProducaoPage() {
 
       <section className="admin-card-grid">
         <MetricCard label="Produtos finais" value={String(finishedProducts.length)} />
-        <MetricCard label="Quantidade simulada" value={formatNumber(simulatedQuantity)} />
-        <MetricCard label="Custo total previsto" value={formatCurrency(estimatedTotalCost)} />
-        <MetricCard label="Custo unitario previsto" value={formatCurrency(estimatedUnitCost)} />
+        <MetricCard label="Pendentes" value={String(productionBuckets.pending)} description="Aguardando apontamento." />
+        <MetricCard label="Em andamento" value={String(productionBuckets.inProgress)} description="Lotes em execucao." />
+        <MetricCard label="Com impedimento" value={String(productionBuckets.blocked)} description="Falta de material no lote atual." />
+        <MetricCard label="Concluidas" value={String(productionBuckets.completed)} description="Producoes ja finalizadas." />
       </section>
 
       {errorMessage ? <Alert variant="danger">{errorMessage}</Alert> : null}
       {successMessage ? <Alert variant="success">{successMessage}</Alert> : null}
+      {shortageItems.length > 0 ? (
+        <Alert variant="danger" title="Nao e possivel iniciar esta producao.">
+          {`Faltam ${formatNumber(
+            roundQuantity(shortageItems[0].quantityConsumed - shortageItems[0].materialCurrentStock),
+          )} ${shortageItems[0].materialUnit} de ${shortageItems[0].materialProductName}.`}
+          {" "}
+          Revise o estoque antes de continuar.
+        </Alert>
+      ) : null}
 
       <div className="admin-layout-grid admin-layout-grid--sidebar">
         <form onSubmit={handleSubmit} className="admin-page-stack">
@@ -453,6 +509,12 @@ export default function ProducaoPage() {
                       <SmallStat label="Custo unit." value={formatCurrency(item.materialCostPrice)} />
                       <SmallStat label="Perda aplicada" value={`${formatNumber(item.lossPercent)}%`} />
                     </div>
+
+                    {item.materialCurrentStock < item.quantityConsumed && !(settings?.allowNegativeStock ?? false) ? (
+                      <Alert variant="warning" title="Material abaixo do necessario para este lote.">
+                        Faltam {formatNumber(roundQuantity(item.quantityConsumed - item.materialCurrentStock))} {item.materialUnit} para concluir a producao sem estoque negativo.
+                      </Alert>
+                    ) : null}
                   </article>
                 ))}
               </div>
@@ -466,19 +528,24 @@ export default function ProducaoPage() {
                 {formatNumber(simulatedQuantity)} produzidos | custo total {formatCurrency(estimatedTotalCost)}
               </span>
             </div>
-            <LoadingButton isLoading={isSubmitting} loadingLabel="Registrando..." type="submit">
-              Registrar producao
+            <LoadingButton
+              isLoading={isSubmitting}
+              loadingLabel="Concluindo producao..."
+              type="submit"
+              disabled={shortageItems.length > 0}
+            >
+              Concluir producao
             </LoadingButton>
           </StickyActionBar>
         </form>
 
         <SectionCard
-          title="Historico recente"
-          description="Ultimos apontamentos para consulta de custo e materiais consumidos."
+          title="Historico e proxima acao"
+          description="Ultimos apontamentos e orientacao do que fazer em seguida."
           actions={
             selectedProductId ? (
               <Link href={`/admin/estoque/${selectedProductId}/composicao`} className="admin-button admin-button--ghost">
-                Ajustar composicao
+                Abrir ficha tecnica
               </Link>
             ) : null
           }
@@ -510,6 +577,19 @@ export default function ProducaoPage() {
                     <SmallStat label="Custo total" value={formatCurrency(record.totalCost)} />
                     <SmallStat label="Custo unit." value={formatCurrency(record.unitCost)} />
                     <SmallStat label="Materiais" value={String(record.consumptions.length)} />
+                  </div>
+
+                  <div className="admin-row">
+                    {record.orderCode ? (
+                      <Link href={`/admin/pedidos/${record.orderId}`} className="admin-link-button">
+                        Abrir pedido {record.orderCode}
+                      </Link>
+                    ) : null}
+                    {selectedProductId ? (
+                      <Link href={`/admin/estoque/${selectedProductId}`} className="admin-link-button">
+                        Abrir item
+                      </Link>
+                    ) : null}
                   </div>
 
                   <div className="admin-list-stack">

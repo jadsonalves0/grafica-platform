@@ -34,7 +34,15 @@ type FinancialEntry = {
   accountId: string;
   accountName: string;
   financialCategoryId?: string | null;
-  entryType: "INCOME" | "EXPENSE";
+  customerId?: string | null;
+  customerName?: string | null;
+  inventoryEntryId?: string | null;
+  orderId?: string | null;
+  quoteId?: string | null;
+  entryType: "INCOME" | "EXPENSE" | "RECEIVABLE" | "PAYABLE" | "TRANSFER";
+  originType: "MANUAL" | "ENTRY" | "PRODUCTION" | "ORDER" | "QUOTE" | "WEBSITE";
+  originLabel: string;
+  originHref?: string | null;
   category: string;
   description: string;
   amount: number;
@@ -42,6 +50,8 @@ type FinancialEntry = {
   status: "PENDING" | "PAID" | "OVERDUE" | "CANCELED";
   paidAt?: string | null;
   itemCount: number;
+  installmentNumber?: number | null;
+  installmentCount?: number | null;
 };
 
 type CashFlowSummary = {
@@ -63,6 +73,7 @@ type ApiResult<T> = {
 export default function FinanceiroPage() {
   const searchParams = useSearchParams();
   const requestedEntryType = searchParams.get("entryType");
+  const requestedBucket = searchParams.get("bucket");
   const requestedStatus = searchParams.get("status");
   const [accounts, setAccounts] = useState<FinancialAccount[]>([]);
   const [categories, setCategories] = useState<FinancialCategory[]>([]);
@@ -151,7 +162,14 @@ export default function FinanceiroPage() {
   const filteredEntries = useMemo(() => {
     return entries.filter((entry) => {
       const matchesType =
-        requestedEntryType === "INCOME" || requestedEntryType === "EXPENSE"
+        requestedBucket === "receivable"
+          ? entry.entryType === "INCOME" || entry.entryType === "RECEIVABLE"
+          : requestedBucket === "payable"
+            ? entry.entryType === "EXPENSE" || entry.entryType === "PAYABLE"
+            : requestedEntryType === "INCOME" ||
+                requestedEntryType === "RECEIVABLE" ||
+                requestedEntryType === "EXPENSE" ||
+                requestedEntryType === "PAYABLE"
           ? entry.entryType === requestedEntryType
           : true;
       const matchesStatus =
@@ -164,14 +182,20 @@ export default function FinanceiroPage() {
 
       return matchesType && matchesStatus;
     });
-  }, [entries, requestedEntryType, requestedStatus]);
+  }, [entries, requestedBucket, requestedEntryType, requestedStatus]);
 
   const receivableEntries = useMemo(
-    () => filteredEntries.filter((entry) => entry.entryType === "INCOME").slice(0, 6),
+    () =>
+      filteredEntries
+        .filter((entry) => entry.entryType === "INCOME" || entry.entryType === "RECEIVABLE")
+        .slice(0, 6),
     [filteredEntries],
   );
   const payableEntries = useMemo(
-    () => filteredEntries.filter((entry) => entry.entryType === "EXPENSE").slice(0, 6),
+    () =>
+      filteredEntries
+        .filter((entry) => entry.entryType === "EXPENSE" || entry.entryType === "PAYABLE")
+        .slice(0, 6),
     [filteredEntries],
   );
   const recentEntries = useMemo(() => filteredEntries.slice(0, 6), [filteredEntries]);
@@ -188,7 +212,7 @@ export default function FinanceiroPage() {
     <main className="admin-page-stack">
       <PageHeader
         title="Visao financeira"
-        description="Acompanhe o que entra, o que sai e o saldo das contas, sem confundir vendas com operacoes genericas."
+        description="Acompanhe o que entra, o que sai e o saldo das contas. Vendas e entradas geram seus reflexos aqui, enquanto o lancamento manual fica como excecao."
         primaryAction={{ href: "/admin/financeiro/lancamentos/novo?type=INCOME", label: "Registrar receita" }}
         secondaryActions={[
           { href: "/admin/financeiro/lancamentos/novo?type=EXPENSE", label: "Registrar despesa", variant: "secondary" },
@@ -211,8 +235,8 @@ export default function FinanceiroPage() {
       ) : (
         <>
           <section className="admin-panel-grid">
-            <MetricCard label="A receber" value={formatCurrency(summary?.pendingIncome ?? 0)} description="Titulos em aberto." href="/admin/financeiro?entryType=INCOME&status=PENDING" />
-            <MetricCard label="A pagar" value={formatCurrency(summary?.pendingExpense ?? 0)} description="Compromissos pendentes." href="/admin/financeiro?entryType=EXPENSE&status=PENDING" />
+            <MetricCard label="A receber" value={formatCurrency(summary?.pendingIncome ?? 0)} description="Titulos em aberto." href="/admin/financeiro?bucket=receivable&status=PENDING" />
+            <MetricCard label="A pagar" value={formatCurrency(summary?.pendingExpense ?? 0)} description="Compromissos pendentes." href="/admin/financeiro?bucket=payable&status=PENDING" />
             <MetricCard label="Recebido" value={formatCurrency(summary?.paidIncome ?? 0)} description="Receitas ja baixadas." />
             <MetricCard label="Saldo projetado" value={formatCurrency(summary?.projectedBalance ?? 0)} description="Fluxo esperado atual." />
           </section>
@@ -221,7 +245,7 @@ export default function FinanceiroPage() {
             <SectionCard
               title="A receber"
               actions={
-                <Link href="/admin/financeiro?entryType=INCOME&status=PENDING" className="admin-link-button">
+                <Link href="/admin/financeiro?bucket=receivable&status=PENDING" className="admin-link-button">
                   Ver tudo
                 </Link>
               }
@@ -239,7 +263,7 @@ export default function FinanceiroPage() {
             <SectionCard
               title="A pagar"
               actions={
-                <Link href="/admin/financeiro?entryType=EXPENSE&status=PENDING" className="admin-link-button">
+                <Link href="/admin/financeiro?bucket=payable&status=PENDING" className="admin-link-button">
                   Ver tudo
                 </Link>
               }
@@ -286,8 +310,8 @@ export default function FinanceiroPage() {
             {recentEntries.length === 0 ? (
               <EmptyState
                 title="Nenhum lancamento encontrado"
-                description="Os lancamentos financeiros aparecerao aqui conforme forem registrados."
-                action={{ href: "/admin/financeiro/lancamentos/novo", label: "Criar primeiro lancamento" }}
+                description="Os reflexos de vendas, entradas e os poucos lancamentos manuais aparecerao aqui conforme forem registrados."
+                action={{ href: "/admin/financeiro/lancamentos/novo", label: "Criar lancamento manual" }}
               />
             ) : (
               <EntryList entries={recentEntries} />
@@ -322,6 +346,7 @@ function EntryList({ entries }: Readonly<{ entries: FinancialEntry[] }>) {
             <MiniStat label="Natureza" value={formatEntryType(entry.entryType)} />
             <MiniStat label="Vencimento" value={formatDate(entry.dueDate)} />
             <MiniStat label="Valor" value={formatCurrency(entry.amount)} />
+            <MiniStat label="Origem" value={entry.originLabel} />
           </div>
         </Link>
       ))}
@@ -356,6 +381,9 @@ function formatAccountType(type: string) {
 }
 
 function formatEntryType(type: FinancialEntry["entryType"]) {
+  if (type === "RECEIVABLE") return "Conta a receber";
+  if (type === "PAYABLE") return "Conta a pagar";
+  if (type === "TRANSFER") return "Transferencia";
   return type === "INCOME" ? "Receita" : "Despesa";
 }
 

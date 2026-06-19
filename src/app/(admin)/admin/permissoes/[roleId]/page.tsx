@@ -68,7 +68,7 @@ export default function EditarPerfilPage() {
 
   if (isLoading) {
     return (
-      <main style={{ padding: 32 }}>
+      <main className="admin-page-stack admin-page-shell admin-page-shell--medium">
         <section style={loadingPanelStyle}>
           <strong>Carregando perfil...</strong>
           <span style={{ color: "var(--muted)" }}>Estamos preparando as permissoes para edicao.</span>
@@ -78,7 +78,7 @@ export default function EditarPerfilPage() {
   }
 
   return (
-    <main style={{ padding: 32, maxWidth: 1100, display: "grid", gap: 24 }}>
+    <main className="admin-page-stack admin-page-shell admin-page-shell--medium">
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div style={{ maxWidth: 760 }}>
           <p

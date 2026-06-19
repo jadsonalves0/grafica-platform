@@ -4,15 +4,25 @@ export type FinancialEntryDetailDto = {
   accountName: string;
   financialCategoryId?: string | null;
   customerId?: string | null;
+  customerName?: string | null;
+  inventoryEntryId?: string | null;
+  inventoryEntryDocumentNumber?: string | null;
   orderId?: string | null;
+  orderCode?: string | null;
   quoteId?: string | null;
-  entryType: string;
+  quoteCode?: string | null;
+  entryType: "INCOME" | "EXPENSE" | "RECEIVABLE" | "PAYABLE" | "TRANSFER";
+  originType: "MANUAL" | "ENTRY" | "PRODUCTION" | "ORDER" | "QUOTE" | "WEBSITE";
+  originLabel: string;
+  originHref?: string | null;
   category: string;
   description: string;
   amount: number;
   dueDate: string;
   status: string;
   paidAt?: string | null;
+  installmentNumber?: number | null;
+  installmentCount?: number | null;
   createdAt: string;
   updatedAt: string;
   items: Array<{

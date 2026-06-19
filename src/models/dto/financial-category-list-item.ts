@@ -1,7 +1,7 @@
 export type FinancialCategoryListItemDto = {
   id: string;
   name: string;
-  type: "INCOME" | "EXPENSE";
+  type: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

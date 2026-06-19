@@ -1,0 +1,20 @@
+import type { InventoryEntryItemInputDto } from "@/models/dto/inventory-entry-item-input";
+
+export type InventoryEntryUpdateInputDto = {
+  entryType:
+    | "PURCHASE_INVOICE"
+    | "PURCHASE_WITHOUT_INVOICE"
+    | "INITIAL_BALANCE"
+    | "RETURN"
+    | "BONUS"
+    | "OTHER";
+  supplierName?: string;
+  documentNumber: string;
+  entryDate: string;
+  notes?: string;
+  financialCondition?: "NONE" | "CASH" | "TERM";
+  financialAccountId?: string;
+  installmentCount?: number;
+  firstDueDate?: string;
+  items: InventoryEntryItemInputDto[];
+};

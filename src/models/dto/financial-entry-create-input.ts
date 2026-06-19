@@ -7,9 +7,11 @@ export type FinancialEntryCreateInputDto = {
   quoteId?: string;
   entryType: "INCOME" | "EXPENSE";
   category: string;
-  description: string;
+  description?: string;
   amount: number;
   dueDate: string;
+  status?: "PENDING" | "PAID" | "OVERDUE" | "CANCELED";
+  paidAt?: string;
   items?: Array<{
     productId?: string;
     description: string;

@@ -159,6 +159,35 @@ export class CustomerRepository {
     });
   }
 
+  async getDependencySummary(companyId: string, customerId: string) {
+    const [quotes, orders, financialEntries] = await Promise.all([
+      this.db.quote.count({
+        where: {
+          companyId,
+          customerId,
+        },
+      }),
+      this.db.order.count({
+        where: {
+          companyId,
+          customerId,
+        },
+      }),
+      this.db.financialEntry.count({
+        where: {
+          companyId,
+          customerId,
+        },
+      }),
+    ]);
+
+    return {
+      quotes,
+      orders,
+      financialEntries,
+    };
+  }
+
   async updateStatus(companyId: string, customerId: string, isActive: boolean) {
     return this.db.customer.update({
       where: {

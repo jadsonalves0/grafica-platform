@@ -981,6 +981,10 @@ summary:focus-visible {
   box-shadow: var(--shadow-sm);
 }
 
+.admin-metric-card--interactive:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
 .admin-metric-card__label {
   color: var(--muted);
   font-size: 11px;
@@ -1095,6 +1099,23 @@ summary:focus-visible {
 .admin-page-stack {
   display: grid;
   gap: 16px;
+}
+
+.admin-page-shell {
+  width: 100%;
+  margin: 0 auto;
+}
+
+.admin-page-shell--narrow {
+  max-width: 980px;
+}
+
+.admin-page-shell--medium {
+  max-width: 1120px;
+}
+
+.admin-page-shell--wide {
+  max-width: 1280px;
 }
 
 .admin-layout-grid {

@@ -39,9 +39,11 @@ export const createFinancialEntrySchema = z.object({
   quoteId: z.string().uuid().optional(),
   entryType: z.enum(["INCOME", "EXPENSE"]),
   category: z.string().min(2).max(80),
-  description: z.string().min(2).max(255),
+  description: z.string().max(255).optional().default(""),
   amount: z.coerce.number().positive(),
   dueDate: z.string(),
+  status: z.enum(["PENDING", "PAID", "OVERDUE", "CANCELED"]).optional(),
+  paidAt: z.string().optional(),
   items: z.array(financialEntryItemSchema).optional(),
 });
 

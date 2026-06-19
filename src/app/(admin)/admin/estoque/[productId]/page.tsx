@@ -1,24 +1,42 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { ProductForm } from "@/app/(admin)/admin/estoque/_components/product-form";
+import { Alert, PageHeader, SectionCard, Skeleton } from "@/components/admin/ui";
+import { normalizeDecimalInput } from "@/lib/forms/br-utils";
 
 type ProductDetail = {
   id: string;
+  categoryId?: string | null;
+  categoryName?: string | null;
   name: string;
   sku?: string | null;
   barcode?: string | null;
-  type: "RAW_MATERIAL" | "SERVICE" | "FINISHED_PRODUCT";
+  type: "RAW_MATERIAL" | "SERVICE" | "FINISHED_PRODUCT" | "RESALE";
   unit: string;
+  controlsStock: boolean;
+  showOnWebsite: boolean;
+  desiredMargin?: number | null;
   costPrice: number;
   salePrice: number;
   minimumStock: number;
   currentStock: number;
   createdAt: string;
   updatedAt: string;
+  isActive: boolean;
+  priceHistories: Array<{
+    id: string;
+    changeType: "COST" | "PRICE";
+    previousValue: number;
+    newValue: number;
+    origin: string;
+    relatedDocument?: string | null;
+    justification?: string | null;
+    changedByUserName?: string | null;
+    createdAt: string;
+  }>;
 };
 
 type ApiResult<T> = {
@@ -67,81 +85,72 @@ export default function EditarItemEstoquePage() {
       }
     }
 
-    loadProduct();
+    void loadProduct();
 
     return () => controller.abort();
   }, [productId]);
 
   if (isLoading) {
     return (
-      <main style={{ padding: 32 }}>
-        <section style={loadingPanelStyle}>
-          <strong>Carregando item...</strong>
-          <span style={{ color: "var(--muted)" }}>Estamos trazendo os dados do catalogo.</span>
-        </section>
+      <main className="admin-page-stack admin-page-shell admin-page-shell--narrow">
+        <PageHeader
+          breadcrumbs={[{ label: "Cadastros" }, { label: "Itens" }, { label: "Editar item" }]}
+          title="Editar item"
+          description="Estamos carregando os dados do catalogo para revisao."
+          secondaryActions={[{ href: "/admin/estoque", label: "Voltar para itens", variant: "secondary" }]}
+        />
+        <SectionCard title="Carregando item">
+          <Skeleton lines={6} />
+        </SectionCard>
       </main>
     );
   }
 
   return (
-    <main style={{ padding: 32, maxWidth: 980, display: "grid", gap: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-        <div style={{ maxWidth: 820 }}>
-          <p
-            style={{
-              margin: 0,
-              color: "var(--primary)",
-              textTransform: "uppercase",
-              letterSpacing: "0.14em",
-              fontSize: 12,
-              fontWeight: 700,
-            }}
-          >
-            Catalogo de itens
-          </p>
-          <h1 style={{ margin: "12px 0 8px", fontFamily: "var(--font-heading)", fontSize: 46 }}>
-            Editar item
-          </h1>
-          <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.7, fontSize: 18 }}>
-            Atualize os dados do item para manter orcamentos, pedidos e movimentacoes coerentes.
-          </p>
-        </div>
+    <main className="admin-page-stack admin-page-shell admin-page-shell--narrow">
+      <PageHeader
+        breadcrumbs={[{ label: "Cadastros" }, { label: "Itens" }, { label: "Editar item" }]}
+        title="Editar item"
+        description="Atualize os dados do item para manter orcamentos, pedidos e movimentacoes coerentes."
+        secondaryActions={[
+          { href: "/admin/estoque", label: "Voltar para itens", variant: "secondary" },
+          {
+            href: product ? `/admin/estoque/movimentar?productId=${product.id}` : "/admin/estoque/movimentar",
+            label: "Movimentar estoque",
+            variant: "secondary",
+          },
+          ...(product?.type === "FINISHED_PRODUCT"
+            ? [
+                { href: `/admin/estoque/${product.id}/composicao`, label: "Editar composicao", variant: "secondary" as const },
+                { href: `/admin/producao?productId=${product.id}`, label: "Produzir item", variant: "secondary" as const },
+              ]
+            : []),
+        ]}
+      />
 
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <Link href="/admin/estoque" style={secondaryButtonStyle}>
-            Voltar para estoque
-          </Link>
-          <Link
-            href={product ? `/admin/estoque/movimentar?productId=${product.id}` : "/admin/estoque/movimentar"}
-            style={ghostButtonStyle}
-          >
-            Movimentar estoque
-          </Link>
-          {product?.type === "FINISHED_PRODUCT" ? (
-            <>
-              <Link href={`/admin/estoque/${product.id}/composicao`} style={ghostButtonStyle}>
-                Editar composicao
-              </Link>
-              <Link href={`/admin/producao?productId=${product.id}`} style={ghostButtonStyle}>
-                Produzir item
-              </Link>
-            </>
-          ) : null}
-        </div>
-      </div>
-
-      {errorMessage ? <p style={{ ...feedbackStyle, ...errorStyle }}>{errorMessage}</p> : null}
+      {errorMessage ? (
+        <Alert variant="danger" title="Nao foi possivel carregar o item.">
+          {errorMessage}
+        </Alert>
+      ) : null}
 
       {product ? (
         <ProductForm
           mode="edit"
           productId={product.id}
           initialState={{
+            categoryId: product.categoryId ?? "",
             name: product.name,
             sku: product.sku ?? "",
             barcode: product.barcode ?? "",
             type: product.type,
             unit: product.unit,
+            controlsStock: product.controlsStock,
+            showOnWebsite: product.showOnWebsite,
+            desiredMargin:
+              product.desiredMargin !== null && product.desiredMargin !== undefined
+                ? normalizeDecimalInput(String(product.desiredMargin))
+                : "",
             costPrice: formatCurrencyInput(product.costPrice),
             salePrice: formatCurrencyInput(product.salePrice),
             minimumStock: String(product.minimumStock),
@@ -149,7 +158,9 @@ export default function EditarItemEstoquePage() {
           metadata={{
             createdAt: product.createdAt,
             updatedAt: product.updatedAt,
+            isActive: product.isActive,
           }}
+          history={product.priceHistories}
         />
       ) : null}
     </main>
@@ -164,53 +175,3 @@ function formatCurrencyInput(value: number | string) {
     maximumFractionDigits: 2,
   }).format(Number.isFinite(numericValue) ? numericValue : 0);
 }
-
-const secondaryButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  color: "inherit",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const ghostButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: "1px solid rgba(181, 66, 31, 0.18)",
-  background: "rgba(181, 66, 31, 0.08)",
-  color: "var(--primary)",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const feedbackStyle = {
-  margin: 0,
-  padding: "14px 16px",
-  borderRadius: 14,
-  lineHeight: 1.6,
-} as const;
-
-const errorStyle = {
-  background: "rgba(181, 66, 31, 0.12)",
-  color: "var(--primary)",
-} as const;
-
-const loadingPanelStyle = {
-  display: "grid",
-  gap: 10,
-  placeItems: "center",
-  padding: 42,
-  borderRadius: 24,
-  border: "1px dashed var(--border)",
-  background: "rgba(255,255,255,0.62)",
-} as const;

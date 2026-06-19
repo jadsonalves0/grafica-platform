@@ -2,13 +2,27 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import {
+  Alert,
+  ConfirmDialog,
+  Field,
+  FormSection,
+  LoadingButton,
+  MetricCard,
+  PageHeader,
+  SectionCard,
+  Skeleton,
+  StickyActionBar,
+} from "@/components/admin/ui";
 import {
   emptyCustomerFormState,
   formatCustomerField,
   maskCustomerFormState,
+  type CustomerFormError,
   type CustomerFormState,
-  validateCustomerForm,
+  validateCustomerFormDetailed,
 } from "@/lib/forms/customer-form";
 
 type CustomerDetail = CustomerFormState & {
@@ -24,18 +38,29 @@ type ApiResult<T> = {
   data?: T;
 };
 
+type DialogState = "delete" | "activate" | "deactivate" | null;
+type FieldElement = HTMLInputElement | HTMLTextAreaElement;
+
 export default function EditarClientePage() {
   const params = useParams<{ customerId: string }>();
   const router = useRouter();
   const customerId = params.customerId;
 
   const [form, setForm] = useState<CustomerFormState>(emptyCustomerFormState);
-  const [meta, setMeta] = useState<{ createdAt?: string; updatedAt?: string; isActive?: boolean }>({});
+  const [meta, setMeta] = useState<{
+    createdAt?: string;
+    updatedAt?: string;
+    isActive?: boolean;
+  }>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [fieldError, setFieldError] = useState<CustomerFormError | null>(null);
+  const [dialogState, setDialogState] = useState<DialogState>(null);
+  const errorSummaryRef = useRef<HTMLDivElement | null>(null);
+  const fieldRefs = useRef<Partial<Record<keyof CustomerFormState, FieldElement | null>>>({});
 
   useEffect(() => {
     const controller = new AbortController();
@@ -53,24 +78,28 @@ export default function EditarClientePage() {
         const result = (await response.json()) as ApiResult<CustomerDetail>;
 
         if (!response.ok || !result.success || !result.data) {
-          setErrorMessage(result.message ?? "Nao foi possivel carregar o cliente.");
+          setErrorMessage(
+            result.message ?? "Nao foi possivel carregar o cliente.",
+          );
           return;
         }
 
-        setForm(maskCustomerFormState({
-          name: result.data.name ?? "",
-          document: result.data.document ?? "",
-          email: result.data.email ?? "",
-          phone: result.data.phone ?? "",
-          whatsapp: result.data.whatsapp ?? "",
-          addressZipCode: result.data.addressZipCode ?? "",
-          addressStreet: result.data.addressStreet ?? "",
-          addressNumber: result.data.addressNumber ?? "",
-          addressDistrict: result.data.addressDistrict ?? "",
-          addressCity: result.data.addressCity ?? "",
-          addressState: result.data.addressState ?? "",
-          notes: result.data.notes ?? "",
-        }));
+        setForm(
+          maskCustomerFormState({
+            name: result.data.name ?? "",
+            document: result.data.document ?? "",
+            email: result.data.email ?? "",
+            phone: result.data.phone ?? "",
+            whatsapp: result.data.whatsapp ?? "",
+            addressZipCode: result.data.addressZipCode ?? "",
+            addressStreet: result.data.addressStreet ?? "",
+            addressNumber: result.data.addressNumber ?? "",
+            addressDistrict: result.data.addressDistrict ?? "",
+            addressCity: result.data.addressCity ?? "",
+            addressState: result.data.addressState ?? "",
+            notes: result.data.notes ?? "",
+          }),
+        );
         setMeta({
           createdAt: result.data.createdAt,
           updatedAt: result.data.updatedAt,
@@ -81,35 +110,69 @@ export default function EditarClientePage() {
           return;
         }
 
-        setErrorMessage("Falha ao consultar o cliente.");
+        setErrorMessage(
+          "Nao foi possivel carregar o cliente. Tente novamente.",
+        );
       } finally {
         setIsLoading(false);
       }
     }
 
-    loadCustomer();
+    void loadCustomer();
 
     return () => controller.abort();
   }, [customerId]);
+
+  useEffect(() => {
+    if (!fieldError) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      errorSummaryRef.current?.focus();
+      fieldRefs.current[fieldError.field]?.focus();
+    });
+  }, [fieldError]);
+
+  const statusLabel = meta.isActive ? "Ativo" : "Inativo";
+  const helperText = useMemo(
+    () => ({
+      notes:
+        "Use para registrar observacoes de atendimento, restricoes ou detalhes que ajudem o comercial.",
+    }),
+    [],
+  );
 
   function updateField(field: keyof CustomerFormState, value: string) {
     setForm((current) => ({
       ...current,
       [field]: formatCustomerField(field, value),
     }));
+
+    if (fieldError?.field === field) {
+      setFieldError(null);
+    }
+
+    if (errorMessage) {
+      setErrorMessage(null);
+    }
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const validationMessage = validateCustomerForm(form);
+    const validationError = validateCustomerFormDetailed(form);
 
-    if (validationMessage) {
-      setErrorMessage(validationMessage);
+    if (validationError) {
+      setFieldError(validationError);
+      setErrorMessage(
+        `Nao foi possivel salvar o cliente. Revise o campo "${fieldLabelMap[validationError.field]}". ${validationError.message}`,
+      );
       return;
     }
 
     setIsSubmitting(true);
     setErrorMessage(null);
+    setFieldError(null);
 
     try {
       const response = await fetch(`/api/customers/${customerId}`, {
@@ -123,29 +186,25 @@ export default function EditarClientePage() {
       const result = (await response.json()) as ApiResult<CustomerDetail>;
 
       if (!response.ok || !result.success || !result.data) {
-        setErrorMessage(result.message ?? "Nao foi possivel atualizar o cliente.");
+        setErrorMessage(
+          result.message ??
+            "Nao foi possivel atualizar o cliente. Revise os dados e tente novamente.",
+        );
         return;
       }
 
       router.push("/admin/clientes?feedback=updated");
       router.refresh();
     } catch {
-      setErrorMessage("Falha ao comunicar com o servidor. Tente novamente.");
+      setErrorMessage(
+        "Nao foi possivel atualizar o cliente. Tente novamente em instantes.",
+      );
     } finally {
       setIsSubmitting(false);
     }
   }
 
   async function handleStatusChange(nextStatus: boolean) {
-    const actionLabel = nextStatus ? "reativar" : "inativar";
-    const confirmed = window.confirm(
-      `Deseja realmente ${actionLabel} este cliente?`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     setIsUpdatingStatus(true);
     setErrorMessage(null);
 
@@ -163,7 +222,10 @@ export default function EditarClientePage() {
       const result = (await response.json()) as ApiResult<CustomerDetail>;
 
       if (!response.ok || !result.success || !result.data) {
-        setErrorMessage(result.message ?? "Nao foi possivel atualizar o status do cliente.");
+        setErrorMessage(
+          result.message ??
+            "Nao foi possivel atualizar o status do cliente. Tente novamente.",
+        );
         return;
       }
 
@@ -171,21 +233,16 @@ export default function EditarClientePage() {
       router.push(`/admin/clientes?feedback=${feedback}`);
       router.refresh();
     } catch {
-      setErrorMessage("Falha ao atualizar o status do cliente.");
+      setErrorMessage(
+        "Nao foi possivel atualizar o status do cliente. Tente novamente.",
+      );
     } finally {
       setIsUpdatingStatus(false);
+      setDialogState(null);
     }
   }
 
   async function handleDelete() {
-    const confirmed = window.confirm(
-      "Deseja realmente excluir este cliente? Essa acao nao pode ser desfeita.",
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     setIsDeleting(true);
     setErrorMessage(null);
 
@@ -197,444 +254,396 @@ export default function EditarClientePage() {
       const result = (await response.json()) as ApiResult<{ deleted: true }>;
 
       if (!response.ok || !result.success) {
-        setErrorMessage(result.message ?? "Nao foi possivel excluir o cliente.");
+        setErrorMessage(
+          result.message ??
+            "Nao foi possivel excluir o cliente. Se ele tiver historico, use a inativacao.",
+        );
         return;
       }
 
       router.push("/admin/clientes?feedback=deleted");
       router.refresh();
     } catch {
-      setErrorMessage("Falha ao excluir o cliente.");
+      setErrorMessage(
+        "Nao foi possivel excluir o cliente. Tente novamente em instantes.",
+      );
     } finally {
       setIsDeleting(false);
+      setDialogState(null);
     }
   }
 
   if (isLoading) {
     return (
-      <main style={{ padding: 32 }}>
-        <section style={loadingPanelStyle}>
-          <strong>Carregando cadastro...</strong>
-          <span style={{ color: "var(--muted)" }}>Estamos trazendo os dados do cliente.</span>
-        </section>
+      <main className="admin-page-stack">
+        <PageHeader
+          title="Editar cliente"
+          description="Estamos carregando os dados do cliente para revisao."
+          secondaryActions={[
+            { href: "/admin/clientes", label: "Voltar para clientes" },
+          ]}
+        />
+        <SectionCard title="Carregando cadastro">
+          <Skeleton lines={8} />
+        </SectionCard>
       </main>
     );
   }
 
   return (
-    <main style={{ padding: 32, maxWidth: 980, display: "grid", gap: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-        <div>
-          <p
-            style={{
-              margin: 0,
-              color: "var(--primary)",
-              textTransform: "uppercase",
-              letterSpacing: "0.14em",
-              fontSize: 12,
-              fontWeight: 700,
-            }}
-          >
-            Cadastro de clientes
-          </p>
-          <h1 style={{ margin: "10px 0 8px", fontFamily: "var(--font-heading)", fontSize: 46 }}>
-            Editar cliente
-          </h1>
-          <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.7 }}>
-            Atualize os dados de contato e mantenha a base comercial limpa para
-            orcamentos, pedidos e financeiro.
-          </p>
-        </div>
+    <main className="admin-page-stack">
+      <PageHeader
+        title="Editar cliente"
+        description="Atualize dados de contato, mantenha o cadastro consistente e siga para o proximo passo comercial sem perder contexto."
+        secondaryActions={[
+          { href: "/admin/clientes", label: "Voltar para clientes" },
+          { href: "/admin/orcamentos/novo", label: "Novo orcamento", variant: "secondary" },
+        ]}
+      />
 
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <Link href="/admin/clientes" style={secondaryButtonStyle}>
-            Voltar para clientes
-          </Link>
-          <Link href="/admin/orcamentos/novo" style={ghostButtonStyle}>
-            Criar orcamento
-          </Link>
-        </div>
-      </div>
-
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 16,
-        }}
-      >
-        <InfoCard label="Criado em" value={meta.createdAt ? formatDate(meta.createdAt) : "-"} />
-        <InfoCard
+      <section className="admin-card-grid">
+        <MetricCard
+          label="Criado em"
+          value={meta.createdAt ? formatDateTime(meta.createdAt) : "-"}
+        />
+        <MetricCard
           label="Ultima atualizacao"
-          value={meta.updatedAt ? formatDate(meta.updatedAt) : "-"}
+          value={meta.updatedAt ? formatDateTime(meta.updatedAt) : "-"}
         />
-        <InfoCard
-          label="Cadastro"
-          value={meta.isActive ? "Ativo" : "Inativo"}
-          accent={meta.isActive}
-        />
+        <MetricCard label="Status do cadastro" value={statusLabel} />
       </section>
 
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          display: "grid",
-          gap: 16,
-          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-          padding: 24,
-          borderRadius: 24,
-          border: "1px solid var(--border)",
-          background: "var(--surface)",
-        }}
-      >
-        <Field label="Nome ou razao social" required>
-          <input
-            value={form.name}
-            onChange={(event) => updateField("name", event.target.value)}
-            style={inputStyle}
-          />
-        </Field>
-
-        <Field label="CPF ou CNPJ">
-          <input
-            value={form.document}
-            onChange={(event) => updateField("document", event.target.value)}
-            inputMode="numeric"
-            maxLength={18}
-            placeholder="000.000.000-00 ou 00.000.000/0000-00"
-            style={inputStyle}
-          />
-        </Field>
-
-        <Field label="E-mail">
-          <input
-            type="email"
-            value={form.email}
-            onChange={(event) => updateField("email", event.target.value)}
-            autoComplete="email"
-            style={inputStyle}
-          />
-        </Field>
-
-        <Field label="Telefone">
-          <input
-            value={form.phone}
-            onChange={(event) => updateField("phone", event.target.value)}
-            inputMode="tel"
-            maxLength={15}
-            placeholder="(11) 3333-4444"
-            style={inputStyle}
-          />
-        </Field>
-
-        <Field label="WhatsApp">
-          <input
-            value={form.whatsapp}
-            onChange={(event) => updateField("whatsapp", event.target.value)}
-            inputMode="tel"
-            maxLength={15}
-            placeholder="(11) 99999-0000"
-            style={inputStyle}
-          />
-        </Field>
-
-        <Field label="CEP">
-          <input
-            value={form.addressZipCode}
-            onChange={(event) => updateField("addressZipCode", event.target.value)}
-            inputMode="numeric"
-            maxLength={9}
-            placeholder="00000-000"
-            style={inputStyle}
-          />
-        </Field>
-
-        <Field label="Rua">
-          <input
-            value={form.addressStreet}
-            onChange={(event) => updateField("addressStreet", event.target.value)}
-            style={inputStyle}
-          />
-        </Field>
-
-        <Field label="Numero">
-          <input
-            value={form.addressNumber}
-            onChange={(event) => updateField("addressNumber", event.target.value)}
-            style={inputStyle}
-          />
-        </Field>
-
-        <Field label="Bairro">
-          <input
-            value={form.addressDistrict}
-            onChange={(event) => updateField("addressDistrict", event.target.value)}
-            style={inputStyle}
-          />
-        </Field>
-
-        <Field label="Cidade">
-          <input
-            value={form.addressCity}
-            onChange={(event) => updateField("addressCity", event.target.value)}
-            style={inputStyle}
-          />
-        </Field>
-
-        <Field label="Estado">
-          <input
-            value={form.addressState}
-            onChange={(event) => updateField("addressState", event.target.value)}
-            maxLength={2}
-            placeholder="UF"
-            style={inputStyle}
-          />
-        </Field>
-
-        <div />
-
-        <Field label="Observacoes" fullWidth>
-          <textarea
-            value={form.notes}
-            onChange={(event) => updateField("notes", event.target.value)}
-            rows={5}
-            style={{ ...inputStyle, height: "auto", padding: 14 }}
-          />
-        </Field>
-
-        <div
-          style={{
-            gridColumn: "1 / -1",
-            display: "grid",
-            gap: 14,
-            paddingTop: 10,
-            borderTop: "1px solid rgba(232, 217, 202, 0.85)",
-          }}
-        >
-          {errorMessage ? <p style={{ ...feedbackStyle, ...errorStyle, marginBottom: 0 }}>{errorMessage}</p> : null}
-
+      {errorMessage ? (
+        <Alert variant="danger" title="Nao foi possivel concluir a operacao.">
           <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 12,
-              flexWrap: "wrap",
-              alignItems: "center",
-            }}
+            ref={errorSummaryRef}
+            tabIndex={-1}
+            style={{ display: "grid", gap: 8, outline: "none" }}
           >
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <span>{errorMessage}</span>
+            {fieldError ? (
               <button
                 type="button"
-                onClick={() => void handleStatusChange(!meta.isActive)}
-                disabled={isDeleting || isSubmitting || isUpdatingStatus}
-                style={meta.isActive ? warningButtonStyle : successButtonStyle}
+                className="admin-link-button"
+                onClick={() => fieldRefs.current[fieldError.field]?.focus()}
               >
-                {isUpdatingStatus
-                  ? meta.isActive
-                    ? "Inativando..."
-                    : "Reativando..."
-                  : meta.isActive
-                    ? "Inativar cadastro"
-                    : "Reativar cadastro"}
+                Ir para {fieldLabelMap[fieldError.field]}
               </button>
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={isDeleting || isSubmitting || isUpdatingStatus}
-                style={dangerButtonStyle}
-              >
-                {isDeleting ? "Excluindo..." : "Excluir cliente"}
-              </button>
-            </div>
-
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <Link href="/admin/clientes" style={secondaryButtonStyle}>
-                Cancelar
-              </Link>
-              <button
-                type="submit"
-                disabled={isSubmitting || isDeleting || isUpdatingStatus}
-                style={primaryButtonStyle}
-              >
-                {isSubmitting ? "Salvando..." : "Salvar e voltar para clientes"}
-              </button>
-            </div>
+            ) : null}
           </div>
-        </div>
+        </Alert>
+      ) : null}
+
+      <form onSubmit={handleSubmit} className="admin-page-stack">
+        <SectionCard
+          title="Dados principais"
+          description="Comece pelos campos essenciais do cliente."
+        >
+          <div className="admin-form-grid admin-form-grid--2">
+            <Field
+              label="Nome ou razao social"
+              required
+              error={fieldError?.field === "name" ? fieldError.message : undefined}
+            >
+              <input
+                ref={(element) => {
+                  fieldRefs.current.name = element;
+                }}
+                value={form.name}
+                onChange={(event) => updateField("name", event.target.value)}
+                className="admin-input"
+              />
+            </Field>
+
+            <Field
+              label="CPF ou CNPJ"
+              optional
+              error={
+                fieldError?.field === "document" ? fieldError.message : undefined
+              }
+            >
+              <input
+                ref={(element) => {
+                  fieldRefs.current.document = element;
+                }}
+                value={form.document}
+                onChange={(event) => updateField("document", event.target.value)}
+                className="admin-input"
+                inputMode="numeric"
+                maxLength={18}
+                placeholder="000.000.000-00 ou 00.000.000/0000-00"
+              />
+            </Field>
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Contato"
+          description="Mantenha os canais de resposta e atendimento organizados."
+        >
+          <div className="admin-form-grid admin-form-grid--2">
+            <Field
+              label="E-mail"
+              optional
+              error={fieldError?.field === "email" ? fieldError.message : undefined}
+            >
+              <input
+                ref={(element) => {
+                  fieldRefs.current.email = element;
+                }}
+                type="email"
+                value={form.email}
+                onChange={(event) => updateField("email", event.target.value)}
+                className="admin-input"
+                autoComplete="email"
+              />
+            </Field>
+
+            <Field
+              label="Telefone"
+              optional
+              error={fieldError?.field === "phone" ? fieldError.message : undefined}
+            >
+              <input
+                ref={(element) => {
+                  fieldRefs.current.phone = element;
+                }}
+                value={form.phone}
+                onChange={(event) => updateField("phone", event.target.value)}
+                className="admin-input"
+                inputMode="tel"
+                maxLength={15}
+              />
+            </Field>
+
+            <Field
+              label="WhatsApp"
+              optional
+              error={
+                fieldError?.field === "whatsapp" ? fieldError.message : undefined
+              }
+            >
+              <input
+                ref={(element) => {
+                  fieldRefs.current.whatsapp = element;
+                }}
+                value={form.whatsapp}
+                onChange={(event) => updateField("whatsapp", event.target.value)}
+                className="admin-input"
+                inputMode="tel"
+                maxLength={15}
+              />
+            </Field>
+          </div>
+        </SectionCard>
+
+        <FormSection
+          title="Endereco"
+          description="Abra esta secao para revisar ou completar o endereco do cliente."
+          defaultOpen={false}
+        >
+          <div className="admin-form-grid admin-form-grid--2">
+            <Field
+              label="CEP"
+              optional
+              error={
+                fieldError?.field === "addressZipCode"
+                  ? fieldError.message
+                  : undefined
+              }
+            >
+              <input
+                ref={(element) => {
+                  fieldRefs.current.addressZipCode = element;
+                }}
+                value={form.addressZipCode}
+                onChange={(event) =>
+                  updateField("addressZipCode", event.target.value)
+                }
+                className="admin-input"
+                inputMode="numeric"
+                maxLength={9}
+              />
+            </Field>
+
+            <Field label="Rua" optional>
+              <input
+                ref={(element) => {
+                  fieldRefs.current.addressStreet = element;
+                }}
+                value={form.addressStreet}
+                onChange={(event) =>
+                  updateField("addressStreet", event.target.value)
+                }
+                className="admin-input"
+              />
+            </Field>
+
+            <Field label="Numero" optional>
+              <input
+                ref={(element) => {
+                  fieldRefs.current.addressNumber = element;
+                }}
+                value={form.addressNumber}
+                onChange={(event) =>
+                  updateField("addressNumber", event.target.value)
+                }
+                className="admin-input"
+              />
+            </Field>
+
+            <Field label="Bairro" optional>
+              <input
+                ref={(element) => {
+                  fieldRefs.current.addressDistrict = element;
+                }}
+                value={form.addressDistrict}
+                onChange={(event) =>
+                  updateField("addressDistrict", event.target.value)
+                }
+                className="admin-input"
+              />
+            </Field>
+
+            <Field label="Cidade" optional>
+              <input
+                ref={(element) => {
+                  fieldRefs.current.addressCity = element;
+                }}
+                value={form.addressCity}
+                onChange={(event) => updateField("addressCity", event.target.value)}
+                className="admin-input"
+              />
+            </Field>
+
+            <Field
+              label="UF"
+              optional
+              error={
+                fieldError?.field === "addressState"
+                  ? fieldError.message
+                  : undefined
+              }
+            >
+              <input
+                ref={(element) => {
+                  fieldRefs.current.addressState = element;
+                }}
+                value={form.addressState}
+                onChange={(event) => updateField("addressState", event.target.value)}
+                className="admin-input"
+                maxLength={2}
+                placeholder="SP"
+              />
+            </Field>
+          </div>
+        </FormSection>
+
+        <FormSection
+          title="Informacoes complementares"
+          description="Use esta area para observacoes que ajudem o time comercial e financeiro."
+          defaultOpen={false}
+        >
+          <Field label="Observacoes" optional helpText={helperText.notes}>
+            <textarea
+              ref={(element) => {
+                fieldRefs.current.notes = element;
+              }}
+              value={form.notes}
+              onChange={(event) => updateField("notes", event.target.value)}
+              className="admin-textarea"
+              rows={5}
+            />
+          </Field>
+        </FormSection>
+
+        <StickyActionBar>
+          <div className="admin-row">
+            <button
+              type="button"
+              className={`admin-button admin-button--${
+                meta.isActive ? "secondary" : "ghost"
+              }`}
+              disabled={isDeleting || isSubmitting || isUpdatingStatus}
+              onClick={() =>
+                setDialogState(meta.isActive ? "deactivate" : "activate")
+              }
+            >
+              {meta.isActive ? "Inativar cadastro" : "Reativar cadastro"}
+            </button>
+            <button
+              type="button"
+              className="admin-button admin-button--danger"
+              disabled={isDeleting || isSubmitting || isUpdatingStatus}
+              onClick={() => setDialogState("delete")}
+            >
+              Excluir cliente
+            </button>
+          </div>
+          <div className="admin-row">
+            <Link href="/admin/clientes" className="admin-button admin-button--secondary">
+              Cancelar
+            </Link>
+            <LoadingButton
+              type="submit"
+              isLoading={isSubmitting}
+              loadingLabel="Salvando..."
+            >
+              Salvar e voltar para clientes
+            </LoadingButton>
+          </div>
+        </StickyActionBar>
       </form>
+
+      <ConfirmDialog
+        isOpen={dialogState === "delete"}
+        title="Excluir cliente?"
+        description="Se este cliente tiver historico em orcamentos, pedidos ou financeiro, a exclusao podera ser bloqueada e a alternativa correta sera a inativacao."
+        confirmLabel={isDeleting ? "Excluindo..." : "Excluir cliente"}
+        onConfirm={() => void handleDelete()}
+        onCancel={() => setDialogState(null)}
+        danger
+      />
+
+      <ConfirmDialog
+        isOpen={dialogState === "deactivate"}
+        title="Inativar cliente?"
+        description="O cliente deixara de aparecer nas novas operacoes, mas seu historico sera preservado."
+        confirmLabel={isUpdatingStatus ? "Inativando..." : "Inativar cadastro"}
+        onConfirm={() => void handleStatusChange(false)}
+        onCancel={() => setDialogState(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={dialogState === "activate"}
+        title="Reativar cliente?"
+        description="O cliente voltara a ficar disponivel para novas propostas, pedidos e vendas."
+        confirmLabel={isUpdatingStatus ? "Reativando..." : "Reativar cadastro"}
+        onConfirm={() => void handleStatusChange(true)}
+        onCancel={() => setDialogState(null)}
+      />
     </main>
   );
 }
 
-function Field({
-  label,
-  required,
-  fullWidth,
-  children,
-}: Readonly<{
-  label: string;
-  required?: boolean;
-  fullWidth?: boolean;
-  children: React.ReactNode;
-}>) {
-  return (
-    <label
-      style={{
-        display: "grid",
-        gap: 8,
-        gridColumn: fullWidth ? "1 / -1" : undefined,
-      }}
-    >
-      <span style={{ fontWeight: 600 }}>
-        {label}
-        {required ? <strong style={{ color: "var(--primary)" }}> *</strong> : null}
-      </span>
-      {children}
-    </label>
-  );
-}
-
-function InfoCard({
-  label,
-  value,
-  accent,
-}: Readonly<{ label: string; value: string; accent?: boolean }>) {
-  return (
-    <article
-      style={{
-        padding: 20,
-        borderRadius: 20,
-        border: "1px solid var(--border)",
-        background: accent ? "rgba(43, 110, 82, 0.12)" : "rgba(255,255,255,0.75)",
-      }}
-    >
-      <p
-        style={{
-          margin: 0,
-          color: accent ? "#245844" : "var(--primary)",
-          textTransform: "uppercase",
-          letterSpacing: "0.12em",
-          fontSize: 12,
-          fontWeight: 700,
-        }}
-      >
-        {label}
-      </p>
-      <h2 style={{ margin: "10px 0 0", fontSize: 28 }}>{value}</h2>
-    </article>
-  );
-}
-
-function formatDate(value: string) {
+function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
   }).format(new Date(value));
 }
 
-const inputStyle = {
-  height: 48,
-  padding: "0 14px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  width: "100%",
-  boxSizing: "border-box" as const,
-} as const;
-
-const primaryButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: 0,
-  background: "var(--primary)",
-  color: "#fff",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const secondaryButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  color: "inherit",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const ghostButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: "1px solid rgba(181, 66, 31, 0.18)",
-  background: "rgba(181, 66, 31, 0.08)",
-  color: "var(--primary)",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const dangerButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: 0,
-  background: "#a72d2d",
-  color: "#fff",
-  fontWeight: 700,
-  cursor: "pointer",
-} as const;
-
-const warningButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: 0,
-  background: "#9a5b11",
-  color: "#fff",
-  fontWeight: 700,
-  cursor: "pointer",
-} as const;
-
-const successButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: 0,
-  background: "#2b6e52",
-  color: "#fff",
-  fontWeight: 700,
-  cursor: "pointer",
-} as const;
-
-const feedbackStyle = {
-  margin: 0,
-  padding: "14px 16px",
-  borderRadius: 14,
-  lineHeight: 1.6,
-} as const;
-
-const errorStyle = {
-  background: "rgba(181, 66, 31, 0.12)",
-  color: "var(--primary)",
-} as const;
-
-const loadingPanelStyle = {
-  display: "grid",
-  gap: 10,
-  placeItems: "center",
-  padding: 42,
-  borderRadius: 24,
-  border: "1px dashed var(--border)",
-  background: "rgba(255,255,255,0.62)",
-} as const;
+const fieldLabelMap: Record<keyof CustomerFormState, string> = {
+  name: "Nome ou razao social",
+  document: "CPF ou CNPJ",
+  email: "E-mail",
+  phone: "Telefone",
+  whatsapp: "WhatsApp",
+  addressZipCode: "CEP",
+  addressStreet: "Rua",
+  addressNumber: "Numero",
+  addressDistrict: "Bairro",
+  addressCity: "Cidade",
+  addressState: "UF",
+  notes: "Observacoes",
+};

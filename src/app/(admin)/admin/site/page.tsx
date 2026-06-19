@@ -1,7 +1,20 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+
+import {
+  Alert,
+  EmptyState,
+  Field,
+  FormSection,
+  LoadingButton,
+  MetricCard,
+  PageHeader,
+  SectionCard,
+  Skeleton,
+  StatusBadge,
+  Tabs,
+} from "@/components/admin/ui";
 import {
   formatPhone,
   isValidEmail,
@@ -72,6 +85,8 @@ type ApiResult<T> = {
   data?: T;
 };
 
+type StepId = "identity" | "home" | "services" | "contact" | "review";
+
 const defaultSettings: SiteSettingsState = {
   primaryColor: "#b5421f",
   secondaryColor: "#f5ede3",
@@ -104,6 +119,14 @@ const defaultBannerForm: BannerFormState = {
   ctaLink: "",
 };
 
+const guidedSteps: Array<{ id: StepId; label: string }> = [
+  { id: "identity", label: "1. Identidade" },
+  { id: "home", label: "2. Pagina inicial" },
+  { id: "services", label: "3. Servicos" },
+  { id: "contact", label: "4. Contato" },
+  { id: "review", label: "5. Revisar e publicar" },
+];
+
 export default function SiteAdminPage() {
   const [site, setSite] = useState<SiteAdminData | null>(null);
   const [settings, setSettings] = useState<SiteSettingsState>(defaultSettings);
@@ -111,6 +134,7 @@ export default function SiteAdminPage() {
   const [bannerForm, setBannerForm] = useState<BannerFormState>(defaultBannerForm);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [editingBannerId, setEditingBannerId] = useState<string | null>(null);
+  const [activeStep, setActiveStep] = useState<StepId>("identity");
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isCreatingService, setIsCreatingService] = useState(false);
@@ -151,7 +175,7 @@ export default function SiteAdminPage() {
       }
     }
 
-    loadSite();
+    void loadSite();
 
     return () => controller.abort();
   }, []);
@@ -164,6 +188,63 @@ export default function SiteAdminPage() {
     }),
     [settings.accentColor, settings.primaryColor, settings.secondaryColor],
   );
+
+  const activeServiceCount = site?.siteServices.filter((service) => service.isActive).length ?? 0;
+  const activeBannerCount = site?.siteBanners.filter((banner) => banner.isActive).length ?? 0;
+
+  const stepChecklist = useMemo(
+    () => [
+      {
+        id: "identity" as StepId,
+        label: "Identidade pronta",
+        ready: Boolean(settings.logoUrl.trim()) || Boolean(settings.faviconUrl.trim()),
+        help: "Adicione pelo menos o logotipo ou o favicon para diferenciar a marca.",
+      },
+      {
+        id: "home" as StepId,
+        label: "Pagina inicial preenchida",
+        ready: Boolean(settings.heroTitle.trim()) && Boolean(settings.heroSubtitle.trim()),
+        help: "Preencha titulo e subtitulo para orientar a proposta comercial do site.",
+      },
+      {
+        id: "services" as StepId,
+        label: "Servicos publicados",
+        ready: activeServiceCount > 0,
+        help: "Publique pelo menos um servico para o visitante entender o que a grafica oferece.",
+      },
+      {
+        id: "contact" as StepId,
+        label: "Contato configurado",
+        ready:
+          Boolean(settings.contactEmail.trim()) ||
+          Boolean(settings.contactPhone.trim()) ||
+          Boolean(settings.contactWhatsapp.trim()),
+        help: "Informe ao menos um canal de contato direto para o lead nao ficar sem resposta.",
+      },
+      {
+        id: "review" as StepId,
+        label: "Site publicado",
+        ready: settings.isSitePublished,
+        help: "Publique somente quando a revisao final estiver pronta para captacao.",
+      },
+    ],
+    [
+      activeServiceCount,
+      settings.contactEmail,
+      settings.contactPhone,
+      settings.contactWhatsapp,
+      settings.faviconUrl,
+      settings.heroSubtitle,
+      settings.heroTitle,
+      settings.isSitePublished,
+      settings.logoUrl,
+    ],
+  );
+
+  const incompleteChecklist = stepChecklist.filter((item) => !item.ready);
+  const completionCount = stepChecklist.filter((item) => item.ready).length;
+  const nextStep = getNeighborStep(activeStep, 1);
+  const previousStep = getNeighborStep(activeStep, -1);
 
   function updateSettingsField<K extends keyof SiteSettingsState>(
     field: K,
@@ -218,6 +299,7 @@ export default function SiteAdminPage() {
       shortDescription: service.shortDescription ?? "",
       imageUrl: service.imageUrl ?? "",
     });
+    setActiveStep("services");
     setSuccessMessage(null);
     setErrorMessage(null);
   }
@@ -236,6 +318,7 @@ export default function SiteAdminPage() {
       ctaLabel: banner.ctaLabel ?? "",
       ctaLink: banner.ctaLink ?? "",
     });
+    setActiveStep("home");
     setSuccessMessage(null);
     setErrorMessage(null);
   }
@@ -351,8 +434,10 @@ export default function SiteAdminPage() {
     }
   }
 
-  async function handleCreateBanner(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleCreateBanner(
+    event?: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButtonElement>,
+  ) {
+    event?.preventDefault();
     if (!site) return;
 
     setIsCreatingBanner(true);
@@ -546,598 +631,672 @@ export default function SiteAdminPage() {
   }
 
   return (
-    <main style={{ padding: 32, display: "grid", gap: 24 }}>
-      <section
-        style={{
-          display: "grid",
-          gap: 18,
-          padding: 28,
-          borderRadius: 28,
-          background:
-            "linear-gradient(135deg, rgba(255,250,244,0.96) 0%, rgba(244,232,217,0.9) 100%)",
-          border: "1px solid var(--border)",
-          boxShadow: "0 18px 50px rgba(77, 39, 22, 0.08)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 16,
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ maxWidth: 760 }}>
-            <p style={eyebrowStyle}>Presenca digital</p>
-            <h1 style={{ margin: "12px 0 10px", fontFamily: "var(--font-heading)", fontSize: 46 }}>
-              Site institucional
-            </h1>
-            <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.7, fontSize: 18 }}>
-              Ajuste identidade, conteudo, contato e captacao do site publico sem sair do
-              painel administrativo.
-            </p>
-          </div>
+    <main className="admin-page-stack">
+      <PageHeader
+        breadcrumbs={[{ label: "Website" }, { label: "Visao geral" }]}
+        title="Website configuravel"
+        description="Configure a identidade, a pagina inicial, os servicos e os contatos em um fluxo guiado e facil de revisar."
+        secondaryActions={
+          site?.slug
+            ? [{ href: `/${site.slug}`, label: "Visualizar site", variant: "secondary", target: "_blank" }]
+            : []
+        }
+      />
 
-          {site?.slug ? (
-            <Link href={`/${site.slug}`} target="_blank" style={primaryButtonStyle}>
-              Abrir site publico
-            </Link>
-          ) : null}
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-            gap: 16,
-          }}
-        >
-          <SummaryCard label="Grafica" value={site?.tradeName ?? "Carregando..."} />
-          <SummaryCard label="Slug" value={site?.slug ?? "-"} />
-          <SummaryCard label="Servicos" value={String(site?.siteServices.length ?? 0)} />
-          <SummaryCard
-            label="Status publico"
-            value={settings.isSitePublished ? "Publicado" : "Em rascunho"}
-            accent={settings.isSitePublished}
-          />
-        </div>
-      </section>
-
-      {errorMessage ? <p style={{ ...feedbackStyle, ...errorStyle }}>{errorMessage}</p> : null}
-      {successMessage ? <p style={{ ...feedbackStyle, ...successStyle }}>{successMessage}</p> : null}
+      {errorMessage ? (
+        <Alert variant="danger" title="Nao foi possivel concluir a operacao">
+          {errorMessage}
+        </Alert>
+      ) : null}
+      {successMessage ? <Alert variant="success">{successMessage}</Alert> : null}
 
       {isLoading || !site ? (
-        <section style={loadingPanelStyle}>
-          <strong>Carregando configuracao do site...</strong>
-          <span style={{ color: "var(--muted)" }}>Estamos montando a visao administrativa.</span>
-        </section>
+        <SectionCard title="Carregando configuracoes do site">
+          <Skeleton lines={8} />
+        </SectionCard>
       ) : (
         <>
-          <div
-            style={{
-              display: "grid",
-              gap: 24,
-              gridTemplateColumns: "minmax(0, 1.2fr) minmax(320px, 0.8fr)",
-              alignItems: "start",
-            }}
-          >
-            <form
-              onSubmit={handleSaveSettings}
-              style={{
-                display: "grid",
-                gap: 18,
-                padding: 24,
-                borderRadius: 24,
-                border: "1px solid var(--border)",
-                background: "var(--surface)",
-              }}
-            >
-              <div>
-                <h2 style={{ margin: 0 }}>Configuracao geral</h2>
-                <p style={{ margin: "6px 0 0", color: "var(--muted)", lineHeight: 1.6 }}>
-                  Defina a cara do site e os textos principais que vao orientar a conversao.
-                </p>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gap: 16,
-                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                }}
-              >
-                <Field label="Cor principal">
-                  <input
-                    type="color"
-                    value={settings.primaryColor}
-                    onChange={(event) => updateSettingsField("primaryColor", event.target.value)}
-                    style={colorInputStyle}
-                  />
-                </Field>
-                <Field label="Cor secundaria">
-                  <input
-                    type="color"
-                    value={settings.secondaryColor}
-                    onChange={(event) => updateSettingsField("secondaryColor", event.target.value)}
-                    style={colorInputStyle}
-                  />
-                </Field>
-                <Field label="Cor de destaque">
-                  <input
-                    type="color"
-                    value={settings.accentColor}
-                    onChange={(event) => updateSettingsField("accentColor", event.target.value)}
-                    style={colorInputStyle}
-                  />
-                </Field>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gap: 16,
-                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                }}
-              >
-                <Field label="Titulo principal" required>
-                  <input
-                    value={settings.heroTitle}
-                    onChange={(event) => updateSettingsField("heroTitle", event.target.value)}
-                    style={inputStyle}
-                    placeholder="Ex.: Impressao rapida com acabamento profissional"
-                  />
-                </Field>
-
-                <Field label="Logo URL">
-                  <input
-                    value={settings.logoUrl}
-                    onChange={(event) => updateSettingsField("logoUrl", event.target.value)}
-                    style={inputStyle}
-                    placeholder="https://..."
-                  />
-                </Field>
-
-                <Field label="Subtitulo do hero">
-                  <textarea
-                    value={settings.heroSubtitle}
-                    onChange={(event) => updateSettingsField("heroSubtitle", event.target.value)}
-                    rows={4}
-                    style={{ ...inputStyle, minHeight: 120, height: "auto", padding: 14 }}
-                    placeholder="Resumo curto com proposta de valor e velocidade de atendimento."
-                  />
-                </Field>
-
-                <Field label="Sobre a grafica">
-                  <textarea
-                    value={settings.aboutText}
-                    onChange={(event) => updateSettingsField("aboutText", event.target.value)}
-                    rows={4}
-                    style={{ ...inputStyle, minHeight: 120, height: "auto", padding: 14 }}
-                    placeholder="Historia, diferenciais e foco de atendimento."
-                  />
-                </Field>
-
-                <Field label="E-mail comercial">
-                  <input
-                    value={settings.contactEmail}
-                    onChange={(event) =>
-                      updateSettingsField("contactEmail", normalizeEmailInput(event.target.value))
-                    }
-                    style={inputStyle}
-                    placeholder="contato@grafica.com.br"
-                  />
-                </Field>
-
-                <Field label="Telefone">
-                  <input
-                    value={settings.contactPhone}
-                    onChange={(event) =>
-                      updateSettingsField("contactPhone", formatPhone(event.target.value))
-                    }
-                    style={inputStyle}
-                    inputMode="tel"
-                    maxLength={15}
-                    placeholder="(11) 0000-0000"
-                  />
-                </Field>
-
-                <Field label="WhatsApp">
-                  <input
-                    value={settings.contactWhatsapp}
-                    onChange={(event) =>
-                      updateSettingsField("contactWhatsapp", formatPhone(event.target.value))
-                    }
-                    style={inputStyle}
-                    inputMode="tel"
-                    maxLength={15}
-                    placeholder="5511999999999"
-                  />
-                </Field>
-
-                <Field label="Endereco completo">
-                  <input
-                    value={settings.addressFull}
-                    onChange={(event) => updateSettingsField("addressFull", event.target.value)}
-                    style={inputStyle}
-                    placeholder="Rua, numero, bairro, cidade"
-                  />
-                </Field>
-
-                <Field label="Instagram URL">
-                  <input
-                    value={settings.instagramUrl}
-                    onChange={(event) => updateSettingsField("instagramUrl", event.target.value)}
-                    style={inputStyle}
-                    placeholder="https://instagram.com/..."
-                  />
-                </Field>
-
-                <Field label="Facebook URL">
-                  <input
-                    value={settings.facebookUrl}
-                    onChange={(event) => updateSettingsField("facebookUrl", event.target.value)}
-                    style={inputStyle}
-                    placeholder="https://facebook.com/..."
-                  />
-                </Field>
-              </div>
-
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: 14,
-                  borderRadius: 16,
-                  background: "rgba(255,255,255,0.78)",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={settings.isSitePublished}
-                  onChange={(event) =>
-                    updateSettingsField("isSitePublished", event.target.checked)
-                  }
-                />
-                <span>
-                  Publicar site para uso comercial e captacao de leads
-                </span>
-              </label>
-
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  gap: 12,
-                  paddingTop: 10,
-                  borderTop: "1px solid rgba(232, 217, 202, 0.85)",
-                }}
-              >
-                <button type="submit" disabled={isSavingSettings} style={primaryButtonStyle}>
-                  {isSavingSettings ? "Salvando..." : "Salvar configuracao"}
-                </button>
-              </div>
-            </form>
-
-            <aside
-              style={{
-                display: "grid",
-                gap: 18,
-                padding: 24,
-                borderRadius: 24,
-                border: "1px solid var(--border)",
-                background: "rgba(255,255,255,0.78)",
-                position: "sticky",
-                top: 24,
-              }}
-            >
-              <div>
-                <p style={eyebrowStyle}>Preview rapido</p>
-                <h2 style={{ margin: "10px 0 0", fontFamily: "var(--font-heading)", fontSize: 34 }}>
-                  {settings.heroTitle || site.tradeName}
-                </h2>
-                <p style={{ margin: "12px 0 0", color: "var(--muted)", lineHeight: 1.7 }}>
-                  {settings.heroSubtitle || "Seu resumo comercial vai aparecer aqui assim que voce salvar."}
-                </p>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gap: 12,
-                  padding: 18,
-                  borderRadius: 20,
-                  background: previewPalette.secondaryColor,
-                  border: "1px solid rgba(181, 66, 31, 0.08)",
-                }}
-              >
-                <div style={{ display: "flex", gap: 10 }}>
-                  <ColorChip color={previewPalette.primaryColor} label="Principal" />
-                  <ColorChip color={previewPalette.secondaryColor} label="Secundaria" />
-                  <ColorChip color={previewPalette.accentColor} label="Destaque" />
-                </div>
-                <div
-                  style={{
-                    height: 12,
-                    borderRadius: 999,
-                    background: `linear-gradient(90deg, ${previewPalette.primaryColor} 0%, ${previewPalette.accentColor} 100%)`,
-                  }}
-                />
-                <div style={{ display: "grid", gap: 8 }}>
-                  <SmallInfo label="Slug publico" value={`/${site.slug}`} />
-                  <SmallInfo label="WhatsApp" value={settings.contactWhatsapp || "Nao informado"} />
-                  <SmallInfo label="E-mail" value={settings.contactEmail || "Nao informado"} />
-                </div>
-              </div>
-            </aside>
+          <div className="admin-card-grid">
+            <MetricCard
+              label="Status do site"
+              value={settings.isSitePublished ? "Publicado" : "Rascunho"}
+              description={settings.isSitePublished ? "Pronto para captacao." : "Aguardando revisao final."}
+            />
+            <MetricCard label="Slug publico" value={`/${site.slug}`} description="Endereco principal do site." />
+            <MetricCard
+              label="Servicos ativos"
+              value={String(activeServiceCount)}
+              description="Itens da vitrine comercial."
+            />
+            <MetricCard
+              label="Etapas completas"
+              value={`${completionCount}/${stepChecklist.length}`}
+              description="Andamento da configuracao guiada."
+            />
           </div>
 
-          <div
-            style={{
-              display: "grid",
-              gap: 24,
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              alignItems: "start",
-            }}
-          >
-            <section style={panelStyle}>
-              <div>
-                <h2 style={{ margin: 0 }}>Servicos exibidos</h2>
-                <p style={{ margin: "6px 0 0", color: "var(--muted)", lineHeight: 1.6 }}>
-                  Monte a vitrine principal do site por tipo de trabalho.
-                </p>
-              </div>
-
-              <form onSubmit={handleCreateService} style={{ display: "grid", gap: 14 }}>
-                {editingServiceId ? (
-                  <div style={editingNoticeStyle}>
-                    <strong>Edicao de servico ativa.</strong>
-                    <span style={{ color: "var(--muted)" }}>
-                      Ajuste os dados abaixo ou cancele para cadastrar um novo servico.
-                    </span>
-                  </div>
-                ) : null}
-
-                <Field label="Titulo do servico" required>
-                  <input
-                    value={serviceForm.title}
-                    onChange={(event) => updateServiceField("title", event.target.value)}
-                    style={inputStyle}
-                    placeholder="Cartoes, panfletos, adesivos..."
+          <div className="admin-layout-grid admin-layout-grid--sidebar">
+            <div className="admin-page-stack">
+              <SectionCard
+                title="Assistente de configuracao"
+                description="Siga as etapas abaixo para deixar o site consistente antes de publicar."
+                actions={
+                  <Tabs
+                    tabs={guidedSteps}
+                    activeTab={activeStep}
+                    onChange={(value) => setActiveStep(value as StepId)}
                   />
-                </Field>
+                }
+              >
+                {activeStep === "services" ? (
+                  <div className="admin-page-stack">
+                    <form className="admin-page-stack" onSubmit={handleCreateService}>
+                      <div className="admin-inline-stack">
+                        {editingServiceId ? (
+                          <Alert variant="info" title="Edicao de servico ativa">
+                            Ajuste os dados abaixo ou cancele para voltar ao cadastro de um novo servico.
+                          </Alert>
+                        ) : null}
 
-                <Field label="Descricao curta">
-                  <textarea
-                    value={serviceForm.shortDescription}
-                    onChange={(event) => updateServiceField("shortDescription", event.target.value)}
-                    rows={4}
-                    style={{ ...inputStyle, minHeight: 110, height: "auto", padding: 14 }}
-                    placeholder="Resumo comercial do servico."
-                  />
-                </Field>
+                        <div className="admin-form-grid admin-form-grid--2">
+                          <Field
+                            label="Nome do servico"
+                            required
+                            helpText="Use o nome pelo qual esse servico e conhecido comercialmente."
+                          >
+                            <input
+                              className="admin-input"
+                              value={serviceForm.title}
+                              onChange={(event) => updateServiceField("title", event.target.value)}
+                              placeholder="Ex.: Cartoes, banners e adesivos"
+                            />
+                          </Field>
 
-                <Field label="Imagem URL">
-                  <input
-                    value={serviceForm.imageUrl}
-                    onChange={(event) => updateServiceField("imageUrl", event.target.value)}
-                    style={inputStyle}
-                    placeholder="https://..."
-                  />
-                </Field>
-
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                  <button type="submit" disabled={isCreatingService} style={secondaryButtonStyle}>
-                    {isCreatingService
-                      ? editingServiceId
-                        ? "Salvando..."
-                        : "Adicionando..."
-                      : editingServiceId
-                        ? "Salvar servico"
-                        : "Adicionar servico"}
-                  </button>
-                  {editingServiceId ? (
-                    <button type="button" onClick={cancelServiceEdit} style={ghostActionButtonStyle}>
-                      Cancelar edicao
-                    </button>
-                  ) : null}
-                </div>
-              </form>
-
-              <div style={{ display: "grid", gap: 12 }}>
-                {site.siteServices.length === 0 ? (
-                  <EmptyState text="Nenhum servico cadastrado ainda." />
-                ) : (
-                  site.siteServices.map((service) => (
-                    <article key={service.id} style={listCardStyle}>
-                      {service.imageUrl ? (
-                        <div
-                          style={{
-                            height: 150,
-                            borderRadius: 16,
-                            backgroundImage: `url(${service.imageUrl})`,
-                            backgroundPosition: "center",
-                            backgroundSize: "cover",
-                            border: "1px solid rgba(232, 217, 202, 0.9)",
-                          }}
-                        />
-                      ) : (
-                        <div style={mediaPlaceholderStyle("linear-gradient(135deg, rgba(181,66,31,0.16), rgba(43,110,82,0.16))")}>
-                          Sem imagem
+                          <Field
+                            label="Imagem de destaque"
+                            optional
+                            helpText="Cole a URL de uma imagem para reforcar o servico no site."
+                          >
+                            <input
+                              className="admin-input"
+                              value={serviceForm.imageUrl}
+                              onChange={(event) => updateServiceField("imageUrl", event.target.value)}
+                              placeholder="https://..."
+                            />
+                          </Field>
                         </div>
-                      )}
 
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                        <strong>{service.title}</strong>
-                        <span style={statusPillStyle(service.isActive)}>
-                          {service.isActive ? "Ativo" : "Inativo"}
-                        </span>
+                        <Field
+                          label="Descricao curta"
+                          optional
+                          helpText="Explique rapidamente o beneficio ou o tipo de material entregue."
+                        >
+                          <textarea
+                            className="admin-textarea"
+                            value={serviceForm.shortDescription}
+                            onChange={(event) => updateServiceField("shortDescription", event.target.value)}
+                            placeholder="Resumo comercial do servico."
+                          />
+                        </Field>
                       </div>
-                      <span style={{ color: "var(--muted)", lineHeight: 1.6 }}>
-                        {service.shortDescription || "Sem descricao resumida."}
-                      </span>
-                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        <button type="button" onClick={() => startServiceEdit(service)} style={miniActionButtonStyle}>
-                          Editar
-                        </button>
+
+                      <div className="admin-row admin-row--between">
+                        <div className="admin-row">
+                          {previousStep ? (
+                            <button
+                              type="button"
+                              className="admin-button admin-button--ghost"
+                              onClick={() => setActiveStep(previousStep)}
+                            >
+                              Etapa anterior
+                            </button>
+                          ) : null}
+                          {nextStep ? (
+                            <button
+                              type="button"
+                              className="admin-button admin-button--secondary"
+                              onClick={() => setActiveStep(nextStep)}
+                            >
+                              Continuar
+                            </button>
+                          ) : null}
+                        </div>
+
+                        <div className="admin-row">
+                          {editingServiceId ? (
+                            <button type="button" className="admin-button admin-button--ghost" onClick={cancelServiceEdit}>
+                              Cancelar edicao
+                            </button>
+                          ) : null}
+                          <LoadingButton type="submit" isLoading={isCreatingService}>
+                            {editingServiceId ? "Salvar servico" : "Adicionar servico"}
+                          </LoadingButton>
+                        </div>
+                      </div>
+                    </form>
+
+                    <SectionCard
+                      title="Servicos publicados"
+                      description="Ative somente o que ja estiver pronto para exibicao no site."
+                    >
+                      <div className="admin-list-stack">
+                        {site.siteServices.length === 0 ? (
+                          <EmptyState
+                            title="Nenhum servico cadastrado"
+                            description="Adicione o primeiro servico para montar a vitrine do website."
+                          />
+                        ) : (
+                          site.siteServices.map((service) => (
+                            <article key={service.id} className="admin-list-card">
+                              {service.imageUrl ? (
+                                <div
+                                  className="admin-media-placeholder"
+                                  style={{
+                                    backgroundImage: `url(${service.imageUrl})`,
+                                    backgroundSize: "cover",
+                                    backgroundPosition: "center",
+                                    borderStyle: "solid",
+                                  }}
+                                />
+                              ) : (
+                                <div className="admin-media-placeholder">Sem imagem de apoio</div>
+                              )}
+
+                              <div className="admin-row admin-row--between">
+                                <strong>{service.title}</strong>
+                                <StatusBadge
+                                  status={service.isActive ? "Ativo" : "Inativo"}
+                                  tone={service.isActive ? "success" : "neutral"}
+                                />
+                              </div>
+
+                              <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.6 }}>
+                                {service.shortDescription || "Sem descricao resumida."}
+                              </p>
+
+                              <div className="admin-row">
+                                <button
+                                  type="button"
+                                  className="admin-button admin-button--secondary"
+                                  onClick={() => startServiceEdit(service)}
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  className="admin-button admin-button--ghost"
+                                  onClick={() => handleToggleService(service.id, service.isActive)}
+                                >
+                                  {service.isActive ? "Inativar" : "Reativar"}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="admin-button admin-button--danger"
+                                  onClick={() => handleDeleteService(service.id)}
+                                >
+                                  Excluir
+                                </button>
+                              </div>
+                            </article>
+                          ))
+                        )}
+                      </div>
+                    </SectionCard>
+                  </div>
+                ) : (
+                  <form className="admin-page-stack" onSubmit={handleSaveSettings}>
+                    {activeStep === "identity" ? (
+                      <>
+                        <Alert variant="info">
+                          Defina a base visual da empresa. Aqui voce configura os elementos que vao identificar a marca em qualquer tela publica.
+                        </Alert>
+
+                        <div className="admin-form-grid admin-form-grid--3">
+                          <Field label="Cor principal" required helpText="Usada em botoes e destaques principais.">
+                            <input
+                              type="color"
+                              value={settings.primaryColor}
+                              onChange={(event) => updateSettingsField("primaryColor", event.target.value)}
+                              className="admin-input"
+                              style={{ padding: 6 }}
+                            />
+                          </Field>
+                          <Field label="Cor secundaria" required helpText="Base suave para fundos e contrastes leves.">
+                            <input
+                              type="color"
+                              value={settings.secondaryColor}
+                              onChange={(event) => updateSettingsField("secondaryColor", event.target.value)}
+                              className="admin-input"
+                              style={{ padding: 6 }}
+                            />
+                          </Field>
+                          <Field label="Cor de destaque" required helpText="Use para chamadas comerciais e pequenos acentos.">
+                            <input
+                              type="color"
+                              value={settings.accentColor}
+                              onChange={(event) => updateSettingsField("accentColor", event.target.value)}
+                              className="admin-input"
+                              style={{ padding: 6 }}
+                            />
+                          </Field>
+                        </div>
+
+                        <div className="admin-form-grid admin-form-grid--2">
+                          <Field label="Logotipo" optional helpText="Cole a URL do logotipo institucional.">
+                            <input
+                              className="admin-input"
+                              value={settings.logoUrl}
+                              onChange={(event) => updateSettingsField("logoUrl", event.target.value)}
+                              placeholder="https://..."
+                            />
+                          </Field>
+                          <Field label="Favicon" optional helpText="Icone pequeno usado na aba do navegador.">
+                            <input
+                              className="admin-input"
+                              value={settings.faviconUrl}
+                              onChange={(event) => updateSettingsField("faviconUrl", event.target.value)}
+                              placeholder="https://..."
+                            />
+                          </Field>
+                        </div>
+                      </>
+                    ) : null}
+
+                    {activeStep === "home" ? (
+                      <>
+                        <Alert variant="info">
+                          Monte a primeira impressao do visitante com uma proposta clara, um texto curto e os banners que vao apoiar a conversao.
+                        </Alert>
+
+                        <div className="admin-form-grid admin-form-grid--2">
+                          <Field label="Titulo principal" required helpText="Frase principal da dobra inicial do site.">
+                            <input
+                              className="admin-input"
+                              value={settings.heroTitle}
+                              onChange={(event) => updateSettingsField("heroTitle", event.target.value)}
+                              placeholder="Impressao rapida com acabamento profissional"
+                            />
+                          </Field>
+                          <Field label="Subtitulo" required helpText="Explique em uma ou duas linhas o diferencial da grafica.">
+                            <textarea
+                              className="admin-textarea"
+                              value={settings.heroSubtitle}
+                              onChange={(event) => updateSettingsField("heroSubtitle", event.target.value)}
+                              placeholder="Atendimento agil, producao confiavel e entrega no prazo."
+                            />
+                          </Field>
+                        </div>
+
+                        <Field label="Texto institucional" optional helpText="Conte rapidamente quem e a grafica e em que ela se destaca.">
+                          <textarea
+                            className="admin-textarea"
+                            value={settings.aboutText}
+                            onChange={(event) => updateSettingsField("aboutText", event.target.value)}
+                            placeholder="Historia, diferenciais e foco de atendimento."
+                          />
+                        </Field>
+
+                        <FormSection
+                          title="Banners da pagina inicial"
+                          description="Cadastre banners promocionais e chamadas de campanha sem sair do fluxo guiado."
+                          defaultOpen={Boolean(editingBannerId)}
+                        >
+                          <div className="admin-inline-stack">
+                            {editingBannerId ? (
+                              <Alert variant="info" title="Edicao de banner ativa">
+                                Ajuste esta campanha ou cancele para voltar ao cadastro de um novo banner.
+                              </Alert>
+                            ) : null}
+
+                            <div className="admin-inline-stack">
+                              <div className="admin-form-grid admin-form-grid--2">
+                                <Field label="Titulo do banner" optional>
+                                  <input
+                                    className="admin-input"
+                                    value={bannerForm.title}
+                                    onChange={(event) => updateBannerField("title", event.target.value)}
+                                    placeholder="Entrega no mesmo dia"
+                                  />
+                                </Field>
+                                <Field label="Texto do botao" optional>
+                                  <input
+                                    className="admin-input"
+                                    value={bannerForm.ctaLabel}
+                                    onChange={(event) => updateBannerField("ctaLabel", event.target.value)}
+                                    placeholder="Pedir orcamento"
+                                  />
+                                </Field>
+                              </div>
+
+                              <Field label="Subtitulo" optional>
+                                <textarea
+                                  className="admin-textarea"
+                                  value={bannerForm.subtitle}
+                                  onChange={(event) => updateBannerField("subtitle", event.target.value)}
+                                  placeholder="Mensagem de apoio para a campanha."
+                                />
+                              </Field>
+
+                              <div className="admin-form-grid admin-form-grid--2">
+                                <Field label="Link do botao" optional>
+                                  <input
+                                    className="admin-input"
+                                    value={bannerForm.ctaLink}
+                                    onChange={(event) => updateBannerField("ctaLink", event.target.value)}
+                                    placeholder="https://wa.me/..."
+                                  />
+                                </Field>
+                                <Field label="Imagem do banner" optional>
+                                  <input
+                                    className="admin-input"
+                                    value={bannerForm.imageUrl}
+                                    onChange={(event) => updateBannerField("imageUrl", event.target.value)}
+                                    placeholder="https://..."
+                                  />
+                                </Field>
+                              </div>
+
+                              <div className="admin-row">
+                                {editingBannerId ? (
+                                  <button type="button" className="admin-button admin-button--ghost" onClick={cancelBannerEdit}>
+                                    Cancelar edicao
+                                  </button>
+                                ) : null}
+                                <LoadingButton type="button" isLoading={isCreatingBanner} onClick={handleCreateBanner}>
+                                  {editingBannerId ? "Salvar banner" : "Adicionar banner"}
+                                </LoadingButton>
+                              </div>
+                            </div>
+
+                            <div className="admin-list-stack">
+                              {site.siteBanners.length === 0 ? (
+                                <EmptyState
+                                  title="Nenhum banner cadastrado"
+                                  description="Adicione banners para reforcar campanhas, entregas urgentes ou chamadas sazonais."
+                                />
+                              ) : (
+                                site.siteBanners.map((banner) => (
+                                  <article key={banner.id} className="admin-list-card">
+                                    {banner.imageUrl ? (
+                                      <div
+                                        className="admin-media-placeholder"
+                                        style={{
+                                          backgroundImage: `url(${banner.imageUrl})`,
+                                          backgroundSize: "cover",
+                                          backgroundPosition: "center",
+                                          borderStyle: "solid",
+                                        }}
+                                      />
+                                    ) : (
+                                      <div className="admin-media-placeholder">Sem imagem de apoio</div>
+                                    )}
+
+                                    <div className="admin-row admin-row--between">
+                                      <strong>{banner.title || "Banner sem titulo"}</strong>
+                                      <StatusBadge
+                                        status={banner.isActive ? "Ativo" : "Inativo"}
+                                        tone={banner.isActive ? "success" : "neutral"}
+                                      />
+                                    </div>
+
+                                    <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.6 }}>
+                                      {banner.subtitle || "Sem subtitulo."}
+                                    </p>
+
+                                    {banner.ctaLabel ? (
+                                      <span style={{ color: "var(--primary)", fontWeight: 700 }}>
+                                        CTA: {banner.ctaLabel}
+                                      </span>
+                                    ) : null}
+
+                                    <div className="admin-row">
+                                      <button
+                                        type="button"
+                                        className="admin-button admin-button--secondary"
+                                        onClick={() => startBannerEdit(banner)}
+                                      >
+                                        Editar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="admin-button admin-button--ghost"
+                                        onClick={() => handleToggleBanner(banner.id, banner.isActive)}
+                                      >
+                                        {banner.isActive ? "Inativar" : "Reativar"}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="admin-button admin-button--danger"
+                                        onClick={() => handleDeleteBanner(banner.id)}
+                                      >
+                                        Excluir
+                                      </button>
+                                    </div>
+                                  </article>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        </FormSection>
+                      </>
+                    ) : null}
+
+                    {activeStep === "contact" ? (
+                      <>
+                        <Alert variant="info">
+                          Deixe pelo menos um canal de contato pronto. Isso evita que o lead encontre o site, mas nao consiga falar com a grafica.
+                        </Alert>
+
+                        <div className="admin-form-grid admin-form-grid--2">
+                          <Field label="E-mail comercial" optional>
+                            <input
+                              className="admin-input"
+                              value={settings.contactEmail}
+                              onChange={(event) =>
+                                updateSettingsField("contactEmail", normalizeEmailInput(event.target.value))
+                              }
+                              placeholder="contato@grafica.com.br"
+                            />
+                          </Field>
+
+                          <Field label="Telefone" optional>
+                            <input
+                              className="admin-input"
+                              value={settings.contactPhone}
+                              onChange={(event) =>
+                                updateSettingsField("contactPhone", formatPhone(event.target.value))
+                              }
+                              inputMode="tel"
+                              maxLength={15}
+                              placeholder="(11) 0000-0000"
+                            />
+                          </Field>
+
+                          <Field label="WhatsApp" optional>
+                            <input
+                              className="admin-input"
+                              value={settings.contactWhatsapp}
+                              onChange={(event) =>
+                                updateSettingsField("contactWhatsapp", formatPhone(event.target.value))
+                              }
+                              inputMode="tel"
+                              maxLength={15}
+                              placeholder="(11) 99999-9999"
+                            />
+                          </Field>
+
+                          <Field label="Endereco completo" optional>
+                            <input
+                              className="admin-input"
+                              value={settings.addressFull}
+                              onChange={(event) => updateSettingsField("addressFull", event.target.value)}
+                              placeholder="Rua, numero, bairro, cidade"
+                            />
+                          </Field>
+
+                          <Field label="Instagram" optional>
+                            <input
+                              className="admin-input"
+                              value={settings.instagramUrl}
+                              onChange={(event) => updateSettingsField("instagramUrl", event.target.value)}
+                              placeholder="https://instagram.com/..."
+                            />
+                          </Field>
+
+                          <Field label="Facebook" optional>
+                            <input
+                              className="admin-input"
+                              value={settings.facebookUrl}
+                              onChange={(event) => updateSettingsField("facebookUrl", event.target.value)}
+                              placeholder="https://facebook.com/..."
+                            />
+                          </Field>
+                        </div>
+                      </>
+                    ) : null}
+
+                    {activeStep === "review" ? (
+                      <>
+                        <Alert variant={incompleteChecklist.length ? "warning" : "success"} title="Revisao final">
+                          {incompleteChecklist.length
+                            ? "Ainda existem pontos pendentes antes de publicar. Revise o checklist ao lado para evitar um site incompleto."
+                            : "As etapas principais estao prontas. Agora voce pode publicar ou manter salvo em rascunho."}
+                        </Alert>
+
+                        <div className="admin-card-grid">
+                          <MetricCard label="Titulo principal" value={settings.heroTitle || "Nao informado"} />
+                          <MetricCard label="Contato principal" value={settings.contactWhatsapp || settings.contactPhone || settings.contactEmail || "Nao informado"} />
+                          <MetricCard label="Servicos ativos" value={String(activeServiceCount)} />
+                          <MetricCard label="Banners ativos" value={String(activeBannerCount)} />
+                        </div>
+
+                        <label className="admin-checkbox-row">
+                          <input
+                            type="checkbox"
+                            checked={settings.isSitePublished}
+                            onChange={(event) =>
+                              updateSettingsField("isSitePublished", event.target.checked)
+                            }
+                          />
+                          <span>
+                            <strong style={{ display: "block", marginBottom: 4 }}>
+                              Publicar site para uso comercial
+                            </strong>
+                            O site ficara disponivel para exibicao publica e captacao de novos leads.
+                          </span>
+                        </label>
+                      </>
+                    ) : null}
+
+                    <div className="admin-row admin-row--between">
+                      <div className="admin-row">
+                        {previousStep ? (
+                          <button
+                            type="button"
+                            className="admin-button admin-button--ghost"
+                            onClick={() => setActiveStep(previousStep)}
+                          >
+                            Etapa anterior
+                          </button>
+                        ) : null}
+                        {nextStep ? (
+                          <button
+                            type="button"
+                            className="admin-button admin-button--secondary"
+                            onClick={() => setActiveStep(nextStep)}
+                          >
+                            Continuar
+                          </button>
+                        ) : null}
+                      </div>
+
+                      <LoadingButton type="submit" isLoading={isSavingSettings}>
+                        {activeStep === "review"
+                          ? settings.isSitePublished
+                            ? "Salvar e manter publicado"
+                            : "Salvar configuracao"
+                          : "Salvar etapa"}
+                      </LoadingButton>
+                    </div>
+                  </form>
+                )}
+              </SectionCard>
+            </div>
+
+            <aside className="admin-page-stack">
+              <SectionCard title="Previa rapida" description="Resumo visual para revisar a comunicacao do site antes de publicar.">
+                <div className="admin-visual-preview">
+                  <div className="admin-row">
+                    <PreviewColorSwatch color={previewPalette.primaryColor} label="Principal" />
+                    <PreviewColorSwatch color={previewPalette.secondaryColor} label="Secundaria" />
+                    <PreviewColorSwatch color={previewPalette.accentColor} label="Destaque" />
+                  </div>
+
+                  <div
+                    style={{
+                      minHeight: 160,
+                      borderRadius: 16,
+                      padding: 24,
+                      background: `linear-gradient(135deg, ${previewPalette.secondaryColor} 0%, #ffffff 100%)`,
+                      border: "1px solid var(--border)",
+                      display: "grid",
+                      gap: 12,
+                    }}
+                  >
+                    <span style={{ color: "var(--primary)", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      {site.tradeName}
+                    </span>
+                    <strong style={{ fontSize: 28, lineHeight: 1.1 }}>
+                      {settings.heroTitle || "Seu titulo principal aparecera aqui"}
+                    </strong>
+                    <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.6 }}>
+                      {settings.heroSubtitle || "O resumo comercial da pagina inicial aparecera aqui quando estiver preenchido."}
+                    </p>
+                  </div>
+
+                  <div className="admin-summary-list">
+                    <PreviewInfoRow label="Slug publico" value={`/${site.slug}`} />
+                    <PreviewInfoRow label="WhatsApp" value={settings.contactWhatsapp || "Nao informado"} />
+                    <PreviewInfoRow label="E-mail" value={settings.contactEmail || "Nao informado"} />
+                    <PreviewInfoRow label="Publicacao" value={settings.isSitePublished ? "Publicado" : "Rascunho"} />
+                  </div>
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Checklist de publicacao" description="Revise o que ja esta pronto e o que ainda precisa de atencao.">
+                <div className="admin-page-stack">
+                  {stepChecklist.map((item) => (
+                    <div key={item.id} className="admin-surface-muted">
+                      <div className="admin-row admin-row--between">
+                        <strong>{item.label}</strong>
+                        <StatusBadge
+                          status={item.ready ? "Pronto" : "Pendente"}
+                          tone={item.ready ? "success" : "warning"}
+                        />
+                      </div>
+                      <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.6 }}>{item.help}</p>
+                      {!item.ready ? (
                         <button
                           type="button"
-                          onClick={() => handleToggleService(service.id, service.isActive)}
-                          style={ghostActionButtonStyle}
+                          className="admin-link-button"
+                          onClick={() => setActiveStep(item.id)}
                         >
-                          {service.isActive ? "Inativar" : "Reativar"}
+                          Ir para esta etapa
                         </button>
-                        <button type="button" onClick={() => handleDeleteService(service.id)} style={dangerActionButtonStyle}>
-                          Excluir
-                        </button>
-                      </div>
-                    </article>
-                  ))
-                )}
-              </div>
-            </section>
-
-            <section style={panelStyle}>
-              <div>
-                <h2 style={{ margin: 0 }}>Banners e destaques</h2>
-                <p style={{ margin: "6px 0 0", color: "var(--muted)", lineHeight: 1.6 }}>
-                  Cadastre chamadas de campanha, CTA e argumentos sazonais.
-                </p>
-              </div>
-
-              <form onSubmit={handleCreateBanner} style={{ display: "grid", gap: 14 }}>
-                {editingBannerId ? (
-                  <div style={editingNoticeStyle}>
-                    <strong>Edicao de banner ativa.</strong>
-                    <span style={{ color: "var(--muted)" }}>
-                      Ajuste a campanha atual ou cancele para cadastrar um novo destaque.
-                    </span>
-                  </div>
-                ) : null}
-
-                <Field label="Titulo do banner">
-                  <input
-                    value={bannerForm.title}
-                    onChange={(event) => updateBannerField("title", event.target.value)}
-                    style={inputStyle}
-                    placeholder="Entrega no mesmo dia"
-                  />
-                </Field>
-
-                <Field label="Subtitulo">
-                  <textarea
-                    value={bannerForm.subtitle}
-                    onChange={(event) => updateBannerField("subtitle", event.target.value)}
-                    rows={4}
-                    style={{ ...inputStyle, minHeight: 110, height: "auto", padding: 14 }}
-                    placeholder="Mensagem de apoio para a campanha."
-                  />
-                </Field>
-
-                <Field label="Texto do botao">
-                  <input
-                    value={bannerForm.ctaLabel}
-                    onChange={(event) => updateBannerField("ctaLabel", event.target.value)}
-                    style={inputStyle}
-                    placeholder="Pedir orcamento"
-                  />
-                </Field>
-
-                <Field label="Link do botao">
-                  <input
-                    value={bannerForm.ctaLink}
-                    onChange={(event) => updateBannerField("ctaLink", event.target.value)}
-                    style={inputStyle}
-                    placeholder="https://wa.me/..."
-                  />
-                </Field>
-
-                <Field label="Imagem URL">
-                  <input
-                    value={bannerForm.imageUrl}
-                    onChange={(event) => updateBannerField("imageUrl", event.target.value)}
-                    style={inputStyle}
-                    placeholder="https://..."
-                  />
-                </Field>
-
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                  <button type="submit" disabled={isCreatingBanner} style={secondaryButtonStyle}>
-                    {isCreatingBanner
-                      ? editingBannerId
-                        ? "Salvando..."
-                        : "Adicionando..."
-                      : editingBannerId
-                        ? "Salvar banner"
-                        : "Adicionar banner"}
-                  </button>
-                  {editingBannerId ? (
-                    <button type="button" onClick={cancelBannerEdit} style={ghostActionButtonStyle}>
-                      Cancelar edicao
-                    </button>
-                  ) : null}
-                </div>
-              </form>
-
-              <div style={{ display: "grid", gap: 12 }}>
-                {site.siteBanners.length === 0 ? (
-                  <EmptyState text="Nenhum banner cadastrado ainda." />
-                ) : (
-                  site.siteBanners.map((banner) => (
-                    <article key={banner.id} style={listCardStyle}>
-                      {banner.imageUrl ? (
-                        <div
-                          style={{
-                            height: 150,
-                            borderRadius: 16,
-                            backgroundImage: `url(${banner.imageUrl})`,
-                            backgroundPosition: "center",
-                            backgroundSize: "cover",
-                            border: "1px solid rgba(232, 217, 202, 0.9)",
-                          }}
-                        />
-                      ) : (
-                        <div style={mediaPlaceholderStyle("linear-gradient(135deg, rgba(43,110,82,0.16), rgba(181,66,31,0.16))")}>
-                          Sem imagem
-                        </div>
-                      )}
-
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                        <strong>{banner.title || "Banner sem titulo"}</strong>
-                        <span style={statusPillStyle(banner.isActive)}>
-                          {banner.isActive ? "Ativo" : "Inativo"}
-                        </span>
-                      </div>
-                      <span style={{ color: "var(--muted)", lineHeight: 1.6 }}>
-                        {banner.subtitle || "Sem subtitulo."}
-                      </span>
-                      {banner.ctaLabel ? (
-                        <span style={{ color: "var(--primary)", fontWeight: 700 }}>
-                          CTA: {banner.ctaLabel}
-                        </span>
                       ) : null}
-                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        <button type="button" onClick={() => startBannerEdit(banner)} style={miniActionButtonStyle}>
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleBanner(banner.id, banner.isActive)}
-                          style={ghostActionButtonStyle}
-                        >
-                          {banner.isActive ? "Inativar" : "Reativar"}
-                        </button>
-                        <button type="button" onClick={() => handleDeleteBanner(banner.id)} style={dangerActionButtonStyle}>
-                          Excluir
-                        </button>
-                      </div>
-                    </article>
-                  ))
-                )}
-              </div>
-            </section>
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Leitura operacional" description="Resumo rapido para quem esta configurando o site pela primeira vez.">
+                <ul className="admin-checklist">
+                  <li>Salve as etapas sem medo. O site pode continuar em rascunho ate a revisao final.</li>
+                  <li>Publique pelo menos um servico antes de divulgar o link publicamente.</li>
+                  <li>Garanta um canal de contato direto para nao perder leads.</li>
+                </ul>
+              </SectionCard>
+            </aside>
           </div>
         </>
       )}
@@ -1183,70 +1342,24 @@ function mapSettings(
   };
 }
 
-function Field({
-  label,
-  required,
-  children,
-}: Readonly<{ label: string; required?: boolean; children: React.ReactNode }>) {
-  return (
-    <label style={{ display: "grid", gap: 8 }}>
-      <span style={{ fontWeight: 600 }}>
-        {label}
-        {required ? <strong style={{ color: "var(--primary)" }}> *</strong> : null}
-      </span>
-      {children}
-    </label>
-  );
+function getNeighborStep(current: StepId, offset: -1 | 1) {
+  const index = guidedSteps.findIndex((step) => step.id === current);
+  const nextIndex = index + offset;
+  return guidedSteps[nextIndex]?.id;
 }
 
-function SummaryCard({
-  label,
-  value,
-  accent,
-}: Readonly<{ label: string; value: string; accent?: boolean }>) {
+function PreviewColorSwatch({ color, label }: Readonly<{ color: string; label: string }>) {
   return (
-    <article
-      style={{
-        padding: 20,
-        borderRadius: 22,
-        background: accent ? "rgba(43, 110, 82, 0.12)" : "rgba(255,255,255,0.72)",
-        border: "1px solid rgba(232, 217, 202, 0.9)",
-      }}
-    >
-      <p
+    <div style={{ display: "grid", gap: 6, justifyItems: "center" }}>
+      <span
+        aria-hidden="true"
         style={{
-          margin: 0,
-          color: accent ? "#245844" : "var(--primary)",
-          textTransform: "uppercase",
-          letterSpacing: "0.12em",
-          fontSize: 12,
-          fontWeight: 700,
-        }}
-      >
-        {label}
-      </p>
-      <h2 style={{ margin: "10px 0 0", fontSize: 34 }}>{value}</h2>
-    </article>
-  );
-}
-
-function ColorChip({ color, label }: Readonly<{ color: string; label: string }>) {
-  return (
-    <div
-      style={{
-        display: "grid",
-        gap: 6,
-        justifyItems: "center",
-      }}
-    >
-      <div
-        style={{
-          width: 34,
-          height: 34,
+          width: 28,
+          height: 28,
           borderRadius: 999,
-          border: "2px solid rgba(255,255,255,0.75)",
           background: color,
-          boxShadow: "0 10px 24px rgba(77, 39, 22, 0.14)",
+          border: "2px solid #fff",
+          boxShadow: "0 0 0 1px var(--border)",
         }}
       />
       <span style={{ fontSize: 12, color: "var(--muted)" }}>{label}</span>
@@ -1254,198 +1367,11 @@ function ColorChip({ color, label }: Readonly<{ color: string; label: string }>)
   );
 }
 
-function SmallInfo({ label, value }: Readonly<{ label: string; value: string }>) {
+function PreviewInfoRow({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        gap: 12,
-        fontSize: 14,
-      }}
-    >
+    <div className="admin-summary-row">
       <span style={{ color: "var(--muted)" }}>{label}</span>
       <strong style={{ textAlign: "right" }}>{value}</strong>
     </div>
   );
 }
-
-function EmptyState({ text }: Readonly<{ text: string }>) {
-  return (
-    <div
-      style={{
-        padding: 18,
-        borderRadius: 18,
-        border: "1px dashed var(--border)",
-        background: "rgba(255,255,255,0.55)",
-        color: "var(--muted)",
-      }}
-    >
-      {text}
-    </div>
-  );
-}
-
-function statusPillStyle(isActive: boolean) {
-  return {
-    padding: "8px 12px",
-    borderRadius: 999,
-    background: isActive ? "rgba(43, 110, 82, 0.12)" : "rgba(117, 117, 117, 0.18)",
-    color: isActive ? "#245844" : "#4d4d4d",
-    fontWeight: 700,
-  } as const;
-}
-
-function mediaPlaceholderStyle(background: string) {
-  return {
-    height: 150,
-    borderRadius: 16,
-    border: "1px solid rgba(232, 217, 202, 0.9)",
-    background,
-    display: "grid",
-    placeItems: "center",
-    fontWeight: 700,
-    color: "var(--primary)",
-  } as const;
-}
-
-const eyebrowStyle = {
-  margin: 0,
-  color: "var(--primary)",
-  textTransform: "uppercase",
-  letterSpacing: "0.14em",
-  fontSize: 12,
-  fontWeight: 700,
-} as const;
-
-const panelStyle = {
-  display: "grid",
-  gap: 18,
-  padding: 24,
-  borderRadius: 24,
-  border: "1px solid var(--border)",
-  background: "var(--surface)",
-} as const;
-
-const listCardStyle = {
-  display: "grid",
-  gap: 8,
-  padding: 16,
-  borderRadius: 18,
-  border: "1px solid var(--border)",
-  background: "rgba(255,255,255,0.78)",
-} as const;
-
-const editingNoticeStyle = {
-  display: "grid",
-  gap: 6,
-  padding: 14,
-  borderRadius: 16,
-  border: "1px solid rgba(181, 66, 31, 0.18)",
-  background: "rgba(181, 66, 31, 0.08)",
-} as const;
-
-const inputStyle = {
-  height: 48,
-  padding: "0 14px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  width: "100%",
-  boxSizing: "border-box" as const,
-} as const;
-
-const colorInputStyle = {
-  height: 56,
-  padding: 8,
-  borderRadius: 16,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  width: "100%",
-} as const;
-
-const primaryButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: 0,
-  background: "var(--primary)",
-  color: "#fff",
-  fontWeight: 700,
-  cursor: "pointer",
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const secondaryButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  color: "inherit",
-  fontWeight: 700,
-  cursor: "pointer",
-} as const;
-
-const miniActionButtonStyle = {
-  height: 38,
-  padding: "0 14px",
-  borderRadius: 12,
-  border: "1px solid rgba(181, 66, 31, 0.16)",
-  background: "rgba(181, 66, 31, 0.08)",
-  color: "var(--primary)",
-  fontWeight: 700,
-  cursor: "pointer",
-} as const;
-
-const ghostActionButtonStyle = {
-  height: 38,
-  padding: "0 14px",
-  borderRadius: 12,
-  border: "1px solid rgba(232, 217, 202, 0.95)",
-  background: "#fff",
-  color: "inherit",
-  fontWeight: 700,
-  cursor: "pointer",
-} as const;
-
-const dangerActionButtonStyle = {
-  height: 38,
-  padding: "0 14px",
-  borderRadius: 12,
-  border: "1px solid rgba(167, 45, 45, 0.2)",
-  background: "rgba(167, 45, 45, 0.08)",
-  color: "#8b2323",
-  fontWeight: 700,
-  cursor: "pointer",
-} as const;
-
-const feedbackStyle = {
-  margin: 0,
-  padding: "14px 16px",
-  borderRadius: 14,
-  lineHeight: 1.6,
-} as const;
-
-const errorStyle = {
-  background: "rgba(181, 66, 31, 0.12)",
-  color: "var(--primary)",
-} as const;
-
-const successStyle = {
-  background: "rgba(43, 110, 82, 0.12)",
-  color: "#245844",
-} as const;
-
-const loadingPanelStyle = {
-  display: "grid",
-  gap: 10,
-  placeItems: "center",
-  padding: 42,
-  borderRadius: 24,
-  border: "1px dashed var(--border)",
-  background: "rgba(255,255,255,0.62)",
-} as const;

@@ -1,10 +1,12 @@
 "use client";
 
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import {
   Alert,
   EmptyState,
+  LoadingButton,
   MetricCard,
   PageHeader,
   SectionCard,
@@ -138,7 +140,15 @@ type ReportData = {
 };
 
 export default function RelatoriosPage() {
-  const [activeTab, setActiveTab] = useState("comercial");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState(
+    requestedTab && ["comercial", "estoque", "producao", "financeiro", "leads"].includes(requestedTab)
+      ? requestedTab
+      : "comercial",
+  );
   const [data, setData] = useState<ReportData>({
     customers: [],
     quotes: [],
@@ -151,6 +161,18 @@ export default function RelatoriosPage() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [exportFeedback, setExportFeedback] = useState<string | null>(null);
+  const [isExportingTab, setIsExportingTab] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!requestedTab || requestedTab === activeTab) {
+      return;
+    }
+
+    if (["comercial", "estoque", "producao", "financeiro", "leads"].includes(requestedTab)) {
+      setActiveTab(requestedTab);
+    }
+  }, [activeTab, requestedTab]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -250,12 +272,12 @@ export default function RelatoriosPage() {
     const openOrders = data.orders.filter((order) => order.status !== "COMPLETED" && order.status !== "CANCELED").length;
     const lowStock = data.products.filter((product) => product.currentStock <= product.minimumStock).length;
     const pendingIncome = data.entries
-      .filter((entry) => entry.entryType === "INCOME" && entry.status === "PENDING")
+      .filter((entry) => (entry.entryType === "INCOME" || entry.entryType === "RECEIVABLE") && entry.status === "PENDING")
       .reduce((sum, entry) => sum + entry.amount, 0);
     const overdueExpense = data.entries
-      .filter((entry) => entry.entryType === "EXPENSE" && entry.status === "OVERDUE")
+      .filter((entry) => (entry.entryType === "EXPENSE" || entry.entryType === "PAYABLE") && entry.status === "OVERDUE")
       .reduce((sum, entry) => sum + entry.amount, 0);
-    const itemizedSales = data.entries.filter((entry) => entry.entryType === "INCOME" && entry.itemCount > 0).length;
+    const itemizedSales = data.entries.filter((entry) => (entry.entryType === "INCOME" || entry.entryType === "RECEIVABLE") && entry.itemCount > 0).length;
 
     return {
       approvedQuotes,
@@ -274,6 +296,32 @@ export default function RelatoriosPage() {
     { id: "financeiro", label: "Financeiro" },
     { id: "leads", label: "Leads" },
   ];
+
+  function handleTabChange(tabId: string) {
+    setActiveTab(tabId);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tabId);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
+  async function handleExport(fileName: string, rows: Array<Record<string, unknown>>) {
+    if (!rows.length || isExportingTab) {
+      return;
+    }
+
+    setIsExportingTab(fileName);
+    setExportFeedback("Gerando arquivo...");
+
+    try {
+      exportCsv(fileName, rows);
+      setExportFeedback("Arquivo gerado com sucesso.");
+      window.setTimeout(() => setExportFeedback(null), 2500);
+    } catch {
+      setExportFeedback("Nao foi possivel gerar o arquivo agora.");
+    } finally {
+      setIsExportingTab(null);
+    }
+  }
 
   return (
     <main className="admin-page-stack">
@@ -296,11 +344,12 @@ export default function RelatoriosPage() {
           {errorMessage}
         </Alert>
       ) : null}
+      {exportFeedback ? <Alert variant={exportFeedback.includes("sucesso") ? "success" : "info"}>{exportFeedback}</Alert> : null}
 
       <SectionCard
         title="Categorias de relatorio"
       >
-        <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+        <Tabs tabs={tabs} activeTab={activeTab} onChange={handleTabChange} />
 
         {isLoading ? (
           <Skeleton lines={8} />
@@ -313,11 +362,12 @@ export default function RelatoriosPage() {
                   description="Carteira comercial recente com valor, cliente e situacao."
                   actionLabel="Exportar comercial"
                   onAction={() =>
-                    exportCsv("comercial", [
+                    handleExport("comercial", [
                       ...data.quotes.map((quote) => ({ bloco: "orcamento", ...quote })),
                       ...data.orders.map((order) => ({ bloco: "pedido", ...order })),
                     ])
                   }
+                  isExporting={isExportingTab === "comercial"}
                   rows={[
                     ...data.quotes.slice(0, 5).map((quote) => ({
                       title: quote.code,
@@ -343,11 +393,12 @@ export default function RelatoriosPage() {
                 description="Itens com risco de ruptura e movimentacoes recentes."
                 actionLabel="Exportar estoque"
                 onAction={() =>
-                  exportCsv("estoque", [
+                  handleExport("estoque", [
                     ...data.products.map((product) => ({ bloco: "item", ...product })),
                     ...data.movements.map((movement) => ({ bloco: "movimentacao", ...movement })),
                   ])
                 }
+                isExporting={isExportingTab === "estoque"}
                 rows={[
                   ...data.products
                     .filter((product) => product.currentStock <= product.minimumStock)
@@ -374,7 +425,8 @@ export default function RelatoriosPage() {
                 title="Producoes"
                 description="Ultimos apontamentos de producao e custo unitario gerado."
                 actionLabel="Exportar producao"
-                onAction={() => exportCsv("producao", data.productions)}
+                onAction={() => handleExport("producao", data.productions)}
+                isExporting={isExportingTab === "producao"}
                 rows={data.productions.slice(0, 8).map((production) => ({
                   title: production.productName,
                   subtitle: `${production.consumptions.length} materiais consumidos`,
@@ -390,7 +442,8 @@ export default function RelatoriosPage() {
                 title="Lancamentos financeiros"
                 description="Receitas e despesas recentes com status e categoria."
                 actionLabel="Exportar financeiro"
-                onAction={() => exportCsv("financeiro", data.entries)}
+                onAction={() => handleExport("financeiro", data.entries)}
+                isExporting={isExportingTab === "financeiro"}
                 rows={data.entries.slice(0, 10).map((entry) => ({
                   title: entry.description || "Lancamento financeiro",
                   subtitle: `${entry.accountName} | ${entry.category}`,
@@ -406,7 +459,8 @@ export default function RelatoriosPage() {
                 title="Leads do site"
                 description="Leads mais recentes para acompanhamento de conversao."
                 actionLabel="Exportar leads"
-                onAction={() => exportCsv("leads", data.leads)}
+                onAction={() => handleExport("leads", data.leads)}
+                isExporting={isExportingTab === "leads"}
                 rows={data.leads.slice(0, 10).map((lead) => ({
                   title: lead.name,
                   subtitle: lead.requestedService || lead.subject || "Contato geral",
@@ -428,13 +482,15 @@ function ReportSection({
   description,
   actionLabel,
   onAction,
+  isExporting,
   rows,
   emptyText,
 }: Readonly<{
   title: string;
   description: string;
   actionLabel: string;
-  onAction: () => void;
+  onAction: () => void | Promise<void>;
+  isExporting?: boolean;
   rows: Array<{ title: string; subtitle: string; value: string; meta: string }>;
   emptyText: string;
 }>) {
@@ -443,9 +499,15 @@ function ReportSection({
       title={title}
       description={description}
       actions={
-        <button type="button" className="admin-button admin-button--secondary" onClick={onAction}>
+        <LoadingButton
+          type="button"
+          className="admin-button admin-button--secondary"
+          onClick={() => void onAction()}
+          isLoading={isExporting}
+          loadingLabel="Gerando arquivo..."
+        >
           {actionLabel}
-        </button>
+        </LoadingButton>
       }
     >
       {rows.length === 0 ? (
@@ -573,6 +635,9 @@ function formatFinancialStatus(status: string) {
 }
 
 function formatEntryType(type: string) {
+  if (type === "RECEIVABLE") return "Conta a receber";
+  if (type === "PAYABLE") return "Conta a pagar";
+  if (type === "TRANSFER") return "Transferencia";
   return type === "INCOME" ? "Receita" : "Despesa";
 }
 

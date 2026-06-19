@@ -1,5 +1,12 @@
 import type { PrismaClient } from "@prisma/client";
 
+import {
+  registerInputStock,
+  registerOutputStockByFifo,
+  roundCurrency,
+  roundQuantity,
+} from "@/repositories/inventory/stock-ledger";
+
 export class ProductionRepository {
   constructor(private readonly db: PrismaClient) {}
 
@@ -86,6 +93,8 @@ export class ProductionRepository {
       include: {
         product: true,
         producedByUser: true,
+        responsibleUser: true,
+        order: true,
         consumptions: {
           include: {
             materialProduct: true,
@@ -101,16 +110,16 @@ export class ProductionRepository {
   async createProductionRecord(input: {
     companyId: string;
     productId: string;
+    orderId?: string;
+    quantityPlanned?: number;
     quantityProduced: number;
-    totalCost: number;
-    unitCost: number;
+    lossQuantity?: number;
     notes?: string;
     producedByUserId?: string;
+    responsibleUserId?: string;
     consumptions: Array<{
       materialProductId: string;
       quantityConsumed: number;
-      unitCost: number;
-      totalCost: number;
     }>;
   }) {
     return this.db.$transaction(async (tx) => {
@@ -118,82 +127,104 @@ export class ProductionRepository {
         data: {
           companyId: input.companyId,
           productId: input.productId,
+          orderId: input.orderId,
+          quantityPlanned: input.quantityPlanned ?? input.quantityProduced,
           quantityProduced: input.quantityProduced,
-          totalCost: input.totalCost,
-          unitCost: input.unitCost,
+          lossQuantity: input.lossQuantity ?? 0,
+          totalCost: 0,
+          unitCost: 0,
+          status: "IN_PRODUCTION",
           notes: normalizeEmpty(input.notes),
           producedByUserId: input.producedByUserId,
-          consumptions: {
-            create: input.consumptions.map((item) => ({
-              materialProductId: item.materialProductId,
-              quantityConsumed: item.quantityConsumed,
-              unitCost: item.unitCost,
-              totalCost: item.totalCost,
-            })),
-          },
+          responsibleUserId: input.responsibleUserId ?? input.producedByUserId,
         },
       });
 
+      const consumptionRows: Array<{
+        materialProductId: string;
+        quantityConsumed: number;
+        unitCost: number;
+        totalCost: number;
+      }> = [];
+
+      let totalCost = 0;
+
       for (const consumption of input.consumptions) {
-        await tx.product.update({
-          where: {
-            id: consumption.materialProductId,
-          },
-          data: {
-            currentStock: {
-              decrement: consumption.quantityConsumed,
-            },
-          },
+        const stockResult = await registerOutputStockByFifo(tx, {
+          companyId: input.companyId,
+          productId: consumption.materialProductId,
+          quantity: consumption.quantityConsumed,
+          reasonCode: "PRODUCTION_CONSUMPTION",
+          reasonText: "Consumo automatico de materia-prima",
+          referenceType: "PRODUCTION",
+          referenceId: `PROD-${record.id}`,
+          productionRecordId: record.id,
+          notes: "Consumo automatico de materia-prima na producao",
+          createdByUserId: input.producedByUserId,
         });
 
-        await tx.stockMovement.create({
-          data: {
-            companyId: input.companyId,
-            productId: consumption.materialProductId,
-            movementType: "OUTPUT",
-            quantity: consumption.quantityConsumed,
-            unitCost: consumption.unitCost,
-            referenceType: "MANUAL",
-            referenceId: `PROD-${record.id}`,
-            notes: "Consumo automatico de materia-prima na producao",
-            createdByUserId: input.producedByUserId,
-          },
+        totalCost = roundCurrency(totalCost + stockResult.totalCost);
+        consumptionRows.push({
+          materialProductId: consumption.materialProductId,
+          quantityConsumed: roundQuantity(consumption.quantityConsumed),
+          unitCost: stockResult.unitCost,
+          totalCost: stockResult.totalCost,
         });
       }
 
-      await tx.product.update({
+      if (consumptionRows.length) {
+        await tx.productionConsumption.createMany({
+          data: consumptionRows.map((item) => ({
+            productionRecordId: record.id,
+            materialProductId: item.materialProductId,
+            quantityConsumed: item.quantityConsumed,
+            unitCost: item.unitCost,
+            totalCost: item.totalCost,
+          })),
+        });
+      }
+
+      const unitCost =
+        input.quantityProduced > 0
+          ? roundCurrency(totalCost / input.quantityProduced)
+          : 0;
+
+      await registerInputStock(tx, {
+        companyId: input.companyId,
+        productId: input.productId,
+        quantity: input.quantityProduced,
+        unitCost,
+        reasonCode: "PRODUCTION_OUTPUT",
+        reasonText: "Entrada automatica do produto acabado apos producao",
+        referenceType: "PRODUCTION",
+        referenceId: `PROD-${record.id}`,
+        productionRecordId: record.id,
+        notes: "Entrada automatica do produto acabado apos producao",
+        createdByUserId: input.producedByUserId,
+        updateReferenceCost: true,
+      });
+
+      await tx.productionRecord.update({
         where: {
-          id: input.productId,
+          id: record.id,
         },
         data: {
-          currentStock: {
-            increment: input.quantityProduced,
-          },
-          costPrice: input.unitCost,
+          totalCost,
+          unitCost,
+          status: "COMPLETED",
+          completedAt: new Date(),
         },
       });
 
-      await tx.stockMovement.create({
-        data: {
-          companyId: input.companyId,
-          productId: input.productId,
-          movementType: "INPUT",
-          quantity: input.quantityProduced,
-          unitCost: input.unitCost,
-          referenceType: "MANUAL",
-          referenceId: `PROD-${record.id}`,
-          notes: "Entrada automatica do produto acabado apos producao",
-          createdByUserId: input.producedByUserId,
-        },
-      });
-
-      return tx.productionRecord.findUnique({
+      return tx.productionRecord.findUniqueOrThrow({
         where: {
           id: record.id,
         },
         include: {
           product: true,
           producedByUser: true,
+          responsibleUser: true,
+          order: true,
           consumptions: {
             include: {
               materialProduct: true,

@@ -35,6 +35,12 @@ enum ProductType {
   RAW_MATERIAL
   SERVICE
   FINISHED_PRODUCT
+  RESALE
+}
+
+enum ProductValueChangeType {
+  COST
+  PRICE
 }
 
 enum StockMovementType {
@@ -48,6 +54,8 @@ enum StockReferenceType {
   QUOTE
   ORDER
   PURCHASE
+  ENTRY
+  PRODUCTION
 }
 
 enum QuoteStatus {
@@ -82,6 +90,9 @@ enum FinancialAccountType {
 enum FinancialEntryType {
   INCOME
   EXPENSE
+  RECEIVABLE
+  PAYABLE
+  TRANSFER
 }
 
 enum FinancialEntryStatus {
@@ -89,6 +100,76 @@ enum FinancialEntryStatus {
   PAID
   OVERDUE
   CANCELED
+}
+
+enum StockMovementReasonCode {
+  ENTRY_CONFIRMATION
+  ENTRY_REVERSAL
+  PRODUCTION_CONSUMPTION
+  PRODUCTION_OUTPUT
+  PRODUCTION_REVERSAL
+  ADJUSTMENT_POSITIVE
+  ADJUSTMENT_NEGATIVE
+  LOSS
+  DAMAGE
+  INTERNAL_CONSUMPTION
+  SAMPLE
+  DIVERSE_INPUT
+  DIVERSE_OUTPUT
+  INITIAL_BALANCE
+  BONUS
+  RETURN
+}
+
+enum StockMovementStatus {
+  CONFIRMED
+  REVERSED
+}
+
+enum InventoryEntryType {
+  PURCHASE_INVOICE
+  PURCHASE_WITHOUT_INVOICE
+  INITIAL_BALANCE
+  RETURN
+  BONUS
+  OTHER
+}
+
+enum InventoryEntryStatus {
+  DRAFT
+  CONFIRMED
+  CANCELED
+}
+
+enum FinancialCondition {
+  NONE
+  CASH
+  TERM
+}
+
+enum FinancialOriginType {
+  MANUAL
+  ENTRY
+  PRODUCTION
+  ORDER
+  QUOTE
+  WEBSITE
+}
+
+enum ProductionExecutionStatus {
+  PENDING
+  IN_PRODUCTION
+  COMPLETED
+  CANCELED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  CONFIRM
+  CANCEL
+  REVERSE
+  OVERRIDE
 }
 
 enum SiteLeadStatus {
@@ -115,6 +196,7 @@ model Company {
   financials      FinancialEntry[]
   orders          Order[]
   productCategories ProductCategory[]
+  productPriceHistories ProductPriceHistory[]
   products        Product[]
   productRecipeItems ProductRecipeItem[]
   productionRecords ProductionRecord[]
@@ -131,6 +213,11 @@ model Company {
   financialCategories FinancialCategory[]
   orderItems      OrderItem[]
   authSessions    AuthSession[]
+  operationalSettings CompanyOperationalSetting?
+  inventoryEntries InventoryEntry[]
+  stockLayers     StockLayer[]
+  stockLayerConsumptions StockLayerConsumption[]
+  auditLogs       AuditLog[]
 
   @@map("companies")
 }
@@ -151,10 +238,16 @@ model User {
   createdFinancials    FinancialEntry[]
   createdOrders        Order[]
   createdQuotes        Quote[]             @relation("created_quotes")
-  createdStockMoves    StockMovement[]
-  productionRecords    ProductionRecord[]
+  createdStockMoves    StockMovement[] @relation("stock_movement_created_by")
+  productPriceHistories ProductPriceHistory[]
+  productionRecords    ProductionRecord[] @relation("production_produced_by_user")
   authSessions         AuthSession[]
   authTokens           AuthToken[]
+  confirmedInventoryEntries InventoryEntry[] @relation("inventory_entry_confirmed_by")
+  canceledInventoryEntries  InventoryEntry[] @relation("inventory_entry_canceled_by")
+  reversedStockMovements    StockMovement[] @relation("stock_movement_reversed_by")
+  responsibleProductions    ProductionRecord[] @relation("production_responsible_user")
+  auditLogs                 AuditLog[]
 
   @@map("users")
 }
@@ -253,11 +346,17 @@ model ProductCategory {
   id         String                @id @default(uuid()) @db.Uuid
   companyId  String                @map("company_id") @db.Uuid
   name       String                @db.VarChar(120)
-  type       ProductCategoryType
+  description String?
+  type       ProductCategoryType?
+  defaultMargin Decimal?           @map("default_margin") @db.Decimal(5, 2)
+  showOnWebsite Boolean            @default(false) @map("show_on_website")
+  isActive   Boolean               @default(true) @map("is_active")
   createdAt  DateTime              @default(now()) @map("created_at")
+  updatedAt  DateTime              @updatedAt @map("updated_at")
   company    Company               @relation(fields: [companyId], references: [id])
   products   Product[]
 
+  @@unique([companyId, name])
   @@map("product_categories")
 }
 
@@ -270,6 +369,9 @@ model Product {
   barcode       String?           @db.VarChar(14)
   unit          String            @db.VarChar(20)
   type          ProductType
+  controlsStock Boolean           @default(true) @map("controls_stock")
+  showOnWebsite Boolean           @default(false) @map("show_on_website")
+  desiredMargin Decimal?          @map("desired_margin") @db.Decimal(5, 2)
   costPrice     Decimal           @default(0) @map("cost_price") @db.Decimal(12, 2)
   salePrice     Decimal           @default(0) @map("sale_price") @db.Decimal(12, 2)
   minimumStock  Decimal           @default(0) @map("minimum_stock") @db.Decimal(12, 3)
@@ -281,16 +383,41 @@ model Product {
   company       Company           @relation(fields: [companyId], references: [id])
   financialEntryItems FinancialEntryItem[]
   orderItems    OrderItem[]
+  priceHistories ProductPriceHistory[]
   recipeItems   ProductRecipeItem[] @relation("recipe_product")
   quoteItems    QuoteItem[]
   stockMoves    StockMovement[]
+  inventoryEntryItems InventoryEntryItem[]
+  stockLayers    StockLayer[]
+  stockLayerConsumptions StockLayerConsumption[]
   usedAsMaterialIn ProductRecipeItem[] @relation("recipe_material")
   productionRecords ProductionRecord[]
   productionConsumptions ProductionConsumption[]
 
   @@unique([companyId, sku])
   @@unique([companyId, barcode])
+  @@index([companyId, categoryId])
   @@map("products")
+}
+
+model ProductPriceHistory {
+  id               String                 @id @default(uuid()) @db.Uuid
+  companyId        String                 @map("company_id") @db.Uuid
+  productId        String                 @map("product_id") @db.Uuid
+  changedByUserId  String?                @map("changed_by_user_id") @db.Uuid
+  changeType       ProductValueChangeType @map("change_type")
+  previousValue    Decimal                @map("previous_value") @db.Decimal(12, 2)
+  newValue         Decimal                @map("new_value") @db.Decimal(12, 2)
+  origin           String                 @db.VarChar(80)
+  relatedDocument  String?                @map("related_document") @db.VarChar(120)
+  justification    String?
+  createdAt        DateTime               @default(now()) @map("created_at")
+  changedByUser    User?                  @relation(fields: [changedByUserId], references: [id])
+  company          Company                @relation(fields: [companyId], references: [id])
+  product          Product                @relation(fields: [productId], references: [id])
+
+  @@index([companyId, productId, createdAt])
+  @@map("product_price_histories")
 }
 
 model StockMovement {
@@ -298,17 +425,31 @@ model StockMovement {
   companyId       String              @map("company_id") @db.Uuid
   productId       String              @map("product_id") @db.Uuid
   movementType    StockMovementType   @map("movement_type")
+  status          StockMovementStatus @default(CONFIRMED)
+  reasonCode      StockMovementReasonCode? @map("reason_code")
+  reasonText      String?             @map("reason_text") @db.VarChar(255)
   quantity        Decimal             @db.Decimal(12, 3)
   unitCost        Decimal?            @map("unit_cost") @db.Decimal(12, 2)
   referenceType   StockReferenceType? @map("reference_type")
   referenceId     String?             @map("reference_id") @db.VarChar(80)
+  inventoryEntryId String?            @map("inventory_entry_id") @db.Uuid
+  productionRecordId String?          @map("production_record_id") @db.Uuid
   notes           String?
   createdByUserId String?             @map("created_by_user_id") @db.Uuid
+  reversedByUserId String?            @map("reversed_by_user_id") @db.Uuid
+  occurredAt      DateTime            @default(now()) @map("occurred_at")
+  reversedAt      DateTime?           @map("reversed_at")
   createdAt       DateTime            @default(now()) @map("created_at")
   company         Company             @relation(fields: [companyId], references: [id])
-  createdByUser   User?               @relation(fields: [createdByUserId], references: [id])
+  createdByUser   User?               @relation("stock_movement_created_by", fields: [createdByUserId], references: [id])
   product         Product             @relation(fields: [productId], references: [id])
+  reversedByUser  User?               @relation("stock_movement_reversed_by", fields: [reversedByUserId], references: [id])
+  inventoryEntry  InventoryEntry?     @relation(fields: [inventoryEntryId], references: [id])
+  productionRecord ProductionRecord?  @relation(fields: [productionRecordId], references: [id])
+  fifoLayer       StockLayer?
+  fifoConsumptions StockLayerConsumption[]
 
+  @@index([companyId, productId, occurredAt])
   @@map("stock_movements")
 }
 
@@ -375,6 +516,7 @@ model Order {
   customer         Customer          @relation(fields: [customerId], references: [id])
   financials       FinancialEntry[]
   items            OrderItem[]
+  productionRecords ProductionRecord[]
   quote            Quote?            @relation(fields: [quoteId], references: [id])
 
   @@unique([companyId, code])
@@ -407,6 +549,7 @@ model FinancialAccount {
   createdAt      DateTime              @default(now()) @map("created_at")
   company        Company               @relation(fields: [companyId], references: [id])
   entries        FinancialEntry[]
+  inventoryEntries InventoryEntry[]
 
   @@map("financial_accounts")
 }
@@ -432,14 +575,20 @@ model FinancialEntry {
   accountId       String                @map("account_id") @db.Uuid
   financialCategoryId String?          @map("financial_category_id") @db.Uuid
   customerId      String?               @map("customer_id") @db.Uuid
+  inventoryEntryId String?              @map("inventory_entry_id") @db.Uuid
   orderId         String?               @map("order_id") @db.Uuid
   quoteId         String?               @map("quote_id") @db.Uuid
   entryType       FinancialEntryType    @map("entry_type")
+  originType      FinancialOriginType   @default(MANUAL) @map("origin_type")
   category        String                @db.VarChar(80)
+  supplierName    String?               @map("supplier_name") @db.VarChar(200)
   description     String                @db.VarChar(255)
   amount          Decimal               @db.Decimal(12, 2)
   dueDate         DateTime              @map("due_date") @db.Date
   paidAt          DateTime?             @map("paid_at")
+  installmentNumber Int?                @map("installment_number")
+  installmentCount Int?                 @map("installment_count")
+  canceledAt      DateTime?             @map("canceled_at")
   status          FinancialEntryStatus  @default(PENDING)
   createdByUserId String?               @map("created_by_user_id") @db.Uuid
   createdAt       DateTime              @default(now()) @map("created_at")
@@ -449,10 +598,12 @@ model FinancialEntry {
   createdByUser   User?                 @relation(fields: [createdByUserId], references: [id])
   customer        Customer?             @relation(fields: [customerId], references: [id])
   financialCategory FinancialCategory?  @relation(fields: [financialCategoryId], references: [id])
+  inventoryEntry  InventoryEntry?       @relation(fields: [inventoryEntryId], references: [id])
   items           FinancialEntryItem[]
   order           Order?                @relation(fields: [orderId], references: [id])
   quote           Quote?                @relation(fields: [quoteId], references: [id])
 
+  @@index([companyId, entryType, status, dueDate])
   @@map("financial_entries")
 }
 
@@ -492,18 +643,163 @@ model ProductionRecord {
   id               String                 @id @default(uuid()) @db.Uuid
   companyId        String                 @map("company_id") @db.Uuid
   productId        String                 @map("product_id") @db.Uuid
+  orderId          String?                @map("order_id") @db.Uuid
+  quantityPlanned  Decimal?               @map("quantity_planned") @db.Decimal(12, 3)
   quantityProduced Decimal                @map("quantity_produced") @db.Decimal(12, 3)
+  lossQuantity     Decimal                @default(0) @map("loss_quantity") @db.Decimal(12, 3)
   totalCost        Decimal                @map("total_cost") @db.Decimal(12, 2)
   unitCost         Decimal                @map("unit_cost") @db.Decimal(12, 2)
+  status           ProductionExecutionStatus @default(PENDING)
   notes            String?
   producedByUserId String?                @map("produced_by_user_id") @db.Uuid
+  responsibleUserId String?               @map("responsible_user_id") @db.Uuid
+  completedAt      DateTime?              @map("completed_at")
+  canceledAt       DateTime?              @map("canceled_at")
+  cancellationReason String?              @map("cancellation_reason")
   createdAt        DateTime               @default(now()) @map("created_at")
   company          Company                @relation(fields: [companyId], references: [id])
   consumptions     ProductionConsumption[]
-  producedByUser   User?                  @relation(fields: [producedByUserId], references: [id])
+  order            Order?                 @relation(fields: [orderId], references: [id])
+  producedByUser   User?                  @relation("production_produced_by_user", fields: [producedByUserId], references: [id])
+  responsibleUser  User?                  @relation("production_responsible_user", fields: [responsibleUserId], references: [id])
   product          Product                @relation(fields: [productId], references: [id])
+  stockMovements   StockMovement[]
 
   @@map("production_records")
+}
+
+model CompanyOperationalSetting {
+  id                           String    @id @default(uuid()) @db.Uuid
+  companyId                    String    @unique @map("company_id") @db.Uuid
+  defaultMarginPercent         Decimal   @default(30) @map("default_margin_percent") @db.Decimal(5, 2)
+  minimumMarginPercent         Decimal   @default(10) @map("minimum_margin_percent") @db.Decimal(5, 2)
+  costVariationAlertPercent    Decimal   @default(10) @map("cost_variation_alert_percent") @db.Decimal(5, 2)
+  regularDiscountLimitPercent  Decimal   @default(5) @map("regular_discount_limit_percent") @db.Decimal(5, 2)
+  managerDiscountLimitPercent  Decimal   @default(15) @map("manager_discount_limit_percent") @db.Decimal(5, 2)
+  allowNegativeStock           Boolean   @default(false) @map("allow_negative_stock")
+  createdAt                    DateTime  @default(now()) @map("created_at")
+  updatedAt                    DateTime  @updatedAt @map("updated_at")
+  company                      Company   @relation(fields: [companyId], references: [id])
+
+  @@map("company_operational_settings")
+}
+
+model InventoryEntry {
+  id                     String               @id @default(uuid()) @db.Uuid
+  companyId              String               @map("company_id") @db.Uuid
+  entryType              InventoryEntryType   @map("entry_type")
+  supplierName           String?              @map("supplier_name") @db.VarChar(200)
+  documentNumber         String               @map("document_number") @db.VarChar(80)
+  entryDate              DateTime             @map("entry_date") @db.Date
+  notes                  String?
+  status                 InventoryEntryStatus @default(DRAFT)
+  financialCondition     FinancialCondition   @default(NONE) @map("financial_condition")
+  financialAccountId     String?              @map("financial_account_id") @db.Uuid
+  installmentCount       Int                  @default(1) @map("installment_count")
+  firstDueDate           DateTime?            @map("first_due_date") @db.Date
+  subtotal               Decimal              @default(0) @db.Decimal(12, 2)
+  totalAmount            Decimal              @default(0) @map("total_amount") @db.Decimal(12, 2)
+  confirmedAt            DateTime?            @map("confirmed_at")
+  confirmedByUserId      String?              @map("confirmed_by_user_id") @db.Uuid
+  canceledAt             DateTime?            @map("canceled_at")
+  canceledByUserId       String?              @map("canceled_by_user_id") @db.Uuid
+  cancelReason           String?              @map("cancel_reason")
+  createdAt              DateTime             @default(now()) @map("created_at")
+  updatedAt              DateTime             @updatedAt @map("updated_at")
+  company                Company              @relation(fields: [companyId], references: [id])
+  financialAccount       FinancialAccount?    @relation(fields: [financialAccountId], references: [id])
+  confirmedByUser        User?                @relation("inventory_entry_confirmed_by", fields: [confirmedByUserId], references: [id])
+  canceledByUser         User?                @relation("inventory_entry_canceled_by", fields: [canceledByUserId], references: [id])
+  items                  InventoryEntryItem[]
+  stockMovements         StockMovement[]
+  fifoLayers             StockLayer[]
+  financialEntries       FinancialEntry[]
+
+  @@unique([companyId, supplierName, entryType, documentNumber])
+  @@index([companyId, status, entryDate])
+  @@map("inventory_entries")
+}
+
+model InventoryEntryItem {
+  id                    String    @id @default(uuid()) @db.Uuid
+  inventoryEntryId      String    @map("inventory_entry_id") @db.Uuid
+  productId             String    @map("product_id") @db.Uuid
+  description           String    @db.VarChar(255)
+  unit                  String    @db.VarChar(20)
+  quantity              Decimal   @db.Decimal(12, 3)
+  unitCost              Decimal   @map("unit_cost") @db.Decimal(12, 2)
+  subtotal              Decimal   @db.Decimal(12, 2)
+  previousCostPrice     Decimal?  @map("previous_cost_price") @db.Decimal(12, 2)
+  previousSalePrice     Decimal?  @map("previous_sale_price") @db.Decimal(12, 2)
+  suggestedSalePrice    Decimal?  @map("suggested_sale_price") @db.Decimal(12, 2)
+  estimatedMarginPercent Decimal? @map("estimated_margin_percent") @db.Decimal(5, 2)
+  priceDecision         String?   @map("price_decision") @db.VarChar(40)
+  decisionJustification String?   @map("decision_justification")
+  customSalePrice       Decimal?  @map("custom_sale_price") @db.Decimal(12, 2)
+  createdAt             DateTime  @default(now()) @map("created_at")
+  inventoryEntry        InventoryEntry @relation(fields: [inventoryEntryId], references: [id])
+  product               Product   @relation(fields: [productId], references: [id])
+
+  @@index([inventoryEntryId])
+  @@map("inventory_entry_items")
+}
+
+model StockLayer {
+  id                 String    @id @default(uuid()) @db.Uuid
+  companyId          String    @map("company_id") @db.Uuid
+  productId          String    @map("product_id") @db.Uuid
+  inventoryEntryId   String?   @map("inventory_entry_id") @db.Uuid
+  stockMovementId    String    @unique @map("stock_movement_id") @db.Uuid
+  entryDate          DateTime  @map("entry_date")
+  originalQuantity   Decimal   @map("original_quantity") @db.Decimal(12, 3)
+  availableQuantity  Decimal   @map("available_quantity") @db.Decimal(12, 3)
+  unitCost           Decimal   @map("unit_cost") @db.Decimal(12, 2)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  company            Company   @relation(fields: [companyId], references: [id])
+  inventoryEntry     InventoryEntry? @relation(fields: [inventoryEntryId], references: [id])
+  product            Product   @relation(fields: [productId], references: [id])
+  stockMovement      StockMovement @relation(fields: [stockMovementId], references: [id])
+  consumptions       StockLayerConsumption[]
+
+  @@index([companyId, productId, entryDate])
+  @@map("stock_layers")
+}
+
+model StockLayerConsumption {
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  productId         String    @map("product_id") @db.Uuid
+  stockMovementId   String    @map("stock_movement_id") @db.Uuid
+  stockLayerId      String    @map("stock_layer_id") @db.Uuid
+  quantityConsumed  Decimal   @map("quantity_consumed") @db.Decimal(12, 3)
+  unitCost          Decimal   @map("unit_cost") @db.Decimal(12, 2)
+  totalCost         Decimal   @map("total_cost") @db.Decimal(12, 2)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  company           Company   @relation(fields: [companyId], references: [id])
+  product           Product   @relation(fields: [productId], references: [id])
+  stockLayer        StockLayer @relation(fields: [stockLayerId], references: [id])
+  stockMovement     StockMovement @relation(fields: [stockMovementId], references: [id])
+
+  @@index([companyId, productId, createdAt])
+  @@map("stock_layer_consumptions")
+}
+
+model AuditLog {
+  id             String      @id @default(uuid()) @db.Uuid
+  companyId      String      @map("company_id") @db.Uuid
+  userId         String?     @map("user_id") @db.Uuid
+  entityName     String      @map("entity_name") @db.VarChar(80)
+  recordId       String      @map("record_id") @db.VarChar(80)
+  action         AuditAction
+  previousData   String?     @map("previous_data")
+  newData        String?     @map("new_data")
+  justification  String?
+  createdAt      DateTime    @default(now()) @map("created_at")
+  company        Company     @relation(fields: [companyId], references: [id])
+  user           User?       @relation(fields: [userId], references: [id])
+
+  @@index([companyId, entityName, createdAt])
+  @@map("audit_logs")
 }
 
 model ProductionConsumption {

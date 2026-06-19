@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { StickyActionBar } from "@/components/admin/ui";
 import {
   SearchableSelect,
   type SearchableSelectOption,
@@ -63,6 +64,7 @@ type EntryItemState = {
   description: string;
   quantity: string;
   unitPrice: string;
+  discountAmount?: string;
 };
 
 type EntryFormState = {
@@ -95,6 +97,7 @@ type EntryFormProps = {
     updatedAt?: string;
     paidAt?: string | null;
   };
+  variant?: "financial" | "sale";
 };
 
 const defaultState: EntryFormState = {
@@ -119,12 +122,54 @@ function createEmptyItem(): EntryItemState {
     description: "",
     quantity: "1",
     unitPrice: "0,00",
+    discountAmount: "0,00",
   };
 }
 
-export function EntryForm({ mode, entryId, initialState, metadata }: Readonly<EntryFormProps>) {
+function hydrateItem(item?: Partial<EntryItemState>): EntryItemState {
+  return {
+    id: item?.id ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    productId: item?.productId ?? "",
+    description: item?.description ?? "",
+    quantity: item?.quantity ?? "1",
+    unitPrice: item?.unitPrice ?? "0,00",
+    discountAmount: item?.discountAmount ?? "0,00",
+  };
+}
+
+function buildInitialState(
+  initialState: EntryFormState | undefined,
+  isSaleMode: boolean,
+): EntryFormState {
+  if (!initialState) {
+    return isSaleMode
+      ? {
+          ...defaultState,
+          entryType: "INCOME",
+          dueDate: new Date().toISOString().slice(0, 10),
+          items: [createEmptyItem()],
+        }
+      : defaultState;
+  }
+
+  return {
+    ...initialState,
+    description: initialState.description ?? "",
+    items: (initialState.items ?? []).map((item) => hydrateItem(item)),
+  };
+}
+
+export function EntryForm({
+  mode,
+  entryId,
+  initialState,
+  metadata,
+  variant = "financial",
+}: Readonly<EntryFormProps>) {
   const router = useRouter();
-  const [form, setForm] = useState<EntryFormState>(initialState ?? defaultState);
+  const isSaleMode = variant === "sale";
+  const destinationBasePath = isSaleMode ? "/admin/vendas" : "/admin/financeiro";
+  const [form, setForm] = useState<EntryFormState>(() => buildInitialState(initialState, isSaleMode));
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [categories, setCategories] = useState<FinancialCategoryOption[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
@@ -293,21 +338,38 @@ export function EntryForm({ mode, entryId, initialState, metadata }: Readonly<En
     [availableProducts],
   );
 
-  const isItemizedSale = form.entryType === "INCOME" && form.items.length > 0;
+  const isItemizedSale = isSaleMode || (form.entryType === "INCOME" && form.items.length > 0);
 
   const computedItems = useMemo(
     () =>
       form.items.map((item) => {
         const quantity = parseDecimalInput(item.quantity);
         const unitPrice = parseCurrencyInput(item.unitPrice);
+        const grossTotal = roundCurrency(quantity * unitPrice);
+        const discountAmount = Math.min(parseCurrencyInput(item.discountAmount ?? "0,00"), grossTotal);
+        const totalPrice = roundCurrency(grossTotal - discountAmount);
+
         return {
           ...item,
           quantity,
           unitPrice,
-          totalPrice: roundCurrency(quantity * unitPrice),
+          grossTotal,
+          discountAmount,
+          appliedUnitPrice: quantity > 0 ? roundCurrency(totalPrice / quantity) : 0,
+          totalPrice,
         };
       }),
     [form.items],
+  );
+
+  const grossAmount = useMemo(
+    () => roundCurrency(computedItems.reduce((sum, item) => sum + item.grossTotal, 0)),
+    [computedItems],
+  );
+
+  const totalDiscountAmount = useMemo(
+    () => roundCurrency(computedItems.reduce((sum, item) => sum + item.discountAmount, 0)),
+    [computedItems],
   );
 
   const computedAmount = useMemo(
@@ -323,6 +385,18 @@ export function EntryForm({ mode, entryId, initialState, metadata }: Readonly<En
       }));
     }
   }, [form.entryType, form.items.length]);
+
+  useEffect(() => {
+    if (!isSaleMode || form.entryType === "INCOME") {
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      entryType: "INCOME",
+      items: current.items.length ? current.items : [createEmptyItem()],
+    }));
+  }, [form.entryType, isSaleMode]);
 
   function updateField<K extends keyof EntryFormState>(field: K, value: EntryFormState[K]) {
     setForm((current) => ({
@@ -387,6 +461,7 @@ export function EntryForm({ mode, entryId, initialState, metadata }: Readonly<En
               productId,
               description: product ? product.name : item.description,
               unitPrice: product ? formatCurrencyValue(product.salePrice) : item.unitPrice,
+              discountAmount: product ? "0,00" : item.discountAmount,
             }
           : item,
       ),
@@ -402,26 +477,30 @@ export function EntryForm({ mode, entryId, initialState, metadata }: Readonly<En
       return "Selecione uma categoria cadastrada.";
     }
 
-    if (form.description.trim().length < 2) {
-      return "Informe a descricao do lancamento.";
-    }
-
     if (!form.dueDate) {
       return "Informe a data de vencimento.";
     }
 
     if (isItemizedSale) {
-      for (const [index, item] of form.items.entries()) {
+      for (const [index, item] of computedItems.entries()) {
         if (item.description.trim().length < 2) {
           return `Informe a descricao do item ${index + 1}.`;
         }
 
-        if (parseDecimalInput(item.quantity) <= 0) {
+        if (item.quantity <= 0) {
           return `Informe uma quantidade valida para o item ${index + 1}.`;
         }
 
-        if (parseCurrencyInput(item.unitPrice) < 0) {
+        if (item.unitPrice < 0) {
           return `Informe um valor unitario valido para o item ${index + 1}.`;
+        }
+
+        if (item.discountAmount < 0) {
+          return `Informe um desconto valido para o item ${index + 1}.`;
+        }
+
+        if (item.discountAmount > item.grossTotal) {
+          return `O desconto do item ${index + 1} nao pode ser maior que o valor bruto do item.`;
         }
       }
 
@@ -459,15 +538,15 @@ export function EntryForm({ mode, entryId, initialState, metadata }: Readonly<En
         quoteId: form.quoteId || undefined,
         entryType: form.entryType,
         category: selectedCategory?.name ?? form.category,
-        description: form.description.trim(),
+        description: form.description.trim() || undefined,
         amount: isItemizedSale ? computedAmount : parseCurrencyInput(form.amount),
         dueDate: form.dueDate,
         items: isItemizedSale
-          ? form.items.map((item) => ({
+          ? computedItems.map((item) => ({
               productId: item.productId || undefined,
               description: item.description.trim(),
-              quantity: parseDecimalInput(item.quantity),
-              unitPrice: parseCurrencyInput(item.unitPrice),
+              quantity: item.quantity,
+              unitPrice: item.appliedUnitPrice,
             }))
           : [],
       };
@@ -490,13 +569,17 @@ export function EntryForm({ mode, entryId, initialState, metadata }: Readonly<En
 
       setSuccessMessage(
         mode === "create"
-          ? "Lancamento cadastrado com sucesso."
-          : "Lancamento atualizado com sucesso.",
+          ? isSaleMode
+            ? "Venda cadastrada com sucesso."
+            : "Lancamento cadastrado com sucesso."
+          : isSaleMode
+            ? "Venda atualizada com sucesso."
+            : "Lancamento atualizado com sucesso.",
       );
 
       window.setTimeout(() => {
         router.push(
-          `/admin/financeiro?feedback=${mode === "create" ? "entry-created" : "entry-updated"}`,
+          `${destinationBasePath}?feedback=${mode === "create" ? "entry-created" : "entry-updated"}`,
         );
         router.refresh();
       }, 700);
@@ -608,6 +691,7 @@ export function EntryForm({ mode, entryId, initialState, metadata }: Readonly<En
           display: "grid",
           gap: 18,
           padding: 24,
+          paddingBottom: isSaleMode ? 112 : 24,
           borderRadius: 24,
           border: "1px solid var(--border)",
           background: "var(--surface)",
@@ -615,9 +699,11 @@ export function EntryForm({ mode, entryId, initialState, metadata }: Readonly<En
       >
         <section style={panelStyle}>
           <div>
-            <h2 style={{ margin: 0 }}>Contexto do lancamento</h2>
+            <h2 style={{ margin: 0 }}>{isSaleMode ? "Cabecalho da venda" : "Contexto do lancamento"}</h2>
             <p style={{ margin: "6px 0 0", color: "var(--muted)", lineHeight: 1.6 }}>
-              Selecione a conta, a categoria oficial e, quando existir, os vinculos comerciais.
+              {isSaleMode
+                ? "Defina o caixa de recebimento, a categoria comercial e o cliente quando a venda nao for para consumidor eventual."
+                : "Selecione a conta, a categoria oficial e, quando existir, os vinculos comerciais."}
             </p>
           </div>
 
@@ -633,16 +719,22 @@ export function EntryForm({ mode, entryId, initialState, metadata }: Readonly<En
               />
             </Field>
 
-            <Field label="Natureza" required>
-              <select
-                value={form.entryType}
-                onChange={(event) => updateEntryType(event.target.value as EntryFormState["entryType"])}
-                style={inputStyle}
-              >
-                <option value="INCOME">Receita</option>
-                <option value="EXPENSE">Despesa</option>
-              </select>
-            </Field>
+            {isSaleMode ? (
+              <Field label="Natureza">
+                <input value="Receita de venda" disabled style={{ ...inputStyle, opacity: 0.72 }} />
+              </Field>
+            ) : (
+              <Field label="Natureza" required>
+                <select
+                  value={form.entryType}
+                  onChange={(event) => updateEntryType(event.target.value as EntryFormState["entryType"])}
+                  style={inputStyle}
+                >
+                  <option value="INCOME">Receita</option>
+                  <option value="EXPENSE">Despesa</option>
+                </select>
+              </Field>
+            )}
 
             <Field label="Categoria" required>
               <div style={{ display: "grid", gap: 8 }}>
@@ -671,79 +763,74 @@ export function EntryForm({ mode, entryId, initialState, metadata }: Readonly<En
               </div>
             </Field>
 
-            <Field label="Cliente">
+            <Field label={isSaleMode ? "Cliente (opcional)" : "Cliente"}>
               <SearchableSelect
                 value={form.customerId}
                 onChange={(value) => updateField("customerId", value)}
                 options={customerLookupOptions}
-                placeholder="Pesquisar cliente"
+                placeholder={isSaleMode ? "Pesquisar cliente ou deixar em branco" : "Pesquisar cliente"}
                 disabled={isLoadingOptions}
                 emptyMessage="Nenhum cliente encontrado."
                 clearable
               />
             </Field>
 
-            <Field label="Pedido">
-              <SearchableSelect
-                value={form.orderId}
-                onChange={(value) => updateField("orderId", value)}
-                options={orderLookupOptions}
-                placeholder="Pesquisar pedido"
-                disabled={isLoadingOptions}
-                emptyMessage="Nenhum pedido encontrado."
-                clearable
-              />
-            </Field>
+            {!isSaleMode ? (
+              <>
+                <Field label="Pedido">
+                  <SearchableSelect
+                    value={form.orderId}
+                    onChange={(value) => updateField("orderId", value)}
+                    options={orderLookupOptions}
+                    placeholder="Pesquisar pedido"
+                    disabled={isLoadingOptions}
+                    emptyMessage="Nenhum pedido encontrado."
+                    clearable
+                  />
+                </Field>
 
-            <Field label="Orcamento">
-              <SearchableSelect
-                value={form.quoteId}
-                onChange={(value) => updateField("quoteId", value)}
-                options={quoteLookupOptions}
-                placeholder="Pesquisar orcamento"
-                disabled={isLoadingOptions}
-                emptyMessage="Nenhum orcamento encontrado."
-                clearable
-              />
-            </Field>
+                <Field label="Orcamento">
+                  <SearchableSelect
+                    value={form.quoteId}
+                    onChange={(value) => updateField("quoteId", value)}
+                    options={quoteLookupOptions}
+                    placeholder="Pesquisar orcamento"
+                    disabled={isLoadingOptions}
+                    emptyMessage="Nenhum orcamento encontrado."
+                    clearable
+                  />
+                </Field>
+              </>
+            ) : null}
           </div>
         </section>
 
         <section style={panelStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
             <div>
-              <h2 style={{ margin: 0 }}>Composicao financeira</h2>
+              <h2 style={{ margin: 0 }}>{isSaleMode ? "Carrinho da venda" : "Composicao financeira"}</h2>
               <p style={{ margin: "6px 0 0", color: "var(--muted)", lineHeight: 1.6 }}>
-                Registre uma despesa avulsa, uma receita simples ou detalhe uma venda avulsa com itens vendidos.
+                {isSaleMode
+                  ? "Associe os itens vendidos, revise o total e conclua a venda em um fluxo proprio."
+                  : "Registre uma despesa avulsa, uma receita simples ou detalhe uma venda avulsa com itens vendidos."}
               </p>
             </div>
 
-            {form.entryType === "INCOME" ? (
+            {!isSaleMode && form.entryType === "INCOME" ? (
               <button type="button" onClick={toggleItemizedSale} style={ghostButtonStyle}>
                 {isItemizedSale ? "Remover itens da venda avulsa" : "Lancar venda avulsa com itens"}
               </button>
             ) : null}
           </div>
 
-          <div style={{ display: "grid", gap: 16, gridTemplateColumns: "minmax(0, 1.2fr) minmax(280px, 0.8fr)" }}>
+          <div
+            style={{
+              display: "grid",
+              gap: 16,
+              gridTemplateColumns: isItemizedSale ? "minmax(0, 1fr)" : "minmax(0, 1.2fr) minmax(280px, 0.8fr)",
+            }}
+          >
             <div style={{ display: "grid", gap: 16 }}>
-              <Field label="Descricao" required>
-                <textarea
-                  value={form.description}
-                  onChange={(event) => updateField("description", event.target.value)}
-                  rows={4}
-                  maxLength={255}
-                  style={{ ...inputStyle, minHeight: 130, height: "auto", padding: 14 }}
-                  placeholder={
-                    form.entryType === "EXPENSE"
-                      ? "Ex.: Pagamento de frete, energia, reposicao de tinta"
-                      : isItemizedSale
-                        ? "Ex.: Venda avulsa registrada no caixa"
-                        : "Ex.: Recebimento de arte, servico expresso, venda balcão"
-                  }
-                />
-              </Field>
-
               {isItemizedSale ? (
                 <div
                   style={{
@@ -757,9 +844,9 @@ export function EntryForm({ mode, entryId, initialState, metadata }: Readonly<En
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
                     <div>
-                      <strong style={{ display: "block", marginBottom: 6 }}>Itens da venda avulsa</strong>
+                      <strong style={{ display: "block", marginBottom: 6 }}>Itens da venda</strong>
                       <span style={{ color: "var(--muted)", fontSize: 14 }}>
-                        Associe os itens vendidos para dar rastreabilidade ao caixa.
+                        Pesquise o item, ajuste a quantidade, aplique desconto quando necessario e confira o total liquido.
                       </span>
                     </div>
                     <button type="button" onClick={addItem} style={secondaryButtonStyle}>
@@ -772,127 +859,184 @@ export function EntryForm({ mode, entryId, initialState, metadata }: Readonly<En
                       key={item.id}
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "1.3fr 1.6fr 0.8fr 0.9fr 0.9fr auto",
-                        gap: 12,
-                        alignItems: "end",
+                        gap: 14,
                         padding: 16,
                         borderRadius: 18,
                         border: "1px solid var(--border)",
                         background: "#fff",
                       }}
                     >
-                      <Field label={`Item cadastrado ${index + 1}`}>
-                        <SearchableSelect
-                          value={item.productId}
-                          onChange={(value) => handleProductSelection(item.id, value)}
-                          options={productLookupOptions}
-                          placeholder="Pesquisar por nome, SKU ou EAN"
-                          emptyMessage="Nenhum item encontrado."
-                          clearable
-                        />
-                      </Field>
+                      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr)" }}>
+                        <Field label={`Item cadastrado ${index + 1}`}>
+                          <SearchableSelect
+                            value={item.productId}
+                            onChange={(value) => handleProductSelection(item.id, value)}
+                            options={productLookupOptions}
+                            placeholder="Pesquisar por nome, SKU ou EAN"
+                            emptyMessage="Nenhum item encontrado."
+                            clearable
+                          />
+                        </Field>
 
-                      <Field label={`Descricao do item ${index + 1}`} required>
-                        <input
-                          value={item.description}
-                          onChange={(event) => updateItem(item.id, "description", event.target.value)}
-                          style={inputStyle}
-                        />
-                      </Field>
+                        <Field label={`Descricao do item ${index + 1}`} required>
+                          <input
+                            value={item.description}
+                            onChange={(event) => updateItem(item.id, "description", event.target.value)}
+                            style={inputStyle}
+                          />
+                        </Field>
+                      </div>
 
-                      <Field label="Quantidade" required>
-                        <input
-                          value={item.quantity}
-                          onChange={(event) => updateItem(item.id, "quantity", normalizeDecimalInput(event.target.value))}
-                          inputMode="decimal"
-                          style={inputStyle}
-                        />
-                      </Field>
+                      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+                        <Field label="Quantidade" required>
+                          <input
+                            value={item.quantity}
+                            onChange={(event) => updateItem(item.id, "quantity", normalizeDecimalInput(event.target.value))}
+                            inputMode="decimal"
+                            style={inputStyle}
+                          />
+                        </Field>
 
-                      <Field label="Valor unitario" required>
-                        <input
-                          value={item.unitPrice}
-                          onChange={(event) => updateItem(item.id, "unitPrice", formatCurrencyInput(event.target.value))}
-                          inputMode="numeric"
-                          style={inputStyle}
-                        />
-                      </Field>
+                        <Field label="Preco de tabela" required>
+                          <input
+                            value={item.unitPrice}
+                            onChange={(event) => updateItem(item.id, "unitPrice", formatCurrencyInput(event.target.value))}
+                            inputMode="numeric"
+                            style={inputStyle}
+                          />
+                        </Field>
 
-                      <Field label="Total">
-                        <div style={readonlyBoxStyle}>{formatCurrency(item.totalPrice)}</div>
-                      </Field>
+                        <Field label="Desconto (R$)">
+                          <input
+                            value={item.discountAmount}
+                            onChange={(event) => updateItem(item.id, "discountAmount", formatCurrencyInput(event.target.value))}
+                            inputMode="numeric"
+                            style={inputStyle}
+                          />
+                        </Field>
 
-                      <button type="button" onClick={() => removeItem(item.id)} style={dangerGhostButtonStyle}>
-                        Remover
-                      </button>
+                        <Field label="Preco aplicado">
+                          <div style={readonlyBoxStyle}>{formatCurrency(item.appliedUnitPrice)}</div>
+                        </Field>
+
+                        <Field label="Subtotal">
+                          <div style={readonlyBoxStyle}>{formatCurrency(item.totalPrice)}</div>
+                        </Field>
+                      </div>
+
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                        <span style={{ color: "var(--muted)", fontSize: 13 }}>
+                          Bruto {formatCurrency(item.grossTotal)}{item.discountAmount > 0 ? ` | Desconto ${formatCurrency(item.discountAmount)}` : ""}
+                        </span>
+                        <button type="button" onClick={() => removeItem(item.id)} style={dangerGhostButtonStyle}>
+                          Remover
+                        </button>
+                      </div>
                     </article>
                   ))}
                 </div>
               ) : null}
-            </div>
 
-            <div style={{ display: "grid", gap: 16 }}>
-              <Field label="Vencimento" required>
-                <input
-                  type="date"
-                  value={form.dueDate}
-                  onChange={(event) => updateField("dueDate", event.target.value)}
-                  style={inputStyle}
+              {isItemizedSale ? (
+                <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+                  <Field label="Vencimento" required>
+                    <input
+                      type="date"
+                      value={form.dueDate}
+                      onChange={(event) => updateField("dueDate", event.target.value)}
+                      style={inputStyle}
+                    />
+                  </Field>
+
+                  <Field label="Valor bruto">
+                    <div style={readonlyBoxStyle}>{formatCurrency(grossAmount)}</div>
+                  </Field>
+
+                  <Field label="Desconto total">
+                    <div style={readonlyBoxStyle}>{formatCurrency(totalDiscountAmount)}</div>
+                  </Field>
+
+                  <Field label="Total da venda">
+                    <div style={readonlyAmountStyle}>{formatCurrency(computedAmount)}</div>
+                  </Field>
+                </div>
+              ) : null}
+
+              <Field label={isSaleMode ? "Observacao adicional" : "Observacao adicional do lancamento"}>
+                <textarea
+                  value={form.description}
+                  onChange={(event) => updateField("description", event.target.value)}
+                  rows={3}
+                  maxLength={255}
+                  style={{ ...inputStyle, minHeight: 110, height: "auto", padding: 14 }}
+                  placeholder={
+                    isSaleMode
+                      ? "Opcional. Ex.: venda de balcão, retirada imediata, cliente pediu urgencia."
+                      : "Opcional. Use este campo apenas quando precisar complementar o lancamento."
+                  }
                 />
               </Field>
+            </div>
 
-              <Field label={isItemizedSale ? "Valor calculado" : "Valor"} required>
-                {isItemizedSale ? (
-                  <div style={readonlyAmountStyle}>{formatCurrency(computedAmount)}</div>
-                ) : (
+            {!isItemizedSale ? (
+              <div style={{ display: "grid", gap: 16 }}>
+                <Field label="Vencimento" required>
+                  <input
+                    type="date"
+                    value={form.dueDate}
+                    onChange={(event) => updateField("dueDate", event.target.value)}
+                    style={inputStyle}
+                  />
+                </Field>
+
+                <Field label="Valor" required>
                   <input
                     value={form.amount}
                     onChange={(event) => updateField("amount", formatCurrencyInput(event.target.value))}
                     style={inputStyle}
                     inputMode="numeric"
                   />
-                )}
-              </Field>
+                </Field>
 
-              <section
-                style={{
-                  display: "grid",
-                  gap: 10,
-                  padding: 18,
-                  borderRadius: 20,
-                  border: "1px solid var(--border)",
-                  background: "linear-gradient(180deg, rgba(181,66,31,0.08), rgba(255,255,255,0.9))",
-                }}
-              >
-                <SummaryRow label="Natureza" value={form.entryType === "INCOME" ? "Receita" : "Despesa"} />
-                <SummaryRow label="Categoria" value={form.category || "A selecionar"} />
-                <SummaryRow
-                  label={isItemizedSale ? "Venda avulsa" : "Total"}
-                  value={formatCurrency(isItemizedSale ? computedAmount : parseCurrencyInput(form.amount))}
-                  strong
-                />
-              </section>
-            </div>
+                <section
+                  style={{
+                    display: "grid",
+                    gap: 10,
+                    padding: 18,
+                    borderRadius: 20,
+                    border: "1px solid var(--border)",
+                    background: "linear-gradient(180deg, rgba(181,66,31,0.08), rgba(255,255,255,0.9))",
+                  }}
+                >
+                  <SummaryRow label="Natureza" value={form.entryType === "INCOME" ? "Receita" : "Despesa"} />
+                  <SummaryRow label="Categoria" value={form.category || "A selecionar"} />
+                  <SummaryRow
+                    label="Total"
+                    value={formatCurrency(parseCurrencyInput(form.amount))}
+                    strong
+                  />
+                </section>
+              </div>
+            ) : null}
           </div>
         </section>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 12,
-            flexWrap: "wrap",
-            paddingTop: 10,
-            borderTop: "1px solid rgba(232, 217, 202, 0.85)",
-          }}
-        >
-          <Link href="/admin/financeiro" style={secondaryButtonStyle}>
+        <StickyActionBar>
+          <Link href={destinationBasePath} style={secondaryButtonStyle}>
             Cancelar
           </Link>
           <button type="submit" disabled={isSubmitting || isLoadingOptions} style={primaryButtonStyle}>
-            {isSubmitting ? "Salvando..." : mode === "create" ? "Salvar lancamento" : "Salvar alteracoes"}
+            {isSubmitting
+              ? "Salvando..."
+              : mode === "create"
+                ? isSaleMode
+                  ? "Salvar venda"
+                  : "Salvar lancamento"
+                : isSaleMode
+                  ? "Salvar alteracoes da venda"
+                  : "Salvar alteracoes"}
           </button>
-        </div>
+        </StickyActionBar>
       </form>
     </>
   );
@@ -987,6 +1131,7 @@ function formatType(type: string) {
     RAW_MATERIAL: "Materia-prima",
     SERVICE: "Servico",
     FINISHED_PRODUCT: "Produto final",
+    RESALE: "Revenda",
   };
 
   return labels[type] ?? type;

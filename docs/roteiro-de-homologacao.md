@@ -62,6 +62,7 @@ Se a bateria falhar logo no primeiro login, confirmar antes de tudo:
 10. validar que a topbar nao repete o titulo principal da pagina
 11. validar que nao existe botao circular `Menu` no desktop
 12. validar saida da sessao
+13. validar que telas de `novo`, `editar` e `detalhe` mantem a mesma largura e o mesmo ritmo visual das listagens
 13. validar menu diferente por perfil:
    - administrador
    - gerente
@@ -154,16 +155,24 @@ Se a bateria falhar logo no primeiro login, confirmar antes de tudo:
 1. abrir `Vendas > Vendas`
 2. criar venda
 3. pesquisar item por nome, SKU ou EAN
-4. adicionar mais de um item
-5. alterar quantidade sem perder o carrinho
-6. testar consumidor nao identificado
-7. testar cadastro rapido de cliente
-8. validar desconto no item
-9. validar total da venda
-10. concluir venda
-11. validar mensagem de sucesso
-12. validar retorno ou proximo passo
-13. abrir a venda criada
+4. filtrar a busca por grupo, quando necessario
+5. adicionar item ao carrinho pela propria area de venda
+6. validar aviso quando o item ja estiver no carrinho
+7. alterar quantidade sem abrir modal
+8. validar alerta de saldo insuficiente, quando houver item com controle de estoque
+9. testar consumidor nao identificado
+10. testar cadastro rapido de cliente sem perder o carrinho
+11. validar desconto no item
+12. validar resumo com bruto, desconto, total e situacao financeira
+13. concluir venda
+14. validar bloco final de sucesso com:
+   - referencia
+   - total
+   - situacao financeira
+   - quantidade de itens
+15. abrir a venda criada
+16. editar a venda sem perder os itens
+17. validar alerta ao tentar sair com alteracoes nao salvas
 
 ## Bloco 8. Estoque e entradas
 
@@ -195,8 +204,10 @@ Se a bateria falhar logo no primeiro login, confirmar antes de tudo:
 4. revisar ficha tecnica
 5. apontar producao
 6. validar mensagem clara quando faltar material
-7. concluir producao
-8. validar custo, consumo e entrada do produto final
+7. validar que a acao principal fica bloqueada enquanto houver impedimento real
+8. concluir producao
+9. validar custo, consumo e entrada do produto final
+10. validar links de proxima acao para item ou pedido quando houver
 
 ## Bloco 10. Financeiro
 
@@ -210,13 +221,28 @@ Se a bateria falhar logo no primeiro login, confirmar antes de tudo:
 5. validar origem clicavel quando houver:
    - venda
    - entrada
-6. cadastrar conta financeira
-7. cadastrar categoria de receita
-8. cadastrar categoria de despesa
-9. criar lancamento manual simples
-10. validar que venda continua sendo criada em `Vendas`, nao no financeiro
+6. validar que `Lançamento manual` aparece como excecao operacional
+7. cadastrar conta financeira
+8. cadastrar categoria de receita
+9. cadastrar categoria de despesa
+10. criar lancamento manual simples
+11. validar que venda continua sendo criada em `Vendas`, nao no financeiro
 
-## Bloco 11. Website e leads
+## Bloco 11. Administracao e governanca
+
+1. abrir `Administracao > Empresa`
+2. validar dados principais da empresa na mesma linguagem visual das demais telas
+3. abrir `Administracao > Parametros`
+4. validar cards compactos, secoes de margem e desconto, e barra fixa de salvamento
+5. abrir `Administracao > Usuarios`
+6. buscar usuario
+7. abrir edicao de usuario e voltar para a listagem
+8. abrir `Administracao > Auditoria`
+9. filtrar por entidade
+10. filtrar por acao
+11. validar listagem de eventos e blocos `Antes` e `Depois`
+
+## Bloco 12. Website e leads
 
 1. abrir `Website`
 2. validar etapas:
@@ -237,7 +263,7 @@ Se a bateria falhar logo no primeiro login, confirmar antes de tudo:
 12. converter lead em cliente
 13. gerar orcamento a partir do lead
 
-## Bloco 12. Relatorios
+## Bloco 13. Relatorios
 
 1. abrir `Relatórios`
 2. validar categorias de relatorio
@@ -245,12 +271,23 @@ Se a bateria falhar logo no primeiro login, confirmar antes de tudo:
 4. aplicar periodo
 5. aplicar filtro
 6. limpar filtros
-7. validar filtros na URL
+7. validar aba de relatorio na URL
 8. voltar para a lista e conferir preservacao
 9. exportar CSV
 10. validar feedback de exportacao
 
-## Bloco 13. Mobile e acessibilidade
+## Pendencia bloqueadora a observar
+
+Antes de considerar a homologacao operacional do painel como concluida, validar especificamente o reflexo das `vendas com itens fisicos` sobre:
+
+- estoque
+- movimentos
+- custo
+- financeiro
+
+Se a base local ainda nao refletir saida de estoque na venda, tratar isso como bloqueador real e nao como ajuste visual.
+
+## Bloco 14. Mobile e acessibilidade
 
 1. validar layout em `360px`
 2. validar ausencia de rolagem horizontal indevida
@@ -264,7 +301,7 @@ Se a bateria falhar logo no primeiro login, confirmar antes de tudo:
 10. validar drawer navegavel
 11. validar areas de toque adequadas
 
-## Bloco 14. Permissoes
+## Bloco 15. Permissoes
 
 1. validar menu por perfil
 2. validar rota bloqueada para perfil sem acesso

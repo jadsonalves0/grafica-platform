@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { normalizeEmailInput, normalizeSlugInput } from "@/lib/forms/br-utils";
 
 type LoginFormState = {
@@ -17,10 +16,14 @@ const initialState: LoginFormState = {
 };
 
 export default function LoginPage() {
-  const router = useRouter();
   const [form, setForm] = useState<LoginFormState>(initialState);
+  const [isHydrated, setIsHydrated] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,6 +51,7 @@ export default function LoginPage() {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "same-origin",
         body: JSON.stringify(form),
       });
 
@@ -61,8 +65,8 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/dashboard");
-      router.refresh();
+      window.location.assign("/dashboard");
+      return;
     } catch {
       setErrorMessage("Falha ao conectar com o servidor. Tente novamente.");
     } finally {
@@ -79,11 +83,13 @@ export default function LoginPage() {
 
   return (
     <main
+      className="admin-theme"
       style={{
         minHeight: "100vh",
         display: "grid",
         placeItems: "center",
         padding: 24,
+        background: "var(--background)",
       }}
     >
       <section
@@ -123,7 +129,11 @@ export default function LoginPage() {
           plataforma.
         </p>
 
-        <form style={{ display: "grid", gap: 16 }} onSubmit={handleSubmit}>
+        <form
+          style={{ display: "grid", gap: 16 }}
+          onSubmit={handleSubmit}
+          data-ui-ready={isHydrated ? "true" : "false"}
+        >
           <label style={{ display: "grid", gap: 8 }}>
             <span>Empresa</span>
             <input
@@ -189,7 +199,7 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || !isHydrated}
             style={{
               height: 50,
               borderRadius: 14,
@@ -197,11 +207,11 @@ export default function LoginPage() {
               background: "var(--primary)",
               color: "#fff",
               fontWeight: 700,
-              cursor: isSubmitting ? "wait" : "pointer",
-              opacity: isSubmitting ? 0.8 : 1,
+              cursor: isSubmitting ? "wait" : isHydrated ? "pointer" : "default",
+              opacity: isSubmitting || !isHydrated ? 0.8 : 1,
             }}
           >
-            {isSubmitting ? "Entrando..." : "Entrar"}
+            {isSubmitting ? "Entrando..." : isHydrated ? "Entrar" : "Preparando..."}
           </button>
         </form>
       </section>

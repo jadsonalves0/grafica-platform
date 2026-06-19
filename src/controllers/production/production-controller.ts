@@ -122,13 +122,20 @@ function mapRecipe(product: {
 function mapProduction(record: {
   id: string;
   productId: string;
+  orderId: string | null;
   quantityProduced: { toNumber(): number } | number;
+  quantityPlanned: { toNumber(): number } | number | null;
+  lossQuantity: { toNumber(): number } | number;
   totalCost: { toNumber(): number } | number;
   unitCost: { toNumber(): number } | number;
+  status: string;
   notes: string | null;
   createdAt: Date;
+  completedAt: Date | null;
+  order: { code: string } | null;
   product: { name: string };
   producedByUser: { name: string } | null;
+  responsibleUser: { name: string } | null;
   consumptions: Array<{
     materialProductId: string;
     quantityConsumed: { toNumber(): number } | number;
@@ -141,12 +148,19 @@ function mapProduction(record: {
     id: record.id,
     productId: record.productId,
     productName: record.product.name,
+    orderId: record.orderId,
+    orderCode: record.order?.code ?? null,
+    quantityPlanned: record.quantityPlanned === null ? null : toNumber(record.quantityPlanned),
     quantityProduced: toNumber(record.quantityProduced),
+    lossQuantity: toNumber(record.lossQuantity),
     totalCost: toNumber(record.totalCost),
     unitCost: toNumber(record.unitCost),
+    status: record.status,
     notes: record.notes,
     createdAt: record.createdAt.toISOString(),
     producedByName: record.producedByUser?.name ?? null,
+    responsibleUserName: record.responsibleUser?.name ?? null,
+    completedAt: record.completedAt?.toISOString() ?? null,
     consumptions: record.consumptions.map((item) => ({
       materialProductId: item.materialProductId,
       materialProductName: item.materialProduct.name,

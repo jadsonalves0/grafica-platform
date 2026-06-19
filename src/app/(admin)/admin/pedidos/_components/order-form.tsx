@@ -2,7 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import {
+  Alert,
+  Field,
+  FormSection,
+  LoadingButton,
+  SectionCard,
+  StatusBadge,
+  StickyActionBar,
+} from "@/components/admin/ui";
 import { QuickCustomerPanel } from "@/components/forms/quick-customer-panel";
 import {
   SearchableSelect,
@@ -84,6 +94,7 @@ type OrderFormProps = {
 
 export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
   const router = useRouter();
+  const errorSummaryRef = useRef<HTMLDivElement | null>(null);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [quotes, setQuotes] = useState<QuoteOption[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
@@ -112,6 +123,12 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    if (errorMessage) {
+      errorSummaryRef.current?.focus();
+    }
+  }, [errorMessage]);
+
+  useEffect(() => {
     const controller = new AbortController();
 
     async function loadOptions() {
@@ -134,33 +151,22 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
           }),
         ]);
 
-        const customersResult = (await customersResponse.json()) as ApiResult<
-          Array<{ id: string; name: string }>
-        >;
-        const quotesResult = (await quotesResponse.json()) as ApiResult<
-          Array<{
-            id: string;
-            code: string;
-            customerId: string;
-            customerName: string;
-            status: string;
-            totalAmount: number;
-          }>
-        >;
+        const customersResult = (await customersResponse.json()) as ApiResult<Array<{ id: string; name: string }>>;
+        const quotesResult = (await quotesResponse.json()) as ApiResult<Array<QuoteOption>>;
         const productsResult = (await productsResponse.json()) as ApiResult<ProductOption[]>;
 
         if (!customersResponse.ok || !customersResult.success || !customersResult.data) {
-          setErrorMessage(customersResult.message ?? "Nao foi possivel carregar os clientes.");
+          setErrorMessage(customersResult.message ?? "Nao foi possivel carregar os clientes do pedido.");
           return;
         }
 
         if (!quotesResponse.ok || !quotesResult.success || !quotesResult.data) {
-          setErrorMessage(quotesResult.message ?? "Nao foi possivel carregar os orcamentos.");
+          setErrorMessage(quotesResult.message ?? "Nao foi possivel carregar os orcamentos aprovados.");
           return;
         }
 
         if (!productsResponse.ok || !productsResult.success || !productsResult.data) {
-          setErrorMessage(productsResult.message ?? "Nao foi possivel carregar os itens.");
+          setErrorMessage(productsResult.message ?? "Nao foi possivel carregar os itens do catalogo.");
           return;
         }
 
@@ -172,13 +178,13 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
           return;
         }
 
-        setErrorMessage("Falha ao carregar os dados auxiliares do pedido.");
+        setErrorMessage("Nao foi possivel preparar o pedido. Recarregue a pagina e tente novamente.");
       } finally {
         setIsLoadingOptions(false);
       }
     }
 
-    loadOptions();
+    void loadOptions();
 
     return () => controller.abort();
   }, [mode]);
@@ -212,7 +218,7 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
     () =>
       quotes.map((quote) => ({
         value: quote.id,
-        label: `${quote.code} • ${quote.customerName}`,
+        label: `${quote.code} | ${quote.customerName}`,
         description: `Total ${formatCurrency(quote.totalAmount)}`,
         keywords: [quote.code, quote.customerName],
       })),
@@ -222,8 +228,7 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
   const availableProducts = useMemo(
     () =>
       products.filter(
-        (product) =>
-          product.isActive || items.some((item) => item.productId === product.id),
+        (product) => product.isActive || items.some((item) => item.productId === product.id),
       ),
     [items, products],
   );
@@ -236,10 +241,10 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
         description: [
           product.sku ? `SKU ${product.sku}` : "Sem SKU",
           product.barcode ? `EAN ${product.barcode}` : "Sem EAN",
-          `${formatType(product.type)} • ${product.unit}`,
+          `${formatType(product.type)} | ${product.unit}`,
           `Saldo ${formatNumber(product.currentStock)}`,
           `Venda sugerida ${formatCurrency(product.salePrice)}`,
-        ].join(" • "),
+        ].join(" | "),
         keywords: [product.sku ?? "", product.barcode ?? "", product.unit, formatType(product.type)],
       })),
     [availableProducts],
@@ -247,11 +252,13 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
 
   const subtotal = useMemo(
     () =>
-      items.reduce((sum, item) => {
-        const quantity = parseDecimalInput(item.quantity);
-        const unitPrice = parseCurrencyInput(item.unitPrice);
-        return sum + quantity * unitPrice;
-      }, 0),
+      roundCurrency(
+        items.reduce((sum, item) => {
+          const quantity = parseDecimalInput(item.quantity);
+          const unitPrice = parseCurrencyInput(item.unitPrice);
+          return sum + quantity * unitPrice;
+        }, 0),
+      ),
     [items],
   );
 
@@ -271,9 +278,7 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
               ...item,
               productId,
               description: selectedProduct ? selectedProduct.name : item.description,
-              unitPrice: selectedProduct
-                ? formatCurrencyValue(selectedProduct.salePrice)
-                : item.unitPrice,
+              unitPrice: selectedProduct ? formatCurrencyValue(selectedProduct.salePrice) : item.unitPrice,
             }
           : item,
       ),
@@ -295,8 +300,9 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
     whatsapp?: string | null;
   }) {
     setCustomers((current) =>
-      [...current, { id: customer.id, name: customer.name }]
-        .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+      [...current, { id: customer.id, name: customer.name }].sort((a, b) =>
+        a.name.localeCompare(b.name, "pt-BR"),
+      ),
     );
     setCustomerId(customer.id);
     setShowQuickCustomer(false);
@@ -306,21 +312,21 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
 
   function validateForm() {
     if (mode === "create" && !quoteId && !customerId) {
-      return "Selecione um cliente ou vincule um orcamento aprovado.";
+      return "Nao foi possivel salvar o pedido. Selecione um cliente ou vincule um orcamento aprovado.";
     }
 
     if (!selectedQuote) {
       for (const [index, item] of items.entries()) {
         if (item.description.trim().length < 2) {
-          return `Informe a descricao do item ${index + 1}.`;
+          return `Nao foi possivel salvar o pedido. Revise a descricao do item ${index + 1} e informe pelo menos 2 caracteres.`;
         }
 
         if (parseDecimalInput(item.quantity) <= 0) {
-          return `Informe uma quantidade valida para o item ${index + 1}.`;
+          return `Nao foi possivel salvar o pedido. Revise a quantidade do item ${index + 1} e informe um valor maior que zero.`;
         }
 
         if (parseCurrencyInput(item.unitPrice) < 0) {
-          return `Informe um valor unitario valido para o item ${index + 1}.`;
+          return `Nao foi possivel salvar o pedido. Revise o valor unitario do item ${index + 1} e informe um valor valido.`;
         }
       }
     }
@@ -383,31 +389,23 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
 
       const result = (await response.json()) as ApiResult<{ id: string; code: string }>;
 
-      if (!response.ok || !result.success) {
-        setErrorMessage(result.message ?? "Nao foi possivel salvar o pedido.");
+      if (!response.ok || !result.success || !result.data) {
+        setErrorMessage(result.message ?? "Nao foi possivel salvar o pedido. Revise os dados e tente novamente.");
         return;
       }
 
-      setSuccessMessage(
-        mode === "create"
-          ? "Pedido criado com sucesso."
-          : "Pedido atualizado com sucesso.",
-      );
+      setSuccessMessage(mode === "create" ? "Pedido criado com sucesso." : "Pedido atualizado com sucesso.");
 
       window.setTimeout(() => {
-        if (!result.data) {
-          return;
-        }
-
         if (mode === "create") {
-          router.push(`/admin/pedidos/${result.data.id}`);
+          router.push(`/admin/pedidos/${result.data!.id}`);
         } else {
           router.push("/admin/pedidos?feedback=updated");
         }
         router.refresh();
       }, 700);
     } catch {
-      setErrorMessage("Falha ao comunicar com o servidor.");
+      setErrorMessage("Nao foi possivel salvar o pedido. Tente novamente. Se o problema continuar, recarregue a pagina.");
     } finally {
       setIsSubmitting(false);
     }
@@ -437,58 +435,42 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
       const result = (await response.json()) as ApiResult<{ id: string }>;
 
       if (!response.ok || !result.success) {
-        setErrorMessage(result.message ?? "Nao foi possivel atualizar o andamento.");
+        setErrorMessage(result.message ?? "Nao foi possivel atualizar o andamento do pedido.");
         return;
       }
 
       setSuccessMessage("Andamento atualizado com sucesso.");
     } catch {
-      setErrorMessage("Falha ao atualizar o andamento.");
+      setErrorMessage("Nao foi possivel atualizar o andamento do pedido. Tente novamente.");
     } finally {
       setIsSavingStatus(false);
     }
   }
 
   return (
-    <>
-      {mode === "edit" && order ? (
-        <section
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: 16,
-          }}
-        >
-          <InfoCard label="Pedido" value={order.code} />
-          <InfoCard label="Cliente" value={order.customerName} />
-          <InfoCard label="Criado em" value={formatDate(order.createdAt)} />
-        </section>
+    <div className="admin-page-stack">
+      {errorMessage ? (
+        <div ref={errorSummaryRef} tabIndex={-1}>
+          <Alert variant="danger" title="Nao foi possivel continuar com o pedido.">
+            {errorMessage}
+          </Alert>
+        </div>
       ) : null}
 
-      {errorMessage ? <p style={{ ...feedbackStyle, ...errorStyle }}>{errorMessage}</p> : null}
-      {successMessage ? <p style={{ ...feedbackStyle, ...successStyle }}>{successMessage}</p> : null}
+      {successMessage ? <Alert variant="success">{successMessage}</Alert> : null}
 
-      {mode === "edit" ? (
-        <section
-          style={{
-            display: "grid",
-            gap: 16,
-            padding: 24,
-            borderRadius: 24,
-            border: "1px solid var(--border)",
-            background: "rgba(255,255,255,0.78)",
-          }}
+      {mode === "edit" && order ? (
+        <SectionCard
+          title="Andamento do pedido"
+          description="Atualize rapidamente a situacao comercial e o estagio de producao sem reabrir todo o cadastro."
         >
-          <div>
-            <h2 style={{ margin: 0 }}>Andamento do pedido</h2>
-            <p style={{ margin: "6px 0 0", color: "var(--muted)", lineHeight: 1.6 }}>
-              Atualize a situação comercial e o estágio de produção sem reabrir o cadastro inteiro.
-            </p>
-          </div>
-
-          <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-            <Field label="Status do pedido" required>
-              <select value={status} onChange={(event) => setStatus(event.target.value as typeof status)} style={inputStyle}>
+          <div className="admin-form-grid admin-form-grid--3">
+            <Field label="Status comercial" required>
+              <select
+                value={status}
+                onChange={(event) => setStatus(event.target.value as typeof status)}
+                className="admin-select"
+              >
                 <option value="OPEN">Aberto</option>
                 <option value="IN_PROGRESS">Em andamento</option>
                 <option value="COMPLETED">Concluido</option>
@@ -500,7 +482,7 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
               <select
                 value={productionStatus}
                 onChange={(event) => setProductionStatus(event.target.value as typeof productionStatus)}
-                style={inputStyle}
+                className="admin-select"
               >
                 <option value="PENDING">Pendente</option>
                 <option value="IN_PRODUCTION">Em producao</option>
@@ -509,33 +491,40 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
                 <option value="DELIVERED">Entregue</option>
               </select>
             </Field>
+
+            <div className="admin-surface-muted">
+              <span style={{ color: "var(--muted)", fontSize: 13 }}>Situacao atual</span>
+              <div className="admin-row">
+                <StatusBadge status={formatCommercialStatus(status)} tone={mapCommercialTone(status)} />
+                <StatusBadge status={formatProductionStatus(productionStatus)} tone={mapProductionTone(productionStatus)} />
+              </div>
+            </div>
           </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button type="button" onClick={handleStatusUpdate} disabled={isSavingStatus} style={ghostButtonStyle}>
-              {isSavingStatus ? "Atualizando..." : "Atualizar andamento"}
-            </button>
+          <div className="admin-row" style={{ justifyContent: "flex-end" }}>
+            <LoadingButton
+              type="button"
+              className="admin-button admin-button--secondary"
+              isLoading={isSavingStatus}
+              loadingLabel="Atualizando..."
+              onClick={handleStatusUpdate}
+            >
+              Atualizar andamento
+            </LoadingButton>
           </div>
-        </section>
+        </SectionCard>
       ) : null}
 
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          display: "grid",
-          gap: 16,
-          padding: 24,
-          borderRadius: 24,
-          border: "1px solid var(--border)",
-          background: "var(--surface)",
-        }}
-      >
-        <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
-          <Field label="Cliente" required={mode === "create" && !quoteId}>
-            {mode === "edit" ? (
-              <input value={order?.customerName ?? ""} disabled style={{ ...inputStyle, opacity: 0.72 }} />
-            ) : (
-              <div style={{ display: "grid", gap: 10 }}>
+      <form onSubmit={handleSubmit} className="admin-page-stack">
+        <SectionCard
+          title="Cliente, origem e prazo"
+          description="Defina o cliente, reaproveite um orcamento aprovado quando houver e ajuste a previsao de entrega."
+        >
+          <div className="admin-form-grid admin-form-grid--3">
+            <Field label="Cliente" required={mode === "create" && !quoteId} helpText={mode === "edit" ? "Cliente original do pedido." : undefined}>
+              {mode === "edit" ? (
+                <input value={order?.customerName ?? ""} disabled className="admin-input" />
+              ) : (
                 <SearchableSelect
                   value={customerId}
                   onChange={setCustomerId}
@@ -544,257 +533,224 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
                   disabled={Boolean(quoteId) || isLoadingOptions}
                   emptyMessage="Nenhum cliente encontrado."
                 />
-                {!quoteId ? (
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                    <span style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.5 }}>
-                      Nao encontrou o cliente na lista? Cadastre sem sair do pedido.
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowQuickCustomer((current) => !current)}
-                      style={ghostActionStyle}
-                    >
-                      {showQuickCustomer ? "Fechar cadastro rapido" : "Cadastrar cliente rapido"}
-                    </button>
-                  </div>
-                ) : null}
-                {showQuickCustomer && !quoteId ? (
+              )}
+            </Field>
+
+            <Field label="Orcamento aprovado" optional helpText="Quando houver, o pedido pode reaproveitar os itens aprovados automaticamente.">
+              {mode === "edit" ? (
+                <input value={order?.quoteId ? "Vinculado" : "Manual"} disabled className="admin-input" />
+              ) : (
+                <SearchableSelect
+                  value={quoteId}
+                  onChange={setQuoteId}
+                  options={quoteLookupOptions}
+                  placeholder="Pesquisar orcamento aprovado"
+                  disabled={isLoadingOptions}
+                  emptyMessage="Nenhum orcamento aprovado disponivel."
+                  clearable
+                />
+              )}
+            </Field>
+
+            <Field label="Entrega" optional>
+              <input
+                type="date"
+                value={deliveryDate}
+                onChange={(event) => setDeliveryDate(event.target.value)}
+                className="admin-input"
+              />
+            </Field>
+          </div>
+
+          {mode === "create" && !quoteId ? (
+            <FormSection
+              title="Cliente nao encontrado"
+              description="Cadastre sem sair do pedido e continue do ponto em que voce parou."
+              defaultOpen={showQuickCustomer}
+            >
+              <div className="admin-inline-stack">
+                <div className="admin-row admin-row--between">
+                  <span style={{ color: "var(--muted)", fontSize: 14 }}>
+                    Use o cadastro rapido quando o cliente ainda nao estiver na base.
+                  </span>
+                  <button
+                    type="button"
+                    className="admin-button admin-button--secondary"
+                    onClick={() => setShowQuickCustomer((current) => !current)}
+                  >
+                    {showQuickCustomer ? "Ocultar cadastro rapido" : "Cadastrar cliente rapido"}
+                  </button>
+                </div>
+                {showQuickCustomer ? (
                   <QuickCustomerPanel
                     onCreated={handleCustomerCreated}
                     onCancel={() => setShowQuickCustomer(false)}
                   />
                 ) : null}
               </div>
-            )}
-          </Field>
+            </FormSection>
+          ) : null}
 
-          <Field label="Orcamento aprovado">
-            {mode === "edit" ? (
-              <input value={order?.quoteId ? "Vinculado" : "Manual"} disabled style={{ ...inputStyle, opacity: 0.72 }} />
-            ) : (
-              <SearchableSelect
-                value={quoteId}
-                onChange={setQuoteId}
-                options={quoteLookupOptions}
-                placeholder="Pesquisar orcamento aprovado"
-                disabled={isLoadingOptions}
-                emptyMessage="Nenhum orcamento aprovado disponivel."
-                clearable
-              />
-            )}
-          </Field>
+          {selectedQuote && mode === "create" ? (
+            <Alert variant="info" title="Pedido vinculado a um orcamento aprovado.">
+              O cliente e os itens serao reaproveitados do orcamento {selectedQuote.code}. Depois de salvar, voce pode seguir para producao ou revisar a situacao comercial.
+            </Alert>
+          ) : null}
+        </SectionCard>
 
-          <Field label="Entrega">
-            <input type="date" value={deliveryDate} onChange={(event) => setDeliveryDate(event.target.value)} style={inputStyle} />
-          </Field>
-        </div>
-
-        {selectedQuote && mode === "create" ? (
-          <p style={{ ...feedbackStyle, background: "rgba(43, 110, 82, 0.12)", color: "#245844" }}>
-            O pedido sera criado a partir do orcamento {selectedQuote.code}, reaproveitando cliente e itens aprovados.
-          </p>
-        ) : (
-          <section
-            style={{
-              display: "grid",
-              gap: 16,
-              padding: 20,
-              borderRadius: 22,
-              border: "1px solid rgba(232, 217, 202, 0.9)",
-              background: "rgba(255,255,255,0.76)",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: 22 }}>Itens do pedido</h2>
-                <p style={{ margin: "6px 0 0", color: "var(--muted)", lineHeight: 1.6 }}>
-                  Monte a execução manualmente ou aproveite o vínculo com o estoque depois.
-                </p>
-              </div>
-
-              <button type="button" onClick={addItem} style={secondaryButtonStyle}>
+        {!selectedQuote || mode === "edit" ? (
+          <SectionCard
+            title="Itens do pedido"
+            description="Monte o pedido manualmente ou reaproveite o catalogo para ganhar velocidade."
+            actions={
+              <button type="button" className="admin-button admin-button--secondary" onClick={addItem}>
                 Adicionar item
               </button>
-            </div>
-
-            <div style={{ display: "grid", gap: 12 }}>
+            }
+          >
+            <div className="admin-list-stack">
               {items.map((item, index) => {
-                const quantity = Number(item.quantity.replace(",", ".") || 0);
+                const quantity = parseDecimalInput(item.quantity);
                 const unitPrice = parseCurrencyInput(item.unitPrice);
-                const total = quantity * unitPrice;
+                const total = roundCurrency(quantity * unitPrice);
 
                 return (
-                  <article
-                    key={item.id}
-                    style={{
-                      display: "grid",
-                      gap: 12,
-                      gridTemplateColumns: "1.3fr 1.7fr 0.8fr 0.9fr 0.9fr auto",
-                      alignItems: "end",
-                      padding: 16,
-                      borderRadius: 18,
-                      border: "1px solid var(--border)",
-                      background: "#fff",
-                    }}
-                  >
-                    <Field label={`Item cadastrado ${index + 1}`}>
-                      <div style={{ display: "grid", gap: 8 }}>
+                  <article key={item.id} className="admin-list-card">
+                    <div
+                      className="admin-form-grid"
+                      style={{ gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1.3fr) minmax(120px, 0.6fr) minmax(150px, 0.8fr) minmax(140px, 0.8fr)" }}
+                    >
+                      <Field label={`Item cadastrado ${index + 1}`} optional helpText="Procure por nome, SKU ou EAN para preencher mais rapido.">
                         <SearchableSelect
                           value={item.productId}
                           options={productLookupOptions}
                           onChange={(value) => handleProductSelection(item.id, value)}
-                          placeholder="Pesquisar por nome ou SKU"
+                          placeholder="Pesquisar por nome, SKU ou EAN"
                           emptyMessage="Nenhum item cadastrado encontrado."
                           clearable
                         />
-                        {item.productId ? (
-                          <span style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.5 }}>
-                            Item vinculado ao catalogo. Voce pode ajustar descricao e valor somente para este pedido.
-                          </span>
-                        ) : (
-                          <span style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.5 }}>
-                            Campo opcional. Use para reaproveitar um item do catalogo ou registre um servico manual.
-                          </span>
-                        )}
-                      </div>
-                    </Field>
+                      </Field>
 
-                    <Field label={`Descricao do item ${index + 1}`} required>
-                      <input
-                        value={item.description}
-                        onChange={(event) => updateItem(item.id, "description", event.target.value)}
-                        style={inputStyle}
-                      />
-                    </Field>
+                      <Field label={`Descricao do item ${index + 1}`} required>
+                        <input
+                          value={item.description}
+                          onChange={(event) => updateItem(item.id, "description", event.target.value)}
+                          className="admin-input"
+                        />
+                      </Field>
 
-                    <Field label="Quantidade" required>
-                      <input
-                        value={item.quantity}
-                        onChange={(event) =>
-                          updateItem(item.id, "quantity", normalizeDecimalInput(event.target.value))
-                        }
-                        inputMode="decimal"
-                        style={inputStyle}
-                      />
-                    </Field>
+                      <Field label="Quantidade" required>
+                        <input
+                          value={item.quantity}
+                          onChange={(event) => updateItem(item.id, "quantity", normalizeDecimalInput(event.target.value))}
+                          inputMode="decimal"
+                          className="admin-input"
+                        />
+                      </Field>
 
-                    <Field label="Valor unitario" required>
-                      <input
-                        value={item.unitPrice}
-                        onChange={(event) =>
-                          updateItem(item.id, "unitPrice", formatCurrencyInput(event.target.value))
-                        }
-                        inputMode="numeric"
-                        style={inputStyle}
-                      />
-                    </Field>
+                      <Field label="Valor unitario" required>
+                        <input
+                          value={item.unitPrice}
+                          onChange={(event) => updateItem(item.id, "unitPrice", formatCurrencyInput(event.target.value))}
+                          inputMode="numeric"
+                          className="admin-input"
+                        />
+                      </Field>
 
-                    <Field label="Total">
-                      <input value={formatCurrency(total)} disabled style={{ ...inputStyle, opacity: 0.72 }} />
-                    </Field>
+                      <Field label="Total">
+                        <div className="admin-readonly-box admin-readonly-box--emphasis">
+                          {formatCurrency(total)}
+                        </div>
+                      </Field>
+                    </div>
 
-                    <button type="button" onClick={() => removeItem(item.id)} style={dangerButtonStyle}>
-                      Remover
-                    </button>
+                    <div className="admin-row admin-row--between">
+                      <span style={{ color: "var(--muted)", fontSize: 14 }}>
+                        {item.productId
+                          ? "Item vinculado ao catalogo. A descricao e o valor ainda podem ser ajustados so neste pedido."
+                          : "Item livre. Use quando o pedido depender de um servico ou material ainda nao padronizado."}
+                      </span>
+                      <button type="button" className="admin-button admin-button--danger" onClick={() => removeItem(item.id)}>
+                        Remover
+                      </button>
+                    </div>
                   </article>
                 );
               })}
             </div>
-          </section>
-        )}
+          </SectionCard>
+        ) : null}
 
-        <Field label="Observacoes">
-          <textarea
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            rows={5}
-            style={{ ...inputStyle, minHeight: 150, padding: 14, height: "auto" }}
-          />
-        </Field>
+        <div className="admin-layout-grid admin-layout-grid--sidebar">
+          <SectionCard
+            title="Observacoes"
+            description="Use este espaco para observacoes de entrega, atendimento ou algum detalhe operacional do pedido."
+          >
+            <Field label="Observacoes do pedido" optional>
+              <textarea
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                rows={5}
+                className="admin-textarea"
+              />
+            </Field>
+          </SectionCard>
 
-        <section
-          style={{
-            display: "grid",
-            gap: 10,
-            justifyItems: "end",
-            padding: 20,
-            borderRadius: 20,
-            border: "1px solid rgba(232, 217, 202, 0.9)",
-            background: "rgba(255,255,255,0.75)",
-          }}
-        >
-          <strong style={{ fontSize: 18 }}>Total previsto</strong>
-          <span style={{ fontSize: 34, fontWeight: 800 }}>
-            {formatCurrency(selectedQuote ? selectedQuote.totalAmount : subtotal)}
-          </span>
-        </section>
+          <SectionCard title="Revisao" description="Confira o total previsto e a proxima acao natural do fluxo.">
+            <div className="admin-summary-list">
+              {mode === "edit" && order ? (
+                <>
+                  <div className="admin-summary-row">
+                    <span style={{ color: "var(--muted)" }}>Status comercial</span>
+                    <StatusBadge status={formatCommercialStatus(status)} tone={mapCommercialTone(status)} />
+                  </div>
+                  <div className="admin-summary-row">
+                    <span style={{ color: "var(--muted)" }}>Status de producao</span>
+                    <StatusBadge status={formatProductionStatus(productionStatus)} tone={mapProductionTone(productionStatus)} />
+                  </div>
+                </>
+              ) : null}
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 12,
-            flexWrap: "wrap",
-            paddingTop: 10,
-            borderTop: "1px solid rgba(232, 217, 202, 0.85)",
-          }}
-        >
-          <Link href="/admin/pedidos" style={secondaryButtonStyle}>
-            Cancelar
-          </Link>
-          <button type="submit" disabled={isSubmitting || isLoadingOptions} style={primaryButtonStyle}>
-            {isSubmitting
-              ? "Salvando..."
-              : mode === "create"
-                ? "Salvar pedido"
-                : "Salvar alteracoes"}
-          </button>
+              <div className="admin-summary-row">
+                <span style={{ color: "var(--muted)" }}>Origem</span>
+                <strong>{selectedQuote ? selectedQuote.code : "Pedido manual"}</strong>
+              </div>
+
+              <div className="admin-summary-row">
+                <span style={{ color: "var(--muted)" }}>Total previsto</span>
+                <strong style={{ fontSize: 24 }}>
+                  {formatCurrency(selectedQuote ? selectedQuote.totalAmount : subtotal)}
+                </strong>
+              </div>
+
+              <div className="admin-surface-muted">
+                <span style={{ color: "var(--muted)", fontSize: 13 }}>
+                  Depois de salvar, voce pode seguir para producao, revisar o andamento comercial ou voltar para a lista.
+                </span>
+              </div>
+            </div>
+          </SectionCard>
         </div>
+
+        <StickyActionBar>
+          <div />
+          <div className="admin-row">
+            <Link href="/admin/pedidos" className="admin-button admin-button--secondary">
+              Cancelar
+            </Link>
+            <LoadingButton
+              type="submit"
+              isLoading={isSubmitting}
+              loadingLabel="Salvando..."
+              className="admin-button admin-button--primary"
+              disabled={isLoadingOptions}
+            >
+              {mode === "create" ? "Salvar pedido" : "Salvar alteracoes"}
+            </LoadingButton>
+          </div>
+        </StickyActionBar>
       </form>
-    </>
-  );
-}
-
-function Field({
-  label,
-  required,
-  children,
-}: Readonly<{ label: string; required?: boolean; children: React.ReactNode }>) {
-  return (
-    <label style={{ display: "grid", gap: 8 }}>
-      <span style={{ fontWeight: 600 }}>
-        {label}
-        {required ? <strong style={{ color: "var(--primary)" }}> *</strong> : null}
-      </span>
-      {children}
-    </label>
-  );
-}
-
-function InfoCard({ label, value }: Readonly<{ label: string; value: string }>) {
-  return (
-    <article
-      style={{
-        padding: 20,
-        borderRadius: 20,
-        border: "1px solid var(--border)",
-        background: "rgba(255,255,255,0.75)",
-      }}
-    >
-      <p
-        style={{
-          margin: 0,
-          color: "var(--primary)",
-          textTransform: "uppercase",
-          letterSpacing: "0.12em",
-          fontSize: 12,
-          fontWeight: 700,
-        }}
-      >
-        {label}
-      </p>
-      <h2 style={{ margin: "10px 0 0", fontSize: 28 }}>{value}</h2>
-    </article>
+    </div>
   );
 }
 
@@ -834,15 +790,10 @@ function formatType(type: string) {
     RAW_MATERIAL: "Materia-prima",
     SERVICE: "Servico",
     FINISHED_PRODUCT: "Produto final",
+    RESALE: "Revenda",
   };
-  return labels[type] ?? type;
-}
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return labels[type] ?? type;
 }
 
 function formatDateInput(value?: string | null) {
@@ -858,87 +809,52 @@ function formatDateInput(value?: string | null) {
   return date.toISOString().slice(0, 10);
 }
 
-const inputStyle = {
-  height: 48,
-  padding: "0 14px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  width: "100%",
-  boxSizing: "border-box" as const,
-} as const;
+function formatCommercialStatus(status: OrderDetail["status"]) {
+  const labels: Record<OrderDetail["status"], string> = {
+    OPEN: "Aberto",
+    IN_PROGRESS: "Em andamento",
+    COMPLETED: "Concluido",
+    CANCELED: "Cancelado",
+  };
 
-const primaryButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: 0,
-  background: "var(--primary)",
-  color: "#fff",
-  fontWeight: 700,
-  cursor: "pointer",
-} as const;
+  return labels[status];
+}
 
-const secondaryButtonStyle = {
-  height: 44,
-  padding: "0 16px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  color: "inherit",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
+function formatProductionStatus(status: OrderDetail["productionStatus"]) {
+  const labels: Record<OrderDetail["productionStatus"], string> = {
+    PENDING: "Pendente",
+    IN_PRODUCTION: "Em producao",
+    WAITING_APPROVAL: "Aguardando aprovacao",
+    READY: "Pronto",
+    DELIVERED: "Entregue",
+  };
 
-const ghostButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: "1px solid rgba(181, 66, 31, 0.18)",
-  background: "rgba(181, 66, 31, 0.08)",
-  color: "var(--primary)",
-  fontWeight: 700,
-  cursor: "pointer",
-} as const;
+  return labels[status];
+}
 
-const ghostActionStyle = {
-  height: 38,
-  padding: "0 14px",
-  borderRadius: 12,
-  border: "1px solid rgba(181, 66, 31, 0.16)",
-  background: "rgba(181, 66, 31, 0.08)",
-  color: "var(--primary)",
-  fontWeight: 700,
-  cursor: "pointer",
-} as const;
+function mapCommercialTone(status: OrderDetail["status"]) {
+  const tones: Record<OrderDetail["status"], "warning" | "info" | "success" | "danger"> = {
+    OPEN: "warning",
+    IN_PROGRESS: "info",
+    COMPLETED: "success",
+    CANCELED: "danger",
+  };
 
-const dangerButtonStyle = {
-  height: 44,
-  padding: "0 16px",
-  borderRadius: 14,
-  border: 0,
-  background: "#a72d2d",
-  color: "#fff",
-  fontWeight: 700,
-  cursor: "pointer",
-} as const;
+  return tones[status];
+}
 
-const feedbackStyle = {
-  margin: 0,
-  padding: "14px 16px",
-  borderRadius: 14,
-  lineHeight: 1.6,
-} as const;
+function mapProductionTone(status: OrderDetail["productionStatus"]) {
+  const tones: Record<OrderDetail["productionStatus"], "warning" | "info" | "success"> = {
+    PENDING: "warning",
+    IN_PRODUCTION: "info",
+    WAITING_APPROVAL: "warning",
+    READY: "success",
+    DELIVERED: "success",
+  };
 
-const errorStyle = {
-  background: "rgba(181, 66, 31, 0.12)",
-  color: "var(--primary)",
-} as const;
+  return tones[status];
+}
 
-const successStyle = {
-  background: "rgba(43, 110, 82, 0.12)",
-  color: "#245844",
-} as const;
+function roundCurrency(value: number) {
+  return Math.round(value * 100) / 100;
+}

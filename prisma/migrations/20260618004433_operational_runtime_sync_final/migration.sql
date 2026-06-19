@@ -1,0 +1,2 @@
+-- RenameIndex
+ALTER INDEX "inventory_entries_company_type_document_key" RENAME TO "inventory_entries_company_id_supplier_name_entry_type_docum_key";

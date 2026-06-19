@@ -8,6 +8,7 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from "@/components/forms/searchable-select";
+import { Alert, PageHeader } from "@/components/admin/ui";
 import {
   normalizeDecimalInput,
   parseDecimalInput,
@@ -19,7 +20,7 @@ type ProductOption = {
   sku?: string | null;
   barcode?: string | null;
   unit: string;
-  type: "RAW_MATERIAL" | "SERVICE" | "FINISHED_PRODUCT";
+  type: "RAW_MATERIAL" | "SERVICE" | "FINISHED_PRODUCT" | "RESALE";
   currentStock: number;
   costPrice: number;
   salePrice: number;
@@ -310,7 +311,7 @@ export default function ComposicaoProdutoPage() {
 
   if (isLoading) {
     return (
-      <main style={{ padding: 32 }}>
+      <main className="admin-page-stack admin-page-shell admin-page-shell--wide">
         <section style={loadingPanelStyle}>
           <strong>Carregando composicao...</strong>
           <span style={{ color: "var(--muted)" }}>Estamos montando a ficha tecnica do produto.</span>
@@ -320,31 +321,21 @@ export default function ComposicaoProdutoPage() {
   }
 
   return (
-    <main style={{ padding: 32, display: "grid", gap: 24 }}>
-      <section style={heroPanelStyle}>
-        <div style={{ display: "grid", gap: 10, maxWidth: 860 }}>
-          <p style={eyebrowStyle}>Producao e custo</p>
-          <h1 style={{ margin: 0, fontFamily: "var(--font-heading)", fontSize: 46 }}>
-            Composicao do produto
-          </h1>
-          <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.7, fontSize: 18 }}>
-            Defina a ficha tecnica do item final para controlar consumo de materia-prima,
-            custo previsto e producao com baixa automatica no estoque.
-          </p>
-        </div>
+    <main className="admin-page-stack admin-page-shell admin-page-shell--wide">
+      <PageHeader
+        breadcrumbs={[{ label: "Cadastros" }, { label: "Itens" }, { label: "Ficha tecnica" }]}
+        title="Ficha tecnica do produto"
+        description="Defina materiais, consumo padrao e perda prevista para orientar custo e producao do item final."
+        primaryAction={{ href: `/admin/producao?productId=${productId}`, label: "Produzir item" }}
+        secondaryActions={[{ href: `/admin/estoque/${productId}`, label: "Voltar para item", variant: "secondary" }]}
+      />
 
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <Link href={`/admin/estoque/${productId}`} style={secondaryButtonStyle}>
-            Voltar para item
-          </Link>
-          <Link href={`/admin/producao?productId=${productId}`} style={primaryButtonStyle}>
-            Ir para producao
-          </Link>
-        </div>
-      </section>
-
-      {errorMessage ? <p style={{ ...feedbackStyle, ...errorStyle }}>{errorMessage}</p> : null}
-      {successMessage ? <p style={{ ...feedbackStyle, ...successStyle }}>{successMessage}</p> : null}
+      {errorMessage ? (
+        <Alert variant="danger" title="Nao foi possivel salvar a composicao.">
+          {errorMessage}
+        </Alert>
+      ) : null}
+      {successMessage ? <Alert variant="success">{successMessage}</Alert> : null}
 
       {recipe ? (
         <>
@@ -364,7 +355,7 @@ export default function ComposicaoProdutoPage() {
           <form onSubmit={handleSubmit} style={formPanelStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
               <div>
-                <h2 style={{ margin: 0 }}>Ficha tecnica</h2>
+                <h2 style={{ margin: 0 }}>Materiais e consumo padrao</h2>
                 <p style={{ margin: "6px 0 0", color: "var(--muted)", lineHeight: 1.6 }}>
                   Informe quanto de cada materia-prima e consumido para produzir 1 {recipe.product.unit} do item final.
                 </p>
@@ -471,9 +462,9 @@ export default function ComposicaoProdutoPage() {
                   background: "rgba(255,255,255,0.74)",
                 }}
               >
-                <strong style={{ display: "block", marginBottom: 10 }}>Leitura do custo</strong>
+                <strong style={{ display: "block", marginBottom: 10 }}>Leitura operacional</strong>
                 <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.7 }}>
-                  O custo estimado soma o consumo de cada materia-prima para produzir 1 {recipe.product.unit} do item final, ja considerando a perda configurada em cada linha.
+                  O custo estimado soma o consumo de cada materia-prima para produzir 1 {recipe.product.unit} do item final, ja considerando a perda configurada em cada linha. Depois disso, a tela de producao usa esta ficha como base para baixa e custo realizado.
                 </p>
               </div>
 
@@ -588,19 +579,6 @@ function roundCurrency(value: number) {
   return Math.round(value * 100) / 100;
 }
 
-const heroPanelStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: 16,
-  flexWrap: "wrap",
-  padding: 28,
-  borderRadius: 28,
-  background: "linear-gradient(135deg, rgba(255,250,244,0.96) 0%, rgba(244,232,217,0.9) 100%)",
-  border: "1px solid var(--border)",
-  boxShadow: "0 18px 50px rgba(77, 39, 22, 0.08)",
-} as const;
-
 const formPanelStyle = {
   display: "grid",
   gap: 18,
@@ -627,15 +605,6 @@ const loadingPanelStyle = {
   borderRadius: 24,
   border: "1px dashed var(--border)",
   background: "rgba(255,255,255,0.62)",
-} as const;
-
-const eyebrowStyle = {
-  margin: 0,
-  color: "var(--primary)",
-  textTransform: "uppercase",
-  letterSpacing: "0.14em",
-  fontSize: 12,
-  fontWeight: 700,
 } as const;
 
 function cardEyebrowStyle(accent?: boolean) {
@@ -709,21 +678,4 @@ const dangerGhostButtonStyle = {
   color: "#8b2323",
   fontWeight: 700,
   cursor: "pointer",
-} as const;
-
-const feedbackStyle = {
-  margin: 0,
-  padding: "14px 16px",
-  borderRadius: 14,
-  lineHeight: 1.6,
-} as const;
-
-const errorStyle = {
-  background: "rgba(181, 66, 31, 0.12)",
-  color: "var(--primary)",
-} as const;
-
-const successStyle = {
-  background: "rgba(43, 110, 82, 0.12)",
-  color: "#245844",
 } as const;

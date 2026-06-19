@@ -145,25 +145,32 @@ Os indicadores devem ser tratados como ponto de partida para o trabalho diario.
 - menu por tarefas
 - menu por permissao visual
 - dashboard orientado a atencao
-- listagens de `clientes`, `orcamentos` e `pedidos` no padrao atual
+- listagens de `clientes`, `orcamentos`, `pedidos`, `vendas`, `entradas`, `estoque`, `usuarios`, `perfis`, `auditoria`, `grupos de itens` e `categorias financeiras` no padrao atual
 - `clientes` com formulario em secoes, validacao mais clara e confirmacoes acessiveis
 - `orcamentos` e `pedidos` com formularios reorganizados em blocos operacionais, resumo lateral e barra fixa de acao
 - shell administrativo compactado com sidebar mais estreita, topbar mais baixa e filtros mais densos
 - listagens principais com indicadores mais baixos, menos espaco vazio e maior aproveitamento da primeira dobra
-- `orcamentos`, `pedidos`, `vendas`, `entradas`, `producao`, `relatorios` e `leads do site` parcialmente migrados para o padrao novo
+- wrappers de `novo`, `editar` e `detalhe` padronizados com larguras consistentes e sem padding local
+- `orcamentos`, `pedidos`, `vendas`, `entradas`, `producao`, `relatorios`, `leads do site`, `empresa`, `parametros` e `movimentacoes` alinhados ao mesmo shell visual
+- `vendas` com fluxo proprio de operacao, separado do formulario generico do financeiro
+- `financeiro` com leitura de origem operacional, incluindo entrada, pedido, orcamento e lancamento manual
+- `lancamento manual` tratado visualmente como excecao e nao como fluxo concorrente a venda
+- `producao` com destaque para impedimento por falta de material no lote atual
+- `ficha tecnica` tratada com linguagem operacional voltada a materiais, consumo padrao e custo estimado
+- `relatorios` com aba preservada na URL e exportacao com feedback visual
 - `entradas` em etapas
 - configuracao do website em fluxo guiado
 - financeiro organizado em `a receber`, `a pagar` e `caixa e bancos`
 
 ## Modulos ainda com consolidacao visual parcial
 
-Os modulos abaixo ja funcionam, mas ainda merecem rodada final de acabamento visual, mobile e acessibilidade:
+Os modulos abaixo ja funcionam e ja seguem o shell atual, mas ainda merecem rodada final de acabamento fino, mobile e acessibilidade:
 
-- formulario de vendas
-- formulario de lancamentos financeiros
-- detalhes mais profundos de producao
-- alguns relatorios detalhados
-- validacao de interface automatizada
+- alguns formularios longos mais densos, especialmente `vendas` e `lancamentos financeiros`
+- detalhes profundos finais de `producao` e `composicao`
+- refinamentos finais de relatorios detalhados e filtros avancados por relatorio
+- execucao completa da bateria automatizada no ambiente local de homologacao
+- fechamento operacional do reflexo de estoque das vendas com itens fisicos, que ainda precisa ser validado contra a base local antes da homologacao final
 
 ## Principios operacionais definidos
 

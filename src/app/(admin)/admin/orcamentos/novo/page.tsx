@@ -1,9 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { QuoteForm } from "@/app/(admin)/admin/orcamentos/_components/quote-form";
+import {
+  Alert,
+  PageHeader,
+  SectionCard,
+  Skeleton,
+} from "@/components/admin/ui";
 
 type CustomerOption = {
   id: string;
@@ -96,116 +101,38 @@ export default function NovoOrcamentoPage() {
       }
     }
 
-    loadCustomers();
+    void loadCustomers();
 
     return () => controller.abort();
   }, []);
 
   return (
-    <main style={{ padding: 32, display: "grid", gap: 24 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 16,
-          flexWrap: "wrap",
-          alignItems: "flex-start",
-        }}
-      >
-        <div style={{ maxWidth: 860 }}>
-          <p
-            style={{
-              margin: 0,
-              color: "var(--primary)",
-              textTransform: "uppercase",
-              letterSpacing: "0.14em",
-              fontSize: 12,
-              fontWeight: 700,
-            }}
-          >
-            Nova proposta
-          </p>
-          <h1 style={{ margin: "12px 0 8px", fontFamily: "var(--font-heading)", fontSize: 46 }}>
-            Novo orcamento
-          </h1>
-          <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.7, fontSize: 18 }}>
-            Monte a proposta comercial escolhendo o cliente, definindo a validade e
-            construindo os itens com calculo automatico.
-          </p>
-        </div>
+    <main className="admin-page-stack">
+      <PageHeader
+        title="Novo orcamento"
+        description="Monte a proposta comercial escolhendo o cliente, organizando os itens e revisando valores antes de enviar."
+        secondaryActions={[
+          { href: "/admin/orcamentos", label: "Voltar para orcamentos" },
+          { href: "/admin/clientes/novo", label: "Cadastrar cliente", variant: "secondary" },
+        ]}
+      />
 
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <Link href="/admin/orcamentos" style={secondaryButtonStyle}>
-            Voltar para orcamentos
-          </Link>
-          <Link href="/admin/clientes/novo" style={ghostButtonStyle}>
-            Cadastrar cliente
-          </Link>
-        </div>
-      </div>
-
-      {errorMessage ? <p style={{ ...feedbackStyle, ...errorStyle }}>{errorMessage}</p> : null}
+      {errorMessage ? (
+        <Alert variant="danger" title="Nao foi possivel preparar o orcamento.">
+          {errorMessage}
+        </Alert>
+      ) : null}
 
       {isLoading ? (
-        <section style={loadingPanelStyle}>
-          <strong>Carregando base comercial...</strong>
-          <span style={{ color: "var(--muted)" }}>
-            Estamos trazendo clientes e itens cadastrados.
-          </span>
-        </section>
+        <SectionCard
+          title="Carregando base comercial"
+          description="Estamos trazendo clientes e itens cadastrados para iniciar a proposta."
+        >
+          <Skeleton lines={7} />
+        </SectionCard>
       ) : (
         <QuoteForm mode="create" customers={customers} products={products} />
       )}
     </main>
   );
 }
-
-const secondaryButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  color: "inherit",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const ghostButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: "1px solid rgba(181, 66, 31, 0.18)",
-  background: "rgba(181, 66, 31, 0.08)",
-  color: "var(--primary)",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const feedbackStyle = {
-  margin: 0,
-  padding: "14px 16px",
-  borderRadius: 14,
-  lineHeight: 1.6,
-} as const;
-
-const errorStyle = {
-  background: "rgba(181, 66, 31, 0.12)",
-  color: "var(--primary)",
-} as const;
-
-const loadingPanelStyle = {
-  display: "grid",
-  gap: 10,
-  placeItems: "center",
-  padding: 42,
-  borderRadius: 24,
-  border: "1px dashed var(--border)",
-  background: "rgba(255,255,255,0.62)",
-} as const;

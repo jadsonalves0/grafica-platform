@@ -6,7 +6,7 @@ import { UserForm } from "@/app/(admin)/admin/usuarios/_components/user-form";
 
 export default function NovoUsuarioPage() {
   return (
-    <main style={{ padding: 32, maxWidth: 980, display: "grid", gap: 24 }}>
+    <main className="admin-page-stack admin-page-shell admin-page-shell--narrow">
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div style={{ maxWidth: 760 }}>
           <p

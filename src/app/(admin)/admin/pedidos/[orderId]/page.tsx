@@ -1,10 +1,17 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { OrderForm } from "@/app/(admin)/admin/pedidos/_components/order-form";
+import {
+  Alert,
+  MetricCard,
+  PageHeader,
+  SectionCard,
+  Skeleton,
+  StatusBadge,
+} from "@/components/admin/ui";
 
 type OrderDetail = {
   id: string;
@@ -72,90 +79,128 @@ export default function EditarPedidoPage() {
       }
     }
 
-    loadOrder();
+    void loadOrder();
 
     return () => controller.abort();
   }, [orderId]);
 
   if (isLoading) {
     return (
-      <main style={{ padding: 32 }}>
-        <section style={loadingPanelStyle}>
-          <strong>Carregando pedido...</strong>
-          <span style={{ color: "var(--muted)" }}>Estamos preparando os dados da operacao.</span>
-        </section>
+      <main className="admin-page-stack">
+        <PageHeader
+          title="Editar pedido"
+          description="Estamos carregando os dados do pedido para revisao."
+          secondaryActions={[
+            { href: "/admin/pedidos", label: "Voltar para pedidos" },
+          ]}
+        />
+        <SectionCard title="Carregando pedido">
+          <Skeleton lines={8} />
+        </SectionCard>
       </main>
     );
   }
 
   return (
-    <main style={{ padding: 32, maxWidth: 1120, display: "grid", gap: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-        <div style={{ maxWidth: 760 }}>
-          <p
-            style={{
-              margin: 0,
-              color: "var(--primary)",
-              textTransform: "uppercase",
-              letterSpacing: "0.14em",
-              fontSize: 12,
-              fontWeight: 700,
-            }}
-          >
-            Operacao comercial
-          </p>
-          <h1 style={{ margin: "12px 0 8px", fontFamily: "var(--font-heading)", fontSize: 46 }}>
-            Editar pedido
-          </h1>
-          <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.7, fontSize: 18 }}>
-            Ajuste entrega, itens e andamento de producao em um unico lugar.
-          </p>
-        </div>
+    <main className="admin-page-stack">
+      <PageHeader
+        title={order?.code ? `Pedido ${order.code}` : "Editar pedido"}
+        description="Revise cliente, entrega, itens e andamento operacional a partir de um unico ponto de controle."
+        secondaryActions={[
+          { href: "/admin/pedidos", label: "Voltar para pedidos" },
+        ]}
+      />
 
-        <Link href="/admin/pedidos" style={secondaryButtonStyle}>
-          Voltar para pedidos
-        </Link>
-      </div>
+      {errorMessage ? (
+        <Alert variant="danger" title="Nao foi possivel carregar o pedido.">
+          {errorMessage}
+        </Alert>
+      ) : null}
 
-      {errorMessage ? <p style={{ ...feedbackStyle, ...errorStyle }}>{errorMessage}</p> : null}
+      {order ? (
+        <>
+          <section className="admin-card-grid">
+            <MetricCard label="Cliente" value={order.customerName} />
+            <MetricCard
+              label="Entrega"
+              value={order.deliveryDate ? formatDate(order.deliveryDate) : "Nao definida"}
+            />
+            <MetricCard label="Itens" value={String(order.items.length)} />
+            <div>
+              <SectionCard title="Situacao atual">
+                <div className="admin-row">
+                  <StatusBadge
+                    status={formatCommercialStatus(order.status)}
+                    tone={mapCommercialTone(order.status)}
+                  />
+                  <StatusBadge
+                    status={formatProductionStatus(order.productionStatus)}
+                    tone={mapProductionTone(order.productionStatus)}
+                  />
+                </div>
+              </SectionCard>
+            </div>
+          </section>
 
-      {order ? <OrderForm mode="edit" order={order} /> : null}
+          <OrderForm mode="edit" order={order} />
+        </>
+      ) : null}
     </main>
   );
 }
 
-const secondaryButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  color: "inherit",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("pt-BR").format(new Date(value));
+}
 
-const feedbackStyle = {
-  margin: 0,
-  padding: "14px 16px",
-  borderRadius: 14,
-  lineHeight: 1.6,
-} as const;
+function formatCommercialStatus(status: OrderDetail["status"]) {
+  const labels: Record<OrderDetail["status"], string> = {
+    OPEN: "Aberto",
+    IN_PROGRESS: "Em andamento",
+    COMPLETED: "Concluido",
+    CANCELED: "Cancelado",
+  };
 
-const errorStyle = {
-  background: "rgba(181, 66, 31, 0.12)",
-  color: "var(--primary)",
-} as const;
+  return labels[status];
+}
 
-const loadingPanelStyle = {
-  display: "grid",
-  gap: 10,
-  placeItems: "center",
-  padding: 42,
-  borderRadius: 24,
-  border: "1px dashed var(--border)",
-  background: "rgba(255,255,255,0.62)",
-} as const;
+function formatProductionStatus(status: OrderDetail["productionStatus"]) {
+  const labels: Record<OrderDetail["productionStatus"], string> = {
+    PENDING: "Pendente",
+    IN_PRODUCTION: "Em producao",
+    WAITING_APPROVAL: "Aguardando aprovacao",
+    READY: "Pronto",
+    DELIVERED: "Entregue",
+  };
+
+  return labels[status];
+}
+
+function mapCommercialTone(status: OrderDetail["status"]) {
+  const tones: Record<
+    OrderDetail["status"],
+    "warning" | "info" | "success" | "danger"
+  > = {
+    OPEN: "warning",
+    IN_PROGRESS: "info",
+    COMPLETED: "success",
+    CANCELED: "danger",
+  };
+
+  return tones[status];
+}
+
+function mapProductionTone(status: OrderDetail["productionStatus"]) {
+  const tones: Record<
+    OrderDetail["productionStatus"],
+    "warning" | "info" | "success"
+  > = {
+    PENDING: "warning",
+    IN_PRODUCTION: "info",
+    WAITING_APPROVAL: "warning",
+    READY: "success",
+    DELIVERED: "success",
+  };
+
+  return tones[status];
+}

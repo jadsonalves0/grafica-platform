@@ -211,13 +211,28 @@ export class CustomerService extends BaseService {
     try {
       await this.customerRepository.delete(companyId, customerId);
     } catch (error) {
+      const dependencySummary = await this.customerRepository.getDependencySummary(companyId, customerId);
+      const hasLinkedChildren =
+        dependencySummary.quotes > 0 ||
+        dependencySummary.orders > 0 ||
+        dependencySummary.financialEntries > 0;
+
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2003"
       ) {
         throw new Error(
-          "Este cliente possui registros vinculados. Inative o cadastro em vez de excluir.",
+          buildCustomerDeleteRestrictionMessage(dependencySummary),
         );
+      }
+
+      if (
+        hasLinkedChildren &&
+        error instanceof Error &&
+        (error.message.includes("violates RESTRICT setting") ||
+          error.message.includes("is referenced from table"))
+      ) {
+        throw new Error(buildCustomerDeleteRestrictionMessage(dependencySummary));
       }
 
       throw error;
@@ -234,4 +249,22 @@ function normalizeDocument(value?: string) {
 
   const normalized = trimmed.replace(/[^0-9a-zA-Z]/g, "");
   return normalized || undefined;
+}
+
+function buildCustomerDeleteRestrictionMessage(summary: {
+  quotes: number;
+  orders: number;
+  financialEntries: number;
+}) {
+  const parts = [
+    summary.quotes ? `${summary.quotes} orcamento(s)` : null,
+    summary.orders ? `${summary.orders} pedido(s)` : null,
+    summary.financialEntries ? `${summary.financialEntries} lancamento(s)` : null,
+  ].filter(Boolean);
+
+  if (!parts.length) {
+    return "Este cliente possui registros vinculados. Inative o cadastro em vez de excluir.";
+  }
+
+  return `Este cliente nao pode ser excluido porque ja possui ${parts.join(", ")} vinculados. Inative o cadastro em vez de excluir.`;
 }

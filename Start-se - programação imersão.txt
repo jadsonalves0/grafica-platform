@@ -1,0 +1,14 @@
+Start-se - programação imersão 
+
+Como o programa está estruturado nos primeiros meses:
+ 
+
+Mês 1 — Trilha de Fundamentos. Aqui a gente alinha o vocabulário. O que muda quando uma empresa adota IA de verdade. Como identificar onde a IA gera valor real: receita, custo, eficiência. E o AI Canvas — nosso framework de decisão prático.
+
+ 
+
+Mês 2 — Trilha de Ferramentas. A stack que você precisa dominar como executivo. ChatGPT, Claude, Gemini, NotebookLM, ElevenLabs, HeyGen — e, claro, a Lumina, que centraliza tudo isso num único ambiente.
+
+ 
+
+Mês 3 — Início da Trilha AI Estratégica. Aqui sai da literacia e entra na operação: como dados, IA preditiva e generativa se traduzem em estratégia e ROI mensurável.

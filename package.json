@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
@@ -23,9 +25,11 @@
     "zod": "^3.24.4"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.0",
     "@types/node": "^22.15.21",
     "@types/react": "^19.1.5",
     "@types/react-dom": "^19.1.5",
+    "@playwright/test": "^1.51.1",
     "eslint": "^9.27.0",
     "eslint-config-next": "^15.3.3",
     "prisma": "^6.9.0",

@@ -3,10 +3,21 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+
 import {
   SearchableSelect,
   type SearchableSelectOption,
 } from "@/components/forms/searchable-select";
+import {
+  Alert,
+  EmptyState,
+  Field,
+  LoadingButton,
+  PageHeader,
+  SectionCard,
+  Skeleton,
+  StatusBadge,
+} from "@/components/admin/ui";
 import {
   formatCurrencyInput,
   normalizeDecimalInput,
@@ -24,23 +35,44 @@ type ProductOption = {
   unit: string;
 };
 
+type MovementReasonCode =
+  | "ADJUSTMENT_POSITIVE"
+  | "ADJUSTMENT_NEGATIVE"
+  | "LOSS"
+  | "DAMAGE"
+  | "INTERNAL_CONSUMPTION"
+  | "SAMPLE"
+  | "DIVERSE_INPUT"
+  | "DIVERSE_OUTPUT"
+  | "INITIAL_BALANCE"
+  | "BONUS"
+  | "RETURN";
+
 type MovementListItem = {
   id: string;
   productId: string;
   productName: string;
   movementType: "INPUT" | "OUTPUT" | "ADJUSTMENT";
+  status: string;
+  reasonCode?: MovementReasonCode | null;
+  reasonText?: string | null;
   quantity: number;
   unitCost: number | null;
-  referenceType: "MANUAL" | "QUOTE" | "ORDER" | "PURCHASE" | null;
+  referenceType: "MANUAL" | "QUOTE" | "ORDER" | "PURCHASE" | "ENTRY" | "PRODUCTION" | null;
+  referenceId?: string | null;
+  notes?: string | null;
+  occurredAt: string;
   createdAt: string;
 };
 
 type MovementFormState = {
   productId: string;
   movementType: "INPUT" | "OUTPUT" | "ADJUSTMENT";
+  reasonCode: MovementReasonCode;
+  reasonText: string;
   quantity: string;
   unitCost: string;
-  referenceType: "MANUAL" | "QUOTE" | "ORDER" | "PURCHASE";
+  referenceType: "MANUAL" | "QUOTE" | "ORDER" | "PURCHASE" | "ENTRY" | "PRODUCTION";
   referenceId: string;
   notes: string;
 };
@@ -51,26 +83,54 @@ type ApiResult<T> = {
   data?: T;
 };
 
-const defaultForm: MovementFormState = {
-  productId: "",
-  movementType: "INPUT",
-  quantity: "1",
-  unitCost: "0,00",
-  referenceType: "MANUAL",
-  referenceId: "",
-  notes: "",
+const reasonOptionsByMovementType: Record<
+  MovementFormState["movementType"],
+  Array<{ value: MovementReasonCode; label: string; description: string }>
+> = {
+  INPUT: [
+    { value: "INITIAL_BALANCE", label: "Saldo inicial", description: "Abertura de estoque da operacao." },
+    { value: "BONUS", label: "Bonificacao", description: "Recebimento sem custo comercial direto." },
+    { value: "RETURN", label: "Devolucao", description: "Retorno de item ao estoque." },
+    { value: "DIVERSE_INPUT", label: "Entrada diversa", description: "Entrada administrativa fora da rotina de compras." },
+  ],
+  OUTPUT: [
+    { value: "LOSS", label: "Perda", description: "Material inutilizado ou descartado." },
+    { value: "DAMAGE", label: "Avaria", description: "Item danificado sem reaproveitamento." },
+    { value: "INTERNAL_CONSUMPTION", label: "Consumo interno", description: "Uso interno sem venda ou producao formal." },
+    { value: "SAMPLE", label: "Amostra", description: "Uso comercial para demonstracao." },
+    { value: "DIVERSE_OUTPUT", label: "Saida diversa", description: "Saida administrativa fora das rotinas normais." },
+  ],
+  ADJUSTMENT: [
+    { value: "ADJUSTMENT_POSITIVE", label: "Ajuste positivo", description: "Correcao de saldo para cima." },
+    { value: "ADJUSTMENT_NEGATIVE", label: "Ajuste negativo", description: "Correcao de saldo para baixo." },
+  ],
 };
+
+function buildDefaultForm(productId = ""): MovementFormState {
+  return {
+    productId,
+    movementType: "INPUT",
+    reasonCode: "DIVERSE_INPUT",
+    reasonText: "",
+    quantity: "1",
+    unitCost: "0,00",
+    referenceType: "MANUAL",
+    referenceId: "",
+    notes: "",
+  };
+}
 
 export default function MovimentarEstoquePage() {
   const searchParams = useSearchParams();
   const requestedProductId = searchParams.get("productId") ?? "";
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [movements, setMovements] = useState<MovementListItem[]>([]);
-  const [form, setForm] = useState<MovementFormState>(defaultForm);
+  const [form, setForm] = useState<MovementFormState>(buildDefaultForm());
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
   const selectedProduct = useMemo(
     () => products.find((product) => product.id === form.productId) ?? null,
     [form.productId, products],
@@ -82,11 +142,22 @@ export default function MovimentarEstoquePage() {
     description: [
       product.sku ? `SKU ${product.sku}` : "Sem SKU",
       product.barcode ? `EAN ${product.barcode}` : "Sem EAN",
-      `${product.unit}`,
+      product.unit,
       `Saldo ${formatNumber(product.currentStock)}`,
-    ].join(" • "),
+    ].join(" | "),
     keywords: [product.sku ?? "", product.barcode ?? "", product.unit],
   }));
+
+  const selectedReasonOptions = reasonOptionsByMovementType[form.movementType];
+  const selectedReason = selectedReasonOptions.find((option) => option.value === form.reasonCode) ?? null;
+
+  const visibleMovements = useMemo(() => {
+    const base = form.productId
+      ? movements.filter((movement) => movement.productId === form.productId)
+      : movements;
+
+    return base.slice(0, 12);
+  }, [form.productId, movements]);
 
   const loadInventoryData = useCallback(async () => {
     setIsLoading(true);
@@ -112,29 +183,25 @@ export default function MovimentarEstoquePage() {
       }
 
       const productList = productsResult.data;
+      const preferredProductId =
+        requestedProductId && productList.some((product) => product.id === requestedProductId)
+          ? requestedProductId
+          : form.productId && productList.some((product) => product.id === form.productId)
+            ? form.productId
+            : productList[0]?.id ?? "";
 
       setProducts(productList);
       setMovements(movementsResult.data);
-      setForm((current) => {
-        const currentExists = current.productId
-          ? productList.some((product) => product.id === current.productId)
-          : false;
-
-        if (!currentExists && productList.length > 0) {
-          return {
-            ...current,
-            productId: productList[0].id,
-          };
-        }
-
-        return current;
-      });
+      setForm((current) => ({
+        ...current,
+        productId: preferredProductId,
+      }));
     } catch {
       setErrorMessage("Falha ao carregar os dados do estoque.");
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [form.productId, requestedProductId]);
 
   useEffect(() => {
     void loadInventoryData();
@@ -157,13 +224,21 @@ export default function MovimentarEstoquePage() {
     setErrorMessage(null);
   }, [requestedProductId]);
 
-  function updateField<K extends keyof MovementFormState>(
-    field: K,
-    value: MovementFormState[K],
-  ) {
+  function updateField<K extends keyof MovementFormState>(field: K, value: MovementFormState[K]) {
     setForm((current) => ({
       ...current,
       [field]: value,
+    }));
+  }
+
+  function updateMovementType(movementType: MovementFormState["movementType"]) {
+    const defaultReason = reasonOptionsByMovementType[movementType][0];
+
+    setForm((current) => ({
+      ...current,
+      movementType,
+      reasonCode: defaultReason.value,
+      reasonText: current.reasonCode === defaultReason.value ? current.reasonText : "",
     }));
   }
 
@@ -172,8 +247,20 @@ export default function MovimentarEstoquePage() {
       return "Selecione o item da movimentacao.";
     }
 
+    if (!form.reasonCode) {
+      return "Selecione o motivo da movimentacao.";
+    }
+
+    if (form.reasonText.trim().length < 4) {
+      return "Descreva o motivo da movimentacao com pelo menos 4 caracteres.";
+    }
+
     if (parseDecimalInput(form.quantity) <= 0) {
       return "Informe uma quantidade maior que zero.";
+    }
+
+    if ((form.movementType === "INPUT" || form.reasonCode === "ADJUSTMENT_POSITIVE") && parseCurrencyInput(form.unitCost) <= 0) {
+      return "Informe o custo unitario para entradas e ajustes positivos.";
     }
 
     if (form.unitCost && parseCurrencyInput(form.unitCost) < 0) {
@@ -206,11 +293,13 @@ export default function MovimentarEstoquePage() {
         body: JSON.stringify({
           productId: form.productId,
           movementType: form.movementType,
+          reasonCode: form.reasonCode,
+          reasonText: form.reasonText.trim(),
           quantity: parseDecimalInput(form.quantity),
-          unitCost: parseCurrencyInput(form.unitCost),
+          unitCost: form.unitCost ? parseCurrencyInput(form.unitCost) : undefined,
           referenceType: form.referenceType,
           referenceId: form.referenceId || undefined,
-          notes: form.notes || undefined,
+          notes: form.notes.trim() || undefined,
         }),
       });
 
@@ -222,10 +311,15 @@ export default function MovimentarEstoquePage() {
       }
 
       setSuccessMessage("Movimentacao registrada com sucesso.");
-      setForm((current) => ({
-        ...defaultForm,
-        productId: current.productId,
-      }));
+      setForm((current) => {
+        const reset = buildDefaultForm(current.productId);
+        return {
+          ...reset,
+          productId: current.productId,
+          movementType: current.movementType,
+          reasonCode: reasonOptionsByMovementType[current.movementType][0].value,
+        };
+      });
       await loadInventoryData();
     } catch {
       setErrorMessage("Falha ao registrar a movimentacao.");
@@ -235,303 +329,234 @@ export default function MovimentarEstoquePage() {
   }
 
   return (
-    <main style={{ padding: 32, display: "grid", gap: 24 }}>
-      <section
-        style={{
-          display: "grid",
-          gap: 18,
-          padding: 28,
-          borderRadius: 28,
-          background:
-            "linear-gradient(135deg, rgba(255,250,244,0.96) 0%, rgba(244,232,217,0.9) 100%)",
-          border: "1px solid var(--border)",
-          boxShadow: "0 18px 50px rgba(77, 39, 22, 0.08)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 16,
-            flexWrap: "wrap",
-          }}
+    <main className="admin-page-stack">
+      <PageHeader
+        breadcrumbs={[{ label: "Estoque" }, { label: "Movimentacoes" }]}
+        title="Movimentacoes"
+        description="Use esta tela somente para ajustes administrativos. Vendas, entradas por documento e producao devem seguir seus proprios fluxos."
+        secondaryActions={[{ href: "/admin/estoque/posicao", label: "Voltar para estoque", variant: "secondary" }]}
+      />
+
+      <Alert variant="info" title="Uso administrativo">
+        Esta tela existe para ajuste operacional. Nao utilize aqui os fluxos de venda, entrada por documento ou producao.
+      </Alert>
+
+      {errorMessage ? (
+        <Alert variant="danger" title="Nao foi possivel concluir a movimentacao.">
+          {errorMessage}
+        </Alert>
+      ) : null}
+      {successMessage ? <Alert variant="success">{successMessage}</Alert> : null}
+
+      <div className="admin-layout-grid admin-layout-grid--sidebar">
+        <SectionCard
+          title="Nova movimentacao administrativa"
+          description="Informe o item, a natureza da ocorrencia, o motivo e a referencia opcional para manter a rastreabilidade."
         >
-          <div style={{ maxWidth: 760 }}>
-            <p style={eyebrowStyle}>Controle de estoque</p>
-            <h1 style={{ margin: "12px 0 10px", fontFamily: "var(--font-heading)", fontSize: 46 }}>
-              Movimentacoes
-            </h1>
-            <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.7, fontSize: 18 }}>
-              Registre entradas, saidas e ajustes com referencia operacional e impacto direto no saldo do item.
-            </p>
-          </div>
-
-          <Link href="/admin/estoque" style={secondaryLinkStyle}>
-            Voltar para estoque
-          </Link>
-        </div>
-      </section>
-
-      {errorMessage ? <p style={{ ...feedbackStyle, ...errorStyle }}>{errorMessage}</p> : null}
-      {successMessage ? <p style={{ ...feedbackStyle, ...successStyle }}>{successMessage}</p> : null}
-
-      <div
-        style={{
-          display: "grid",
-          gap: 24,
-          gridTemplateColumns: "minmax(0, 0.95fr) minmax(0, 1.05fr)",
-          alignItems: "start",
-        }}
-      >
-        <form
-          onSubmit={handleSubmit}
-          style={{
-            display: "grid",
-            gap: 16,
-            padding: 24,
-            borderRadius: 24,
-            border: "1px solid var(--border)",
-            background: "var(--surface)",
-          }}
-        >
-          <div>
-            <h2 style={{ margin: 0 }}>Nova movimentacao</h2>
-            <p style={{ margin: "6px 0 0", color: "var(--muted)", lineHeight: 1.6 }}>
-              Use manual, compra, pedido ou orcamento como referencia para manter a rastreabilidade.
-            </p>
-          </div>
-
-          {selectedProduct ? (
-            <section
-              style={{
-                display: "grid",
-                gap: 10,
-                padding: 16,
-                borderRadius: 18,
-                border: "1px solid rgba(232, 217, 202, 0.9)",
-                background: "rgba(255,255,255,0.76)",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                }}
-              >
-                <div>
-                  <strong style={{ display: "block", marginBottom: 6 }}>{selectedProduct.name}</strong>
-                  <span style={{ color: "var(--muted)", lineHeight: 1.5 }}>
-                    {selectedProduct.sku ? `SKU ${selectedProduct.sku} | ` : ""}
-                    {selectedProduct.barcode ? `EAN ${selectedProduct.barcode} | ` : ""}
-                    {selectedProduct.unit} | Saldo atual {formatNumber(selectedProduct.currentStock)}
-                  </span>
-                </div>
-                <Link href={`/admin/estoque/${selectedProduct.id}`} style={miniActionStyle}>
-                  Abrir item
-                </Link>
-              </div>
-            </section>
-          ) : null}
-
-          <Field label="Item" required>
-            <SearchableSelect
-              value={form.productId}
-              onChange={(value) => updateField("productId", value)}
-              options={productLookupOptions}
-              placeholder="Pesquisar item por nome ou SKU"
-              emptyMessage="Nenhum item cadastrado encontrado."
-              disabled={isLoading}
-            />
-          </Field>
-
-          <div
-            style={{
-              display: "grid",
-              gap: 16,
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-            }}
-          >
-            <Field label="Tipo de movimento" required>
-              <select
-                value={form.movementType}
-                onChange={(event) =>
-                  updateField(
-                    "movementType",
-                    event.target.value as MovementFormState["movementType"],
-                  )
-                }
-                style={inputStyle}
-              >
-                <option value="INPUT">Entrada</option>
-                <option value="OUTPUT">Saida</option>
-                <option value="ADJUSTMENT">Ajuste</option>
-              </select>
-            </Field>
-
-            <Field label="Quantidade" required>
-              <input
-            value={form.quantity}
-            onChange={(event) =>
-              updateField("quantity", normalizeDecimalInput(event.target.value))
-            }
-            inputMode="decimal"
-            style={inputStyle}
-            placeholder="1"
-          />
-            </Field>
-
-            <Field label="Custo unitario">
-              <input
-                value={form.unitCost}
-                onChange={(event) =>
-                  updateField("unitCost", formatCurrencyInput(event.target.value))
-                }
-                style={inputStyle}
-                inputMode="numeric"
-                placeholder="0,00"
-              />
-            </Field>
-
-            <Field label="Tipo de referencia">
-              <select
-                value={form.referenceType}
-                onChange={(event) =>
-                  updateField(
-                    "referenceType",
-                    event.target.value as MovementFormState["referenceType"],
-                  )
-                }
-                style={inputStyle}
-              >
-                <option value="MANUAL">Manual</option>
-                <option value="PURCHASE">Compra</option>
-                <option value="ORDER">Pedido</option>
-                <option value="QUOTE">Orcamento</option>
-              </select>
-            </Field>
-          </div>
-
-          <Field label="Codigo da referencia">
-            <input
-              value={form.referenceId}
-              onChange={(event) =>
-                updateField("referenceId", normalizeReferenceInput(event.target.value))
-              }
-              style={inputStyle}
-              placeholder="Ex.: PED-000123"
-              maxLength={80}
-            />
-          </Field>
-
-          <Field label="Observacoes">
-            <textarea
-              value={form.notes}
-              onChange={(event) => updateField("notes", event.target.value)}
-              rows={5}
-              style={{ ...inputStyle, minHeight: 150, height: "auto", padding: 14 }}
-              placeholder="Motivo da movimentacao, responsavel ou observacao complementar."
-            />
-          </Field>
-
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: 12,
-              paddingTop: 10,
-              borderTop: "1px solid rgba(232, 217, 202, 0.85)",
-            }}
-          >
-            <button type="submit" disabled={isSubmitting || isLoading} style={primaryButtonStyle}>
-              {isSubmitting ? "Registrando..." : "Registrar movimentacao"}
-            </button>
-          </div>
-        </form>
-
-        <section
-          style={{
-            display: "grid",
-            gap: 16,
-            padding: 24,
-            borderRadius: 24,
-            border: "1px solid var(--border)",
-            background: "var(--surface)",
-          }}
-        >
-          <div>
-            <h2 style={{ margin: 0 }}>Ultimas movimentacoes</h2>
-            <p style={{ margin: "6px 0 0", color: "var(--muted)", lineHeight: 1.6 }}>
-              Historico recente para conferencia rapida da operacao.
-            </p>
-          </div>
-
           {isLoading ? (
-            <div style={loadingPanelStyle}>Carregando historico...</div>
-          ) : movements.length === 0 ? (
-            <div style={emptyPanelStyle}>Nenhuma movimentacao registrada ainda.</div>
+            <Skeleton lines={8} />
           ) : (
-            <div style={{ display: "grid", gap: 12 }}>
-              {movements.slice(0, 12).map((movement) => (
-                <article
-                  key={movement.id}
-                  style={{
-                    display: "grid",
-                    gap: 8,
-                    padding: 16,
-                    borderRadius: 18,
-                    border: "1px solid var(--border)",
-                    background: "rgba(255,255,255,0.78)",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <strong>{movement.productName}</strong>
-                    <span style={movementBadgeStyle(movement.movementType)}>
-                      {formatMovementType(movement.movementType)}
-                    </span>
+            <form onSubmit={handleSubmit} className="admin-page-stack">
+              {selectedProduct ? (
+                <div className="admin-surface-muted">
+                  <div className="admin-row admin-row--between">
+                    <div className="admin-inline-stack">
+                      <strong>{selectedProduct.name}</strong>
+                      <span className="admin-list-card__subtitle">
+                        {selectedProduct.sku ? `SKU ${selectedProduct.sku} | ` : ""}
+                        {selectedProduct.barcode ? `EAN ${selectedProduct.barcode} | ` : ""}
+                        {selectedProduct.unit} | Saldo atual {formatNumber(selectedProduct.currentStock)}
+                      </span>
+                    </div>
+                    <Link href={`/admin/estoque/${selectedProduct.id}`} className="admin-button admin-button--ghost">
+                      Abrir item
+                    </Link>
                   </div>
-                  <span style={{ color: "var(--muted)" }}>
-                    Quantidade: {movement.quantity}
-                  </span>
-                  <span style={{ color: "var(--muted)" }}>
-                    Referencia: {movement.referenceType ? formatReferenceType(movement.referenceType) : "Sem referencia"}
-                  </span>
-                  <span style={{ color: "var(--muted)" }}>
-                    Data: {formatDateTime(movement.createdAt)}
-                  </span>
+                </div>
+              ) : null}
+
+              <Field label="Item" required>
+                <SearchableSelect
+                  value={form.productId}
+                  onChange={(value) => updateField("productId", value)}
+                  options={productLookupOptions}
+                  placeholder="Pesquisar item por nome, SKU ou EAN"
+                  emptyMessage="Nenhum item cadastrado encontrado."
+                  disabled={isLoading}
+                />
+              </Field>
+
+              <div className="admin-form-grid admin-form-grid--2">
+                <Field label="Natureza da movimentacao" required>
+                  <select
+                    value={form.movementType}
+                    onChange={(event) => updateMovementType(event.target.value as MovementFormState["movementType"])}
+                    className="admin-select"
+                  >
+                    <option value="INPUT">Entrada administrativa</option>
+                    <option value="OUTPUT">Saida administrativa</option>
+                    <option value="ADJUSTMENT">Ajuste de saldo</option>
+                  </select>
+                </Field>
+
+                <Field label="Motivo padrao" required>
+                  <select
+                    value={form.reasonCode}
+                    onChange={(event) => updateField("reasonCode", event.target.value as MovementReasonCode)}
+                    className="admin-select"
+                  >
+                    {selectedReasonOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field label="Quantidade" required>
+                  <input
+                    value={form.quantity}
+                    onChange={(event) => updateField("quantity", normalizeDecimalInput(event.target.value))}
+                    inputMode="decimal"
+                    className="admin-input"
+                    placeholder="1"
+                  />
+                </Field>
+
+                <Field label="Custo unitario">
+                  <input
+                    value={form.unitCost}
+                    onChange={(event) => updateField("unitCost", formatCurrencyInput(event.target.value))}
+                    inputMode="numeric"
+                    className="admin-input"
+                    placeholder="0,00"
+                  />
+                </Field>
+
+                <Field label="Origem da referencia">
+                  <select
+                    value={form.referenceType}
+                    onChange={(event) =>
+                      updateField("referenceType", event.target.value as MovementFormState["referenceType"])
+                    }
+                    className="admin-select"
+                  >
+                    <option value="MANUAL">Manual</option>
+                    <option value="PURCHASE">Compra</option>
+                    <option value="ENTRY">Entrada</option>
+                    <option value="ORDER">Pedido</option>
+                    <option value="QUOTE">Orcamento</option>
+                    <option value="PRODUCTION">Producao</option>
+                  </select>
+                </Field>
+
+                <Field label="Codigo da referencia">
+                  <input
+                    value={form.referenceId}
+                    onChange={(event) => updateField("referenceId", normalizeReferenceInput(event.target.value))}
+                    className="admin-input"
+                    placeholder="Ex.: AJ-000123"
+                    maxLength={80}
+                  />
+                </Field>
+              </div>
+
+              <Alert variant="info">
+                {selectedReason?.description || "Explique o motivo da movimentacao para manter a rastreabilidade."}
+              </Alert>
+
+              <Field label="Motivo detalhado" required>
+                <textarea
+                  value={form.reasonText}
+                  onChange={(event) => updateField("reasonText", event.target.value)}
+                  rows={3}
+                  className="admin-textarea"
+                  placeholder="Explique o motivo da movimentacao."
+                />
+              </Field>
+
+              <Field label="Observacoes complementares" optional>
+                <textarea
+                  value={form.notes}
+                  onChange={(event) => updateField("notes", event.target.value)}
+                  rows={4}
+                  className="admin-textarea"
+                  placeholder="Conferente, origem da divergencia, numero interno ou outra observacao complementar."
+                />
+              </Field>
+
+              <div className="admin-row admin-row--between">
+                <span className="admin-list-card__hint">
+                  Saidas administrativas seguem FIFO e ficam registradas na trilha operacional.
+                </span>
+                <LoadingButton type="submit" isLoading={isSubmitting} loadingLabel="Registrando...">
+                  Registrar movimentacao
+                </LoadingButton>
+              </div>
+            </form>
+          )}
+        </SectionCard>
+
+        <SectionCard
+          title={selectedProduct ? "Historico do item selecionado" : "Ultimas movimentacoes"}
+          description="Confira as ultimas ocorrencias antes de registrar um novo ajuste."
+        >
+          {isLoading ? (
+            <Skeleton lines={8} />
+          ) : visibleMovements.length === 0 ? (
+            <EmptyState
+              title="Nenhuma movimentacao encontrada"
+              description="Selecione outro item ou registre o primeiro ajuste administrativo."
+            />
+          ) : (
+            <div className="admin-list-stack">
+              {visibleMovements.map((movement) => (
+                <article key={movement.id} className="admin-list-card">
+                  <div className="admin-list-card__header">
+                    <div className="admin-list-card__heading">
+                      <strong className="admin-list-card__title">{movement.productName}</strong>
+                      <span className="admin-list-card__subtitle">
+                        {formatDateTime(movement.occurredAt)} | {movement.reasonText || formatReasonCode(movement.reasonCode)}
+                      </span>
+                    </div>
+                    <StatusBadge status={formatMovementType(movement.movementType)} tone={movementTone(movement.movementType)} />
+                  </div>
+
+                  <div className="admin-list-card__meta">
+                    <InfoBox label="Quantidade" value={formatNumber(movement.quantity)} />
+                    <InfoBox
+                      label="Custo"
+                      value={movement.unitCost !== null ? formatCurrency(movement.unitCost) : "Nao informado"}
+                    />
+                    <InfoBox
+                      label="Referencia"
+                      value={
+                        movement.referenceType
+                          ? `${formatReferenceType(movement.referenceType)}${movement.referenceId ? ` | ${movement.referenceId}` : ""}`
+                          : "Sem referencia"
+                      }
+                    />
+                  </div>
+
+                  {movement.notes ? (
+                    <span className="admin-list-card__hint">{movement.notes}</span>
+                  ) : null}
                 </article>
               ))}
             </div>
           )}
-        </section>
+        </SectionCard>
       </div>
     </main>
   );
 }
 
-function Field({
-  label,
-  required,
-  children,
-}: Readonly<{ label: string; required?: boolean; children: React.ReactNode }>) {
+function InfoBox({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
-    <label style={{ display: "grid", gap: 8 }}>
-      <span style={{ fontWeight: 600 }}>
-        {label}
-        {required ? <strong style={{ color: "var(--primary)" }}> *</strong> : null}
-      </span>
-      {children}
-    </label>
+    <div className="admin-surface-muted">
+      <span className="admin-list-card__subtitle">{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
@@ -550,8 +575,15 @@ function formatReferenceType(type: NonNullable<MovementListItem["referenceType"]
     ORDER: "Pedido",
     PURCHASE: "Compra",
     QUOTE: "Orcamento",
+    ENTRY: "Entrada",
+    PRODUCTION: "Producao",
   };
   return labels[type];
+}
+
+function formatReasonCode(reasonCode?: MovementReasonCode | null) {
+  const allReasons = Object.values(reasonOptionsByMovementType).flat();
+  return allReasons.find((option) => option.value === reasonCode)?.label ?? "Motivo nao informado";
 }
 
 function formatDateTime(value: string) {
@@ -568,109 +600,19 @@ function formatNumber(value: number) {
   }).format(value);
 }
 
-function movementBadgeStyle(type: MovementListItem["movementType"]) {
-  const palette: Record<MovementListItem["movementType"], { background: string; color: string }> = {
-    INPUT: { background: "rgba(43, 110, 82, 0.12)", color: "#245844" },
-    OUTPUT: { background: "rgba(181, 66, 31, 0.12)", color: "#8a2e16" },
-    ADJUSTMENT: { background: "rgba(50, 92, 168, 0.12)", color: "#204f8a" },
-  };
-
-  return {
-    padding: "8px 12px",
-    borderRadius: 999,
-    background: palette[type].background,
-    color: palette[type].color,
-    fontWeight: 700,
-  };
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(value || 0);
 }
 
-const eyebrowStyle = {
-  margin: 0,
-  color: "var(--primary)",
-  textTransform: "uppercase",
-  letterSpacing: "0.14em",
-  fontSize: 12,
-  fontWeight: 700,
-} as const;
+function movementTone(type: MovementListItem["movementType"]) {
+  const tones: Record<MovementListItem["movementType"], "success" | "danger" | "info"> = {
+    INPUT: "success",
+    OUTPUT: "danger",
+    ADJUSTMENT: "info",
+  };
 
-const inputStyle = {
-  height: 48,
-  padding: "0 14px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  width: "100%",
-  boxSizing: "border-box" as const,
-} as const;
-
-const primaryButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: 0,
-  background: "var(--primary)",
-  color: "#fff",
-  fontWeight: 700,
-  cursor: "pointer",
-} as const;
-
-const miniActionStyle = {
-  height: 38,
-  padding: "0 14px",
-  borderRadius: 12,
-  border: "1px solid rgba(181, 66, 31, 0.16)",
-  background: "rgba(181, 66, 31, 0.08)",
-  color: "var(--primary)",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const secondaryLinkStyle = {
-  height: 46,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  color: "inherit",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const feedbackStyle = {
-  margin: 0,
-  padding: "14px 16px",
-  borderRadius: 14,
-  lineHeight: 1.6,
-} as const;
-
-const errorStyle = {
-  background: "rgba(181, 66, 31, 0.12)",
-  color: "var(--primary)",
-} as const;
-
-const successStyle = {
-  background: "rgba(43, 110, 82, 0.12)",
-  color: "#245844",
-} as const;
-
-const loadingPanelStyle = {
-  padding: 24,
-  borderRadius: 18,
-  border: "1px dashed var(--border)",
-  background: "rgba(255,255,255,0.62)",
-  color: "var(--muted)",
-} as const;
-
-const emptyPanelStyle = {
-  padding: 24,
-  borderRadius: 18,
-  border: "1px dashed var(--border)",
-  background: "rgba(255,255,255,0.62)",
-  color: "var(--muted)",
-} as const;
+  return tones[type];
+}

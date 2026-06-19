@@ -9,7 +9,11 @@ O projeto ja avancou da fase de planejamento e hoje conta com uma base funcional
 - autenticacao
 - multiempresa
 - clientes
+- vendas
 - itens e estoque
+- grupos de itens
+- entradas por documento
+- historico de custo e preco
 - orcamentos
 - pedidos
 - financeiro
@@ -17,12 +21,31 @@ O projeto ja avancou da fase de planejamento e hoje conta com uma base funcional
 - site institucional configuravel
 - leads e conversao comercial
 
+Na camada de experiencia operacional, o painel administrativo agora tambem conta com:
+
+- `AppShell` administrativo proprio
+- sidebar compacta e recolhivel
+- drawer mobile
+- topbar simplificada
+- design system interno compartilhado
+- listagens e formularios com largura e densidade padronizadas
+
 Tambem ja existe uma base inicial de documentacao em:
 
 - `docs/plataforma-visao-geral.md`
 - `docs/cadastro-de-itens-profissional.md`
 - `docs/versionamento-e-publicacao.md`
 - `docs/roteiro-de-homologacao.md`
+
+## Fluxos prioritarios de homologacao
+
+Os blocos mais importantes para a proxima rodada de validacao sao:
+
+1. `clientes -> orcamento -> pedido`
+2. `grupo -> item -> entrada -> movimentacao`
+3. `venda -> financeiro`
+4. `producao -> consumo de materiais`
+5. `site -> lead -> cliente/orcamento`
 
 ## Repositorio e versionamento
 

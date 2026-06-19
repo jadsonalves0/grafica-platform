@@ -255,7 +255,7 @@ function mapAccount(account: {
 function mapCategory(category: {
   id: string;
   name: string;
-  type: "INCOME" | "EXPENSE";
+  type: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -274,28 +274,54 @@ function mapEntry(entry: {
   id: string;
   accountId: string;
   financialCategoryId: string | null;
-  entryType: string;
+  customerId: string | null;
+  inventoryEntryId: string | null;
+  orderId: string | null;
+  quoteId: string | null;
+  entryType: "INCOME" | "EXPENSE" | "RECEIVABLE" | "PAYABLE" | "TRANSFER";
+  originType: "MANUAL" | "ENTRY" | "PRODUCTION" | "ORDER" | "QUOTE" | "WEBSITE";
   category: string;
   description: string;
   amount: { toNumber(): number } | number;
   dueDate: Date;
   status: string;
   paidAt: Date | null;
+  installmentNumber: number | null;
+  installmentCount: number | null;
   account?: { name: string } | null;
+  customer?: { name: string } | null;
+  inventoryEntry?: { documentNumber: string } | null;
+  order?: { code: string } | null;
+  quote?: { code: string } | null;
   items?: Array<unknown>;
 }): FinancialEntryListItemDto {
+  const origin = buildOrigin(entry);
+
   return {
     id: entry.id,
     accountId: entry.accountId,
     accountName: entry.account?.name ?? "",
     financialCategoryId: entry.financialCategoryId,
+    customerId: entry.customerId,
+    customerName: entry.customer?.name ?? null,
+    inventoryEntryId: entry.inventoryEntryId,
+    inventoryEntryDocumentNumber: entry.inventoryEntry?.documentNumber ?? null,
+    orderId: entry.orderId,
+    orderCode: entry.order?.code ?? null,
+    quoteId: entry.quoteId,
+    quoteCode: entry.quote?.code ?? null,
     entryType: entry.entryType,
+    originType: entry.originType,
+    originLabel: origin.label,
+    originHref: origin.href,
     category: entry.category,
     description: entry.description,
     amount: toNumber(entry.amount),
     dueDate: entry.dueDate.toISOString(),
     status: entry.status,
     paidAt: entry.paidAt?.toISOString() ?? null,
+    installmentNumber: entry.installmentNumber,
+    installmentCount: entry.installmentCount,
     itemCount: entry.items?.length ?? 0,
   };
 }
@@ -305,18 +331,26 @@ function mapEntryDetail(entry: {
   accountId: string;
   financialCategoryId: string | null;
   customerId: string | null;
+  inventoryEntryId: string | null;
   orderId: string | null;
   quoteId: string | null;
-  entryType: string;
+  entryType: "INCOME" | "EXPENSE" | "RECEIVABLE" | "PAYABLE" | "TRANSFER";
+  originType: "MANUAL" | "ENTRY" | "PRODUCTION" | "ORDER" | "QUOTE" | "WEBSITE";
   category: string;
   description: string;
   amount: { toNumber(): number } | number;
   dueDate: Date;
   status: string;
   paidAt: Date | null;
+  installmentNumber: number | null;
+  installmentCount: number | null;
   createdAt: Date;
   updatedAt: Date;
   account?: { name: string } | null;
+  customer?: { name: string } | null;
+  inventoryEntry?: { documentNumber: string } | null;
+  order?: { code: string } | null;
+  quote?: { code: string } | null;
   items?: Array<{
     id: string;
     productId: string | null;
@@ -326,21 +360,33 @@ function mapEntryDetail(entry: {
     totalPrice: { toNumber(): number } | number;
   }>;
 }) {
+  const origin = buildOrigin(entry);
+
   return {
     id: entry.id,
     accountId: entry.accountId,
     accountName: entry.account?.name ?? "",
     financialCategoryId: entry.financialCategoryId,
     customerId: entry.customerId,
+    customerName: entry.customer?.name ?? null,
+    inventoryEntryId: entry.inventoryEntryId,
+    inventoryEntryDocumentNumber: entry.inventoryEntry?.documentNumber ?? null,
     orderId: entry.orderId,
+    orderCode: entry.order?.code ?? null,
     quoteId: entry.quoteId,
+    quoteCode: entry.quote?.code ?? null,
     entryType: entry.entryType,
+    originType: entry.originType,
+    originLabel: origin.label,
+    originHref: origin.href,
     category: entry.category,
     description: entry.description,
     amount: toNumber(entry.amount),
     dueDate: entry.dueDate.toISOString(),
     status: entry.status,
     paidAt: entry.paidAt?.toISOString() ?? null,
+    installmentNumber: entry.installmentNumber,
+    installmentCount: entry.installmentCount,
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString(),
     items:
@@ -352,6 +398,50 @@ function mapEntryDetail(entry: {
         unitPrice: toNumber(item.unitPrice),
         totalPrice: toNumber(item.totalPrice),
       })) ?? [],
+  };
+}
+
+function buildOrigin(entry: {
+  originType: "MANUAL" | "ENTRY" | "PRODUCTION" | "ORDER" | "QUOTE" | "WEBSITE";
+  inventoryEntryId?: string | null;
+  inventoryEntry?: { documentNumber: string } | null;
+  orderId?: string | null;
+  order?: { code: string } | null;
+  quoteId?: string | null;
+  quote?: { code: string } | null;
+  items?: Array<unknown>;
+}) {
+  if (entry.inventoryEntryId && entry.inventoryEntry?.documentNumber) {
+    return {
+      label: `Entrada #${entry.inventoryEntry.documentNumber}`,
+      href: `/admin/estoque/entradas/${entry.inventoryEntryId}`,
+    };
+  }
+
+  if (entry.orderId && entry.order?.code) {
+    return {
+      label: `Pedido ${entry.order.code}`,
+      href: `/admin/pedidos/${entry.orderId}`,
+    };
+  }
+
+  if (entry.quoteId && entry.quote?.code) {
+    return {
+      label: `Orcamento ${entry.quote.code}`,
+      href: `/admin/orcamentos/${entry.quoteId}`,
+    };
+  }
+
+  if (entry.items?.length) {
+    return {
+      label: "Venda do balcao",
+      href: null,
+    };
+  }
+
+  return {
+    label: "Lancamento manual",
+    href: null,
   };
 }
 

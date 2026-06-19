@@ -1,10 +1,17 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { QuoteForm } from "@/app/(admin)/admin/orcamentos/_components/quote-form";
+import {
+  Alert,
+  MetricCard,
+  PageHeader,
+  SectionCard,
+  Skeleton,
+  StatusBadge,
+} from "@/components/admin/ui";
 
 type CustomerOption = {
   id: string;
@@ -130,122 +137,94 @@ export default function EditarOrcamentoPage() {
       }
     }
 
-    loadData();
+    void loadData();
 
     return () => controller.abort();
   }, [quoteId]);
 
   return (
-    <main style={{ padding: 32, display: "grid", gap: 24 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 16,
-          flexWrap: "wrap",
-          alignItems: "flex-start",
-        }}
-      >
-        <div style={{ maxWidth: 860 }}>
-          <p
-            style={{
-              margin: 0,
-              color: "var(--primary)",
-              textTransform: "uppercase",
-              letterSpacing: "0.14em",
-              fontSize: 12,
-              fontWeight: 700,
-            }}
-          >
-            Gestao da proposta
-          </p>
-          <h1 style={{ margin: "12px 0 8px", fontFamily: "var(--font-heading)", fontSize: 46 }}>
-            {quote?.code ? `Orcamento ${quote.code}` : "Editar orcamento"}
-          </h1>
-          <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.7, fontSize: 18 }}>
-            Ajuste itens, atualize valores e aprove a proposta quando ela estiver pronta
-            para seguir para o pedido.
-          </p>
-        </div>
+    <main className="admin-page-stack">
+      <PageHeader
+        title={quote?.code ? `Orcamento ${quote.code}` : "Editar orcamento"}
+        description="Revise cliente, itens, validade e valores antes de aprovar ou converter a proposta."
+        secondaryActions={[
+          { href: "/admin/orcamentos", label: "Voltar para orcamentos" },
+          { href: "/admin/clientes", label: "Ver clientes", variant: "secondary" },
+        ]}
+      />
 
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <Link href="/admin/orcamentos" style={secondaryButtonStyle}>
-            Voltar para orcamentos
-          </Link>
-          <Link href="/admin/clientes" style={ghostButtonStyle}>
-            Ver clientes
-          </Link>
-        </div>
-      </div>
-
-      {errorMessage ? <p style={{ ...feedbackStyle, ...errorStyle }}>{errorMessage}</p> : null}
+      {errorMessage ? (
+        <Alert variant="danger" title="Nao foi possivel carregar o orcamento.">
+          {errorMessage}
+        </Alert>
+      ) : null}
 
       {isLoading ? (
-        <section style={loadingPanelStyle}>
-          <strong>Carregando proposta...</strong>
-          <span style={{ color: "var(--muted)" }}>
-            Estamos trazendo o orcamento, os clientes e o catalogo de itens.
-          </span>
-        </section>
+        <SectionCard
+          title="Carregando proposta"
+          description="Estamos preparando os dados do cliente, dos itens e do historico da proposta."
+        >
+          <Skeleton lines={8} />
+        </SectionCard>
       ) : quote ? (
-        <QuoteForm
-          mode="edit"
-          customers={customers}
-          products={products}
-          initialData={quote}
-          quoteId={quoteId}
-        />
+        <>
+          <section className="admin-card-grid">
+            <MetricCard label="Cliente" value={quote.customerName} />
+            <MetricCard
+              label="Validade"
+              value={quote.validUntil ? formatDate(quote.validUntil) : "Nao informada"}
+            />
+            <MetricCard
+              label="Itens"
+              value={String(quote.items.length)}
+            />
+            <div>
+              <SectionCard title="Status atual">
+                <StatusBadge
+                  status={formatQuoteStatus(quote.status)}
+                  tone={mapQuoteTone(quote.status)}
+                />
+              </SectionCard>
+            </div>
+          </section>
+
+          <QuoteForm
+            mode="edit"
+            customers={customers}
+            products={products}
+            initialData={quote}
+            quoteId={quoteId}
+          />
+        </>
       ) : null}
     </main>
   );
 }
 
-const secondaryButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  color: "inherit",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("pt-BR").format(new Date(value));
+}
 
-const ghostButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: "1px solid rgba(181, 66, 31, 0.18)",
-  background: "rgba(181, 66, 31, 0.08)",
-  color: "var(--primary)",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
+function formatQuoteStatus(status: string) {
+  const labels: Record<string, string> = {
+    DRAFT: "Rascunho",
+    SENT: "Enviado",
+    APPROVED: "Aprovado",
+    REJECTED: "Recusado",
+    EXPIRED: "Expirado",
+  };
 
-const feedbackStyle = {
-  margin: 0,
-  padding: "14px 16px",
-  borderRadius: 14,
-  lineHeight: 1.6,
-} as const;
+  return labels[status] ?? status;
+}
 
-const errorStyle = {
-  background: "rgba(181, 66, 31, 0.12)",
-  color: "var(--primary)",
-} as const;
+function mapQuoteTone(status: string) {
+  const tones: Record<string, "neutral" | "info" | "success" | "danger"> = {
+    DRAFT: "neutral",
+    SENT: "info",
+    APPROVED: "success",
+    REJECTED: "danger",
+    EXPIRED: "danger",
+  };
 
-const loadingPanelStyle = {
-  display: "grid",
-  gap: 10,
-  placeItems: "center",
-  padding: 42,
-  borderRadius: 24,
-  border: "1px dashed var(--border)",
-  background: "rgba(255,255,255,0.62)",
-} as const;
+  return tones[status] ?? "neutral";
+}

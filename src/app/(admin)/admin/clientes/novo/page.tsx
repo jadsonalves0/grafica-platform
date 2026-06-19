@@ -2,12 +2,23 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import {
+  Alert,
+  Field,
+  FormSection,
+  LoadingButton,
+  PageHeader,
+  SectionCard,
+  StickyActionBar,
+} from "@/components/admin/ui";
 import {
   emptyCustomerFormState,
   formatCustomerField,
+  type CustomerFormError,
   type CustomerFormState,
-  validateCustomerForm,
+  validateCustomerFormDetailed,
 } from "@/lib/forms/customer-form";
 
 type ApiResult<T> = {
@@ -16,33 +27,66 @@ type ApiResult<T> = {
   data?: T;
 };
 
+type FieldElement = HTMLInputElement | HTMLTextAreaElement;
+
 export default function NovoClientePage() {
   const router = useRouter();
   const [form, setForm] = useState<CustomerFormState>(emptyCustomerFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [fieldError, setFieldError] = useState<CustomerFormError | null>(null);
+  const errorSummaryRef = useRef<HTMLDivElement | null>(null);
+  const fieldRefs = useRef<Partial<Record<keyof CustomerFormState, FieldElement | null>>>({});
+
+  const helperText = useMemo(
+    () => ({
+      addressStreet: "Preencha quando o cliente utilizar coleta, entrega ou faturamento com endereco.",
+      notes: "Use para registrar observacoes importantes do atendimento ou restricoes de cadastro.",
+    }),
+    [],
+  );
+
+  useEffect(() => {
+    if (!fieldError) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      errorSummaryRef.current?.focus();
+      fieldRefs.current[fieldError.field]?.focus();
+    });
+  }, [fieldError]);
 
   function updateField(field: keyof CustomerFormState, value: string) {
     setForm((current) => ({
       ...current,
       [field]: formatCustomerField(field, value),
     }));
+
+    if (fieldError?.field === field) {
+      setFieldError(null);
+    }
+
+    if (errorMessage) {
+      setErrorMessage(null);
+    }
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const validationMessage = validateCustomerForm(form);
+    const validationError = validateCustomerFormDetailed(form);
 
-    if (validationMessage) {
-      setErrorMessage(validationMessage);
-      setSuccessMessage(null);
+    if (validationError) {
+      setFieldError(validationError);
+      setErrorMessage(
+        `Nao foi possivel salvar o cliente. Revise o campo "${fieldLabelMap[validationError.field]}". ${validationError.message}`,
+      );
       return;
     }
 
     setIsSubmitting(true);
     setErrorMessage(null);
-    setSuccessMessage(null);
+    setFieldError(null);
 
     try {
       const response = await fetch("/api/customers", {
@@ -53,287 +97,329 @@ export default function NovoClientePage() {
         body: JSON.stringify(form),
       });
 
-      const result = (await response.json()) as ApiResult<{ id: string; name: string }>;
+      const result = (await response.json()) as ApiResult<{
+        id: string;
+        name: string;
+      }>;
 
       if (!response.ok || !result.success) {
-        setErrorMessage(result.message ?? "Nao foi possivel salvar o cliente.");
+        setErrorMessage(
+          result.message ??
+            "Nao foi possivel salvar o cliente. Revise os dados informados e tente novamente.",
+        );
         return;
       }
 
-      setSuccessMessage("Cliente salvo com sucesso.");
-      setForm(emptyCustomerFormState);
-
-      window.setTimeout(() => {
-        router.push("/admin/clientes");
-        router.refresh();
-      }, 900);
+      router.push("/admin/clientes?feedback=created");
+      router.refresh();
     } catch {
-      setErrorMessage("Falha ao comunicar com o servidor. Tente novamente.");
+      setErrorMessage(
+        "Nao foi possivel salvar o cliente. Tente novamente em instantes.",
+      );
     } finally {
       setIsSubmitting(false);
     }
   }
 
   return (
-    <main style={{ padding: 32, maxWidth: 960, display: "grid", gap: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-        <div>
-          <h1 style={{ margin: 0 }}>Novo cliente</h1>
-          <p style={{ color: "var(--muted)", lineHeight: 1.6, marginBottom: 0 }}>
-            Cadastro base para pessoas e empresas atendidas pela grafica.
-          </p>
-        </div>
-        <Link href="/admin/clientes" style={secondaryButtonStyle}>
-          Voltar para clientes
-        </Link>
-      </div>
+    <main className="admin-page-stack">
+      <PageHeader
+        title="Novo cliente"
+        description="Cadastre o cliente com o minimo de informacoes necessarias para orcamentos, pedidos, vendas e acompanhamento."
+        primaryAction={undefined}
+        secondaryActions={[
+          { href: "/admin/clientes", label: "Voltar para clientes" },
+        ]}
+      />
 
-      <section
-        style={{
-          padding: 20,
-          borderRadius: 20,
-          border: "1px solid var(--border)",
-          background: "rgba(255, 250, 244, 0.82)",
-          color: "var(--muted)",
-          lineHeight: 1.6,
-        }}
-      >
-        Os campos com <strong style={{ color: "var(--primary)" }}>*</strong> sao obrigatorios.
-      </section>
+      {errorMessage ? (
+        <Alert
+          variant="danger"
+          title="Nao foi possivel salvar o cliente."
+        >
+          <div
+            ref={errorSummaryRef}
+            tabIndex={-1}
+            style={{ display: "grid", gap: 8, outline: "none" }}
+          >
+            <span>{errorMessage}</span>
+            {fieldError ? (
+              <button
+                type="button"
+                className="admin-link-button"
+                onClick={() => fieldRefs.current[fieldError.field]?.focus()}
+              >
+                Ir para {fieldLabelMap[fieldError.field]}
+              </button>
+            ) : null}
+          </div>
+        </Alert>
+      ) : null}
 
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          display: "grid",
-          gap: 16,
-          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-        }}
-      >
-        <Field label="Nome ou razao social" required>
-          <input
-            value={form.name}
-            onChange={(event) => updateField("name", event.target.value)}
-            placeholder="Ex.: Cliente Teste"
-            style={inputStyle}
-          />
-        </Field>
+      <form onSubmit={handleSubmit} className="admin-page-stack">
+        <SectionCard
+          title="Informacoes principais"
+          description="Os campos essenciais ficam primeiro para reduzir o tempo de cadastro."
+        >
+          <div className="admin-form-grid admin-form-grid--2">
+            <Field
+              label="Nome ou razao social"
+              required
+              error={fieldError?.field === "name" ? fieldError.message : undefined}
+            >
+              <input
+                ref={(element) => {
+                  fieldRefs.current.name = element;
+                }}
+                value={form.name}
+                onChange={(event) => updateField("name", event.target.value)}
+                className="admin-input"
+                autoComplete="organization"
+              />
+            </Field>
 
-        <Field label="CPF ou CNPJ">
-          <input
-            value={form.document}
-            onChange={(event) => updateField("document", event.target.value)}
-            inputMode="numeric"
-            maxLength={18}
-            placeholder="000.000.000-00 ou 00.000.000/0000-00"
-            style={inputStyle}
-          />
-        </Field>
+            <Field
+              label="CPF ou CNPJ"
+              optional
+              error={
+                fieldError?.field === "document" ? fieldError.message : undefined
+              }
+            >
+              <input
+                ref={(element) => {
+                  fieldRefs.current.document = element;
+                }}
+                value={form.document}
+                onChange={(event) => updateField("document", event.target.value)}
+                className="admin-input"
+                inputMode="numeric"
+                maxLength={18}
+                placeholder="000.000.000-00 ou 00.000.000/0000-00"
+              />
+            </Field>
+          </div>
+        </SectionCard>
 
-        <Field label="E-mail">
-          <input
-            type="email"
-            value={form.email}
-            onChange={(event) => updateField("email", event.target.value)}
-            placeholder="cliente@empresa.com"
-            autoComplete="email"
-            style={inputStyle}
-          />
-        </Field>
+        <SectionCard
+          title="Contato"
+          description="Preencha os canais que ajudam o comercial a responder rapido sem obrigar dados desnecessarios."
+        >
+          <div className="admin-form-grid admin-form-grid--2">
+            <Field
+              label="E-mail"
+              optional
+              error={fieldError?.field === "email" ? fieldError.message : undefined}
+            >
+              <input
+                ref={(element) => {
+                  fieldRefs.current.email = element;
+                }}
+                type="email"
+                value={form.email}
+                onChange={(event) => updateField("email", event.target.value)}
+                className="admin-input"
+                autoComplete="email"
+                placeholder="cliente@empresa.com"
+              />
+            </Field>
 
-        <Field label="Telefone">
-          <input
-            value={form.phone}
-            onChange={(event) => updateField("phone", event.target.value)}
-            inputMode="tel"
-            maxLength={15}
-            placeholder="(11) 3333-4444"
-            style={inputStyle}
-          />
-        </Field>
+            <Field
+              label="Telefone"
+              optional
+              error={fieldError?.field === "phone" ? fieldError.message : undefined}
+            >
+              <input
+                ref={(element) => {
+                  fieldRefs.current.phone = element;
+                }}
+                value={form.phone}
+                onChange={(event) => updateField("phone", event.target.value)}
+                className="admin-input"
+                inputMode="tel"
+                maxLength={15}
+                placeholder="(11) 3333-4444"
+              />
+            </Field>
 
-        <Field label="WhatsApp">
-          <input
-            value={form.whatsapp}
-            onChange={(event) => updateField("whatsapp", event.target.value)}
-            inputMode="tel"
-            maxLength={15}
-            placeholder="(11) 99999-0000"
-            style={inputStyle}
-          />
-        </Field>
+            <Field
+              label="WhatsApp"
+              optional
+              error={
+                fieldError?.field === "whatsapp" ? fieldError.message : undefined
+              }
+            >
+              <input
+                ref={(element) => {
+                  fieldRefs.current.whatsapp = element;
+                }}
+                value={form.whatsapp}
+                onChange={(event) => updateField("whatsapp", event.target.value)}
+                className="admin-input"
+                inputMode="tel"
+                maxLength={15}
+                placeholder="(11) 99999-0000"
+              />
+            </Field>
+          </div>
+        </SectionCard>
 
-        <Field label="CEP">
-          <input
-            value={form.addressZipCode}
-            onChange={(event) => updateField("addressZipCode", event.target.value)}
-            inputMode="numeric"
-            maxLength={9}
-            placeholder="00000-000"
-            style={inputStyle}
-          />
-        </Field>
+        <FormSection
+          title="Endereco"
+          description="Expanda esta secao quando o cadastro precisar de endereco completo."
+          defaultOpen={false}
+        >
+          <div className="admin-form-grid admin-form-grid--2">
+            <Field
+              label="CEP"
+              optional
+              error={
+                fieldError?.field === "addressZipCode"
+                  ? fieldError.message
+                  : undefined
+              }
+            >
+              <input
+                ref={(element) => {
+                  fieldRefs.current.addressZipCode = element;
+                }}
+                value={form.addressZipCode}
+                onChange={(event) =>
+                  updateField("addressZipCode", event.target.value)
+                }
+                className="admin-input"
+                inputMode="numeric"
+                maxLength={9}
+                placeholder="00000-000"
+              />
+            </Field>
 
-        <Field label="Rua">
-          <input
-            value={form.addressStreet}
-            onChange={(event) => updateField("addressStreet", event.target.value)}
-            placeholder="Opcional"
-            style={inputStyle}
-          />
-        </Field>
+            <Field
+              label="Rua"
+              optional
+              helpText={helperText.addressStreet}
+            >
+              <input
+                ref={(element) => {
+                  fieldRefs.current.addressStreet = element;
+                }}
+                value={form.addressStreet}
+                onChange={(event) =>
+                  updateField("addressStreet", event.target.value)
+                }
+                className="admin-input"
+              />
+            </Field>
 
-        <Field label="Numero">
-          <input
-            value={form.addressNumber}
-            onChange={(event) => updateField("addressNumber", event.target.value)}
-            placeholder="Opcional"
-            style={inputStyle}
-          />
-        </Field>
+            <Field label="Numero" optional>
+              <input
+                ref={(element) => {
+                  fieldRefs.current.addressNumber = element;
+                }}
+                value={form.addressNumber}
+                onChange={(event) =>
+                  updateField("addressNumber", event.target.value)
+                }
+                className="admin-input"
+              />
+            </Field>
 
-        <Field label="Bairro">
-          <input
-            value={form.addressDistrict}
-            onChange={(event) => updateField("addressDistrict", event.target.value)}
-            placeholder="Opcional"
-            style={inputStyle}
-          />
-        </Field>
+            <Field label="Bairro" optional>
+              <input
+                ref={(element) => {
+                  fieldRefs.current.addressDistrict = element;
+                }}
+                value={form.addressDistrict}
+                onChange={(event) =>
+                  updateField("addressDistrict", event.target.value)
+                }
+                className="admin-input"
+              />
+            </Field>
 
-        <Field label="Cidade">
-          <input
-            value={form.addressCity}
-            onChange={(event) => updateField("addressCity", event.target.value)}
-            placeholder="Opcional"
-            style={inputStyle}
-          />
-        </Field>
+            <Field label="Cidade" optional>
+              <input
+                ref={(element) => {
+                  fieldRefs.current.addressCity = element;
+                }}
+                value={form.addressCity}
+                onChange={(event) => updateField("addressCity", event.target.value)}
+                className="admin-input"
+              />
+            </Field>
 
-        <Field label="Estado">
-          <input
-            value={form.addressState}
-            onChange={(event) => updateField("addressState", event.target.value)}
-            maxLength={2}
-            placeholder="UF"
-            style={inputStyle}
-          />
-        </Field>
+            <Field
+              label="UF"
+              optional
+              error={
+                fieldError?.field === "addressState"
+                  ? fieldError.message
+                  : undefined
+              }
+            >
+              <input
+                ref={(element) => {
+                  fieldRefs.current.addressState = element;
+                }}
+                value={form.addressState}
+                onChange={(event) => updateField("addressState", event.target.value)}
+                className="admin-input"
+                maxLength={2}
+                placeholder="SP"
+              />
+            </Field>
+          </div>
+        </FormSection>
 
-        <div />
+        <FormSection
+          title="Informacoes complementares"
+          description="Use quando houver observacoes importantes para o atendimento."
+          defaultOpen={false}
+        >
+          <Field label="Observacoes" optional helpText={helperText.notes}>
+            <textarea
+              ref={(element) => {
+                fieldRefs.current.notes = element;
+              }}
+              value={form.notes}
+              onChange={(event) => updateField("notes", event.target.value)}
+              className="admin-textarea"
+              rows={5}
+            />
+          </Field>
+        </FormSection>
 
-        <Field label="Observacoes" fullWidth>
-          <textarea
-            value={form.notes}
-            onChange={(event) => updateField("notes", event.target.value)}
-            placeholder="Informacoes complementares sobre o cliente"
-            rows={5}
-            style={{ ...inputStyle, padding: 14, height: "auto" }}
-          />
-        </Field>
-
-        {errorMessage ? (
-          <p style={{ ...feedbackStyle, ...errorStyle, gridColumn: "1 / -1" }}>{errorMessage}</p>
-        ) : null}
-
-        {successMessage ? (
-          <p style={{ ...feedbackStyle, ...successStyle, gridColumn: "1 / -1" }}>
-            {successMessage} Redirecionando para a listagem...
-          </p>
-        ) : null}
-
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", gridColumn: "1 / -1" }}>
-          <button type="submit" disabled={isSubmitting} style={primaryButtonStyle}>
-            {isSubmitting ? "Salvando..." : "Salvar cliente"}
-          </button>
-          <Link href="/admin/clientes" style={secondaryButtonStyle}>
-            Cancelar
-          </Link>
-        </div>
+        <StickyActionBar>
+          <div className="admin-row">
+            <Link href="/admin/clientes" className="admin-button admin-button--secondary">
+              Cancelar
+            </Link>
+          </div>
+          <div className="admin-row">
+            <LoadingButton
+              type="submit"
+              isLoading={isSubmitting}
+              loadingLabel="Salvando..."
+            >
+              Salvar cliente
+            </LoadingButton>
+          </div>
+        </StickyActionBar>
       </form>
     </main>
   );
 }
 
-function Field({
-  label,
-  required,
-  fullWidth,
-  children,
-}: Readonly<{
-  label: string;
-  required?: boolean;
-  fullWidth?: boolean;
-  children: React.ReactNode;
-}>) {
-  return (
-    <label
-      style={{
-        display: "grid",
-        gap: 8,
-        gridColumn: fullWidth ? "1 / -1" : undefined,
-      }}
-    >
-      <span style={{ fontWeight: 600 }}>
-        {label}
-        {required ? <strong style={{ color: "var(--primary)" }}> *</strong> : null}
-      </span>
-      {children}
-    </label>
-  );
-}
-
-const inputStyle = {
-  height: 48,
-  padding: "0 14px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  width: "100%",
-  boxSizing: "border-box" as const,
-} as const;
-
-const primaryButtonStyle = {
-  height: 50,
-  padding: "0 20px",
-  borderRadius: 14,
-  border: 0,
-  background: "var(--primary)",
-  color: "#fff",
-  fontWeight: 700,
-  cursor: "pointer",
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const secondaryButtonStyle = {
-  height: 50,
-  padding: "0 20px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  color: "inherit",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const feedbackStyle = {
-  margin: 0,
-  padding: "14px 16px",
-  borderRadius: 14,
-  lineHeight: 1.6,
-} as const;
-
-const errorStyle = {
-  background: "rgba(181, 66, 31, 0.12)",
-  color: "var(--primary)",
-} as const;
-
-const successStyle = {
-  background: "rgba(43, 110, 82, 0.12)",
-  color: "#245844",
-} as const;
+const fieldLabelMap: Record<keyof CustomerFormState, string> = {
+  name: "Nome ou razao social",
+  document: "CPF ou CNPJ",
+  email: "E-mail",
+  phone: "Telefone",
+  whatsapp: "WhatsApp",
+  addressZipCode: "CEP",
+  addressStreet: "Rua",
+  addressNumber: "Numero",
+  addressDistrict: "Bairro",
+  addressCity: "Cidade",
+  addressState: "UF",
+  notes: "Observacoes",
+};

@@ -127,6 +127,8 @@ export class FinancialRepository {
     description: string;
     amount: number;
     dueDate: Date;
+    status?: "PENDING" | "PAID" | "OVERDUE" | "CANCELED";
+    paidAt?: Date | null;
     createdByUserId: string;
     items?: Array<{
       productId?: string;
@@ -149,6 +151,8 @@ export class FinancialRepository {
         description: input.description,
         amount: input.amount,
         dueDate: input.dueDate,
+        status: input.status,
+        paidAt: input.paidAt,
         createdByUserId: input.createdByUserId,
         items: input.items?.length
           ? {
@@ -200,6 +204,8 @@ export class FinancialRepository {
       description: string;
       amount: number;
       dueDate: Date;
+      status?: "PENDING" | "PAID" | "OVERDUE" | "CANCELED";
+      paidAt?: Date | null;
       items?: Array<{
         productId?: string;
         description: string;
@@ -229,6 +235,8 @@ export class FinancialRepository {
           description: input.description,
           amount: input.amount,
           dueDate: input.dueDate,
+          status: input.status,
+          paidAt: input.paidAt,
           items: input.items?.length
             ? {
                 create: input.items.map((item) => ({
@@ -264,6 +272,7 @@ export class FinancialRepository {
 const financialEntryInclude = {
   account: true,
   customer: true,
+  inventoryEntry: true,
   order: true,
   quote: true,
   financialCategory: true,

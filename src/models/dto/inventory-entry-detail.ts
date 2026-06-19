@@ -1,0 +1,38 @@
+export type InventoryEntryDetailDto = {
+  id: string;
+  companyId: string;
+  entryType: string;
+  supplierName?: string | null;
+  documentNumber: string;
+  entryDate: string;
+  notes?: string | null;
+  financialCondition: string;
+  financialAccountId?: string | null;
+  installmentCount: number;
+  firstDueDate?: string | null;
+  status: string;
+  subtotal: number;
+  totalAmount: number;
+  confirmedAt?: string | null;
+  canceledAt?: string | null;
+  cancelReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: Array<{
+    id: string;
+    productId: string;
+    productName: string;
+    description: string;
+    unit: string;
+    quantity: number;
+    unitCost: number;
+    subtotal: number;
+    previousCostPrice?: number | null;
+    previousSalePrice?: number | null;
+    suggestedSalePrice?: number | null;
+    estimatedMarginPercent?: number | null;
+    priceDecision?: string | null;
+    decisionJustification?: string | null;
+    customSalePrice?: number | null;
+  }>;
+};

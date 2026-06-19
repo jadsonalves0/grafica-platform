@@ -6,7 +6,7 @@ import { RoleForm } from "@/app/(admin)/admin/permissoes/_components/role-form";
 
 export default function NovaPermissaoPage() {
   return (
-    <main style={{ padding: 32, maxWidth: 1100, display: "grid", gap: 24 }}>
+    <main className="admin-page-stack admin-page-shell admin-page-shell--medium">
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div style={{ maxWidth: 760 }}>
           <p

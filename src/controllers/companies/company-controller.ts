@@ -7,6 +7,10 @@ type CompanyOutput = {
   legalName: string;
   tradeName: string;
   slug: string;
+  document?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  whatsapp?: string | null;
   status: string;
 };
 
@@ -27,6 +31,10 @@ export class CompanyController extends BaseController {
         legalName: company.legalName,
         tradeName: company.tradeName,
         slug: company.slug,
+        document: company.document,
+        email: company.email,
+        phone: company.phone,
+        whatsapp: company.whatsapp,
         status: company.status,
       });
     } catch (error) {

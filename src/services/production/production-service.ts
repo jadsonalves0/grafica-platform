@@ -127,43 +127,28 @@ export class ProductionService extends BaseService {
     const consumptions = product.recipeItems.map((item) => {
       const baseQuantity = quantityProduced * toNumber(item.quantityPerUnit);
       const quantityConsumed = roundQuantity(baseQuantity * (1 + toNumber(item.lossPercent) / 100));
-      const unitCost = roundCurrency(toNumber(item.materialProduct.costPrice));
-      const totalCost = roundCurrency(quantityConsumed * unitCost);
 
       return {
         materialProductId: item.materialProductId,
         materialName: item.materialProduct.name,
         availableStock: toNumber(item.materialProduct.currentStock),
         quantityConsumed,
-        unitCost,
-        totalCost,
       };
     });
-
-    for (const consumption of consumptions) {
-      if (consumption.availableStock < consumption.quantityConsumed) {
-        throw new Error(
-          `Estoque insuficiente para ${consumption.materialName}. Necessario ${consumption.quantityConsumed} e disponivel ${consumption.availableStock}.`,
-        );
-      }
-    }
-
-    const totalCost = roundCurrency(consumptions.reduce((sum, item) => sum + item.totalCost, 0));
-    const unitCost = roundCurrency(totalCost / quantityProduced);
 
     const production = await this.productionRepository.createProductionRecord({
       companyId: input.companyId,
       productId: input.productId,
+      orderId: input.orderId,
+      quantityPlanned: input.quantityPlanned ?? quantityProduced,
       quantityProduced,
-      totalCost,
-      unitCost,
+      lossQuantity: roundQuantity(input.lossQuantity ?? 0),
       notes: input.notes?.trim(),
       producedByUserId: tenantContext.userId,
+      responsibleUserId: input.responsibleUserId ?? tenantContext.userId,
       consumptions: consumptions.map((item) => ({
         materialProductId: item.materialProductId,
         quantityConsumed: item.quantityConsumed,
-        unitCost: item.unitCost,
-        totalCost: item.totalCost,
       })),
     });
 

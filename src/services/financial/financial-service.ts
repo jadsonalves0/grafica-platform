@@ -213,6 +213,8 @@ export class FinancialService extends BaseService {
       description: normalized.description,
       amount: normalized.amount,
       dueDate: normalized.dueDate,
+      status: normalized.status,
+      paidAt: normalized.paidAt,
       createdByUserId: tenantContext.userId,
       items: normalized.items,
     });
@@ -278,6 +280,8 @@ export class FinancialService extends BaseService {
       description: normalized.description,
       amount: normalized.amount,
       dueDate: normalized.dueDate,
+      status: normalized.status,
+      paidAt: normalized.paidAt,
       items: normalized.items,
     });
   }
@@ -326,12 +330,15 @@ export class FinancialService extends BaseService {
       (acc, entry) => {
         const amount = toNumber(entry.amount);
 
-        if (entry.entryType === "INCOME" && entry.status === "PAID") acc.paidIncome += amount;
-        if (entry.entryType === "EXPENSE" && entry.status === "PAID") acc.paidExpense += amount;
-        if (entry.entryType === "INCOME" && entry.status === "PENDING") acc.pendingIncome += amount;
-        if (entry.entryType === "EXPENSE" && entry.status === "PENDING") acc.pendingExpense += amount;
-        if (entry.entryType === "EXPENSE" && entry.status === "OVERDUE") acc.overdueExpense += amount;
-        if (entry.entryType === "INCOME" && entry.status === "OVERDUE") acc.overdueIncome += amount;
+        const behavesAsIncome = entry.entryType === "INCOME" || entry.entryType === "RECEIVABLE";
+        const behavesAsExpense = entry.entryType === "EXPENSE" || entry.entryType === "PAYABLE";
+
+        if (behavesAsIncome && entry.status === "PAID") acc.paidIncome += amount;
+        if (behavesAsExpense && entry.status === "PAID") acc.paidExpense += amount;
+        if (behavesAsIncome && entry.status === "PENDING") acc.pendingIncome += amount;
+        if (behavesAsExpense && entry.status === "PENDING") acc.pendingExpense += amount;
+        if (behavesAsExpense && entry.status === "OVERDUE") acc.overdueExpense += amount;
+        if (behavesAsIncome && entry.status === "OVERDUE") acc.overdueIncome += amount;
 
         return acc;
       },
@@ -369,11 +376,13 @@ export class FinancialService extends BaseService {
       throw new Error("Financial account not found.");
     }
 
+    let customerName: string | undefined;
     if (input.customerId) {
       const customer = await this.customerRepository.findById(companyId, input.customerId);
       if (!customer) {
         throw new Error("Customer not found.");
       }
+      customerName = customer.name;
     }
 
     if (input.orderId) {
@@ -424,9 +433,20 @@ export class FinancialService extends BaseService {
       quoteId: input.quoteId,
       entryType: input.entryType,
       category: categoryName,
-      description: input.description.trim(),
+      description: buildEntryDescription({
+        inputDescription: input.description?.trim(),
+        entryType: input.entryType,
+        categoryName,
+        customerName,
+        itemDescriptions: items.map((item) => item.description),
+      }),
       amount,
       dueDate: parseRequiredDate(input.dueDate),
+      status: input.status,
+      paidAt:
+        input.status === "PAID"
+          ? parseOptionalDate(input.paidAt) ?? new Date()
+          : null,
       items,
     };
   }
@@ -448,6 +468,20 @@ export class FinancialService extends BaseService {
         if (!product) {
           throw new Error("Product linked to the financial entry was not found.");
         }
+
+        const fallbackDescription = item.description.trim() || product.name;
+        const quantity = roundQuantity(item.quantity);
+        const unitPrice = roundCurrency(item.unitPrice);
+
+        normalizedItems.push({
+          productId: item.productId,
+          description: fallbackDescription,
+          quantity,
+          unitPrice,
+          totalPrice: roundCurrency(quantity * unitPrice),
+        });
+
+        continue;
       }
 
       const quantity = roundQuantity(item.quantity);
@@ -496,6 +530,32 @@ function parseOptionalDate(value?: string) {
   }
 
   return parsedDate;
+}
+
+function buildEntryDescription(input: {
+  inputDescription?: string;
+  entryType: "INCOME" | "EXPENSE";
+  categoryName: string;
+  customerName?: string;
+  itemDescriptions: string[];
+}) {
+  if (input.inputDescription) {
+    return input.inputDescription;
+  }
+
+  if (input.itemDescriptions.length) {
+    const firstItems = input.itemDescriptions.slice(0, 2).join(", ");
+    const suffix =
+      input.itemDescriptions.length > 2 ? ` e mais ${input.itemDescriptions.length - 2} item(ns)` : "";
+    const customerLabel = input.customerName ? ` para ${input.customerName}` : "";
+    return `Venda${customerLabel}: ${firstItems}${suffix}`;
+  }
+
+  if (input.customerName) {
+    return `${input.entryType === "INCOME" ? "Receita" : "Despesa"} de ${input.categoryName} para ${input.customerName}`;
+  }
+
+  return `${input.entryType === "INCOME" ? "Receita" : "Despesa"} de ${input.categoryName}`;
 }
 
 function toNumber(value: { toNumber(): number } | number) {

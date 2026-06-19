@@ -63,7 +63,11 @@ export class AuthSessionRepository {
     return {
       sessionId: session.id,
       userId: session.userId,
+      userName: session.user.name,
+      userEmail: session.user.email,
       companyId: session.companyId,
+      companyTradeName: session.company.tradeName,
+      companySlug: session.company.slug,
       isPlatformAdmin: session.user.isPlatformAdmin,
     };
   }

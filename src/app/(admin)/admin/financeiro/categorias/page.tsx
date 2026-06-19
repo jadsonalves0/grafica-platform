@@ -3,6 +3,18 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import {
+  Alert,
+  EmptyState,
+  FilterBar,
+  MetricCard,
+  PageHeader,
+  SearchField,
+  SectionCard,
+  Skeleton,
+  StatusBadge,
+} from "@/components/admin/ui";
+
 type FinancialCategory = {
   id: string;
   name: string;
@@ -58,7 +70,7 @@ export default function CategoriasFinanceirasPage() {
       }
     }
 
-    loadCategories();
+    void loadCategories();
 
     return () => controller.abort();
   }, []);
@@ -75,107 +87,108 @@ export default function CategoriasFinanceirasPage() {
     );
   }, [categories, search]);
 
-  return (
-    <main style={{ padding: 32, display: "grid", gap: 24 }}>
-      <section
-        style={{
-          display: "grid",
-          gap: 18,
-          padding: 28,
-          borderRadius: 28,
-          background: "linear-gradient(135deg, rgba(255,250,244,0.96) 0%, rgba(244,232,217,0.9) 100%)",
-          border: "1px solid var(--border)",
-          boxShadow: "0 18px 50px rgba(77, 39, 22, 0.08)",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
-          <div style={{ maxWidth: 760 }}>
-            <p style={eyebrowStyle}>Padronizacao financeira</p>
-            <h1 style={{ margin: "12px 0 10px", fontFamily: "var(--font-heading)", fontSize: 46 }}>
-              Categorias financeiras
-            </h1>
-            <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.7, fontSize: 18 }}>
-              Centralize as categorias de receita e despesa para manter os lancamentos coerentes e os relatorios limpos.
-            </p>
-          </div>
+  const stats = useMemo(() => {
+    const income = categories.filter((category) => category.type === "INCOME").length;
+    const expense = categories.filter((category) => category.type === "EXPENSE").length;
+    const active = categories.filter((category) => category.isActive).length;
 
-          <Link href="/admin/financeiro/categorias/nova" style={primaryButtonStyle}>
-            Nova categoria
-          </Link>
-        </div>
+    return [
+      { label: "Categorias", value: String(categories.length), description: "Base financeira ativa e historica." },
+      { label: "Receitas", value: String(income), description: "Classificacoes para entradas financeiras." },
+      { label: "Despesas", value: String(expense), description: "Classificacoes para saidas e custos." },
+      { label: "Ativas", value: String(active), description: "Disponiveis para novos lancamentos." },
+    ];
+  }, [categories]);
+
+  return (
+    <main className="admin-page-stack">
+      <PageHeader
+        breadcrumbs={[{ label: "Cadastros" }, { label: "Categorias financeiras" }]}
+        title="Categorias financeiras"
+        description="Centralize categorias de receita e despesa para manter lancamentos e relatorios mais coerentes."
+        primaryAction={{ href: "/admin/financeiro/categorias/nova", label: "Nova categoria" }}
+      />
+
+      <section className="admin-card-grid">
+        {stats.map((stat) => (
+          <MetricCard
+            key={stat.label}
+            label={stat.label}
+            value={stat.value}
+            description={stat.description}
+          />
+        ))}
       </section>
 
-      <section
-        style={{
-          display: "grid",
-          gap: 16,
-          padding: 24,
-          borderRadius: 24,
-          border: "1px solid var(--border)",
-          background: "var(--surface)",
-        }}
+      {errorMessage ? (
+        <Alert variant="danger" title="Nao foi possivel carregar as categorias.">
+          {errorMessage}
+        </Alert>
+      ) : null}
+
+      <SectionCard
+        title="Cadastro de categorias"
+        description="Use a mesma base para lancamentos avulsos, recebimentos e despesas operacionais."
       >
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
-          <div>
-            <h2 style={{ margin: 0 }}>Cadastro de categorias</h2>
-            <p style={{ margin: "6px 0 0", color: "var(--muted)", lineHeight: 1.6 }}>
-              Use a mesma base para lancamentos avulsos, recebimentos e despesas operacionais.
-            </p>
-          </div>
-
-          <input
+        <FilterBar
+          resultsCount={filteredCategories.length}
+          onClear={search ? () => setSearch("") : undefined}
+        >
+          <SearchField
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar categoria..."
-            style={{ ...inputStyle, width: "100%", maxWidth: 320 }}
+            onChange={setSearch}
+            placeholder="Buscar categoria"
+            label="Buscar categoria"
           />
-        </div>
-
-        {errorMessage ? <p style={{ ...feedbackStyle, ...errorStyle }}>{errorMessage}</p> : null}
+        </FilterBar>
 
         {isLoading ? (
-          <div style={emptyStateStyle}>Carregando categorias...</div>
+          <Skeleton lines={7} />
         ) : filteredCategories.length === 0 ? (
-          <div style={emptyStateStyle}>Nenhuma categoria encontrada.</div>
+          <EmptyState
+            title="Nenhuma categoria encontrada"
+            description="Cadastre a primeira categoria ou refine a busca."
+            action={{ href: "/admin/financeiro/categorias/nova", label: "Cadastrar categoria" }}
+          />
         ) : (
-          <div style={{ display: "grid", gap: 12 }}>
+          <div className="admin-list-stack">
             {filteredCategories.map((category) => (
-              <article
-                key={category.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 0.7fr) minmax(0, 0.7fr) auto",
-                  gap: 16,
-                  alignItems: "center",
-                  padding: 18,
-                  borderRadius: 18,
-                  border: "1px solid var(--border)",
-                  background: "rgba(255,255,255,0.82)",
-                }}
-              >
-                <div>
-                  <strong style={{ display: "block", marginBottom: 6 }}>{category.name}</strong>
-                  <span style={{ color: "var(--muted)" }}>
-                    Atualizada em {formatDate(category.updatedAt)}
-                  </span>
+              <article key={category.id} className="admin-list-card">
+                <div className="admin-list-card__header">
+                  <div className="admin-list-card__heading">
+                    <strong className="admin-list-card__title">{category.name}</strong>
+                    <span className="admin-list-card__subtitle">
+                      Atualizada em {formatDate(category.updatedAt)}
+                    </span>
+                  </div>
+                  <div className="admin-row">
+                    <StatusBadge
+                      status={category.type === "INCOME" ? "Receita" : "Despesa"}
+                      tone={category.type === "INCOME" ? "success" : "danger"}
+                    />
+                    <StatusBadge
+                      status={category.isActive ? "Ativa" : "Inativa"}
+                      tone={category.isActive ? "success" : "neutral"}
+                    />
+                  </div>
                 </div>
 
-                <span style={typeBadgeStyle(category.type)}>
-                  {category.type === "INCOME" ? "Receita" : "Despesa"}
-                </span>
-
-                <span style={statusBadgeStyle(category.isActive)}>
-                  {category.isActive ? "Ativa" : "Inativa"}
-                </span>
-
-                <Link href={`/admin/financeiro/categorias/${category.id}`} style={miniButtonStyle}>
-                  Editar
-                </Link>
+                <div className="admin-list-card__footer">
+                  <span className="admin-list-card__hint">
+                    Revise tipo, disponibilidade e nomenclatura antes de usar em novos lancamentos.
+                  </span>
+                  <Link
+                    href={`/admin/financeiro/categorias/${category.id}`}
+                    className="admin-button admin-button--secondary"
+                  >
+                    Editar categoria
+                  </Link>
+                </div>
               </article>
             ))}
           </div>
         )}
-      </section>
+      </SectionCard>
     </main>
   );
 }
@@ -186,92 +199,3 @@ function formatDate(value: string) {
     timeStyle: "short",
   }).format(new Date(value));
 }
-
-function typeBadgeStyle(type: "INCOME" | "EXPENSE") {
-  return {
-    padding: "10px 12px",
-    borderRadius: 999,
-    background: type === "INCOME" ? "rgba(43, 110, 82, 0.12)" : "rgba(181, 66, 31, 0.12)",
-    color: type === "INCOME" ? "#245844" : "var(--primary)",
-    fontWeight: 700,
-    textAlign: "center" as const,
-  };
-}
-
-function statusBadgeStyle(isActive: boolean) {
-  return {
-    padding: "10px 12px",
-    borderRadius: 999,
-    background: isActive ? "rgba(43, 110, 82, 0.12)" : "rgba(117, 117, 117, 0.18)",
-    color: isActive ? "#245844" : "#4d4d4d",
-    fontWeight: 700,
-    textAlign: "center" as const,
-  };
-}
-
-const eyebrowStyle = {
-  margin: 0,
-  color: "var(--primary)",
-  textTransform: "uppercase",
-  letterSpacing: "0.14em",
-  fontSize: 12,
-  fontWeight: 700,
-} as const;
-
-const inputStyle = {
-  height: 48,
-  padding: "0 14px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  boxSizing: "border-box" as const,
-} as const;
-
-const primaryButtonStyle = {
-  height: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: 0,
-  background: "var(--primary)",
-  color: "#fff",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const miniButtonStyle = {
-  height: 42,
-  padding: "0 16px",
-  borderRadius: 14,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  color: "inherit",
-  fontWeight: 700,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-} as const;
-
-const feedbackStyle = {
-  margin: 0,
-  padding: "14px 16px",
-  borderRadius: 14,
-  lineHeight: 1.6,
-} as const;
-
-const errorStyle = {
-  background: "rgba(181, 66, 31, 0.12)",
-  color: "var(--primary)",
-} as const;
-
-const emptyStateStyle = {
-  padding: 24,
-  borderRadius: 18,
-  border: "1px dashed var(--border)",
-  background: "rgba(255,255,255,0.6)",
-  color: "var(--muted)",
-  textAlign: "center" as const,
-} as const;

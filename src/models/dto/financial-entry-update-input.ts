@@ -3,9 +3,11 @@ export type FinancialEntryUpdateInputDto = {
   financialCategoryId?: string;
   entryType: "INCOME" | "EXPENSE";
   category: string;
-  description: string;
+  description?: string;
   amount: number;
   dueDate: string;
+  status?: "PENDING" | "PAID" | "OVERDUE" | "CANCELED";
+  paidAt?: string;
   customerId?: string;
   orderId?: string;
   quoteId?: string;

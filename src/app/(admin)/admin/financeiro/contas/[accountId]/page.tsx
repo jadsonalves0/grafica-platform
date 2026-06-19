@@ -65,7 +65,7 @@ export default function EditarContaFinanceiraPage() {
 
   if (isLoading) {
     return (
-      <main style={{ padding: 32 }}>
+      <main className="admin-page-stack admin-page-shell admin-page-shell--narrow">
         <section style={loadingPanelStyle}>
           <strong>Carregando conta...</strong>
           <span style={{ color: "var(--muted)" }}>Estamos trazendo os dados financeiros.</span>
@@ -75,7 +75,7 @@ export default function EditarContaFinanceiraPage() {
   }
 
   return (
-    <main style={{ padding: 32, maxWidth: 980, display: "grid", gap: 24 }}>
+    <main className="admin-page-stack admin-page-shell admin-page-shell--narrow">
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div style={{ maxWidth: 760 }}>
           <p

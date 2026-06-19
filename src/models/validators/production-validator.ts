@@ -16,6 +16,10 @@ export const updateProductRecipeSchema = z.object({
 export const createProductionSchema = z.object({
   companyId: z.string().uuid(),
   productId: z.string().uuid(),
+  orderId: z.string().uuid().optional(),
+  quantityPlanned: z.coerce.number().positive().optional(),
   quantityProduced: z.coerce.number().positive(),
+  lossQuantity: z.coerce.number().nonnegative().optional(),
+  responsibleUserId: z.string().uuid().optional(),
   notes: z.string().max(1000).optional(),
 });

@@ -1,111 +1,170 @@
-# Operacao, Producao e Relatorios
+# Operacao, producao e relatorios
 
-## Producao de itens
+## Fluxo operacional atual
 
-O modulo de producao foi pensado para produtos finais que dependem de materias-primas ou semiacabados.
+O fluxo principal da plataforma deve ser lido assim:
 
-### Fluxo recomendado
+1. cliente
+2. orcamento
+3. pedido
+4. venda
+5. estoque
+6. financeiro
+7. relatorios
 
-1. cadastrar o item no estoque com tipo `Produto final`
-2. abrir a tela de `Composicao`
-3. montar a ficha tecnica informando:
-   - item consumido
-   - quantidade por unidade produzida
-   - percentual de perda
-   - observacoes operacionais
-4. abrir a tela de `Producao`
-5. informar a quantidade produzida
-6. confirmar o apontamento
+O financeiro nao e mais o caminho principal para registrar venda. A venda deve nascer em `Vendas`, enquanto o financeiro acompanha os efeitos gerados pelas operacoes.
 
-### O que o sistema faz ao registrar a producao
+Os formularios de `Orcamentos` e `Pedidos` ja seguem uma organizacao mais operacional:
 
-- calcula o consumo previsto da receita
-- verifica saldo disponivel das materias-primas
-- baixa automaticamente o estoque consumido
-- gera entrada automatica do produto final
-- recalcula o custo unitario do produto final com base no lote
-- grava historico de consumo por material
+- informacoes principais no topo
+- itens em bloco proprio
+- observacoes no final
+- resumo lateral ou final de revisao
+- barra fixa com a acao principal
 
-## Financeiro reestruturado
+As telas de apoio e gestao agora seguem o mesmo shell visual:
 
-O financeiro agora trabalha com tres camadas:
+- `grupos de itens`
+- `usuarios`
+- `perfis e permissoes`
+- `auditoria`
+- `empresa`
+- `parametros`
 
-1. `contas financeiras`
-   - caixa
-   - banco
-   - carteira digital
+## Vendas e financeiro
 
-2. `categorias financeiras`
-   - receita
-   - despesa
+### Vendas
 
-3. `lancamentos`
-   - simples
-   - venda avulsa com itens
-   - despesa avulsa
+A tela de `Vendas` concentra o registro operacional da venda com itens:
 
-### Venda avulsa com itens
-
-Quando o usuario ativa a opcao de venda avulsa com itens:
-
-- o valor total passa a ser calculado pelos itens
-- os produtos podem ser pesquisados pelo catalogo
-- a descricao e o valor ainda podem ser ajustados no contexto do lancamento
-
-## Relatorios disponiveis
-
-A tela de relatorios consolida:
-
-- clientes
-- leads
-- orcamentos
-- pedidos
-- itens e estoque
-- movimentacoes
-- producoes
-- lancamentos financeiros
-
-### Exportacoes
-
-Cada bloco pode ser exportado em CSV para:
-
-- analise externa
-- envio ao contador
-- conferencia operacional
-- backup gerencial rapido
-
-## Leitura operacional minima do piloto
-
-### Comercial
-
-- leads novos
-- orcamentos aprovados
-- pedidos em aberto
-
-### Operacao
-
-- itens com estoque em reposicao
-- produtos finais com composicao pronta
-- producoes recentes
+- selecao de cliente
+- inclusao de itens
+- busca por nome, SKU, EAN e grupo
+- descontos
+- totais
+- conclusao da venda
+- bloco final de sucesso com proxima acao
+- alerta de alteracoes nao salvas
 
 ### Financeiro
 
-- receita pendente
-- despesa pendente
-- despesa vencida
-- vendas avulsas com itens
+O modulo financeiro deve ser entendido como leitura e tratamento dos efeitos financeiros:
 
-## Pendencias naturais da proxima fase
+- `A receber`
+- `A pagar`
+- `Caixa e bancos`
 
-- relatorios com filtros por periodo
-- exportacao em PDF
-- dashboards com graficos
-- apontamento de producao a partir de pedido
-- baixa financeira automatica a partir de regras comerciais
+Quando existir origem automatica, a tela deve deixar claro:
 
-## Ajustes operacionais consolidados
+- `Origem: Venda`
+- `Origem: Entrada`
+- `Origem: Pedido`
+- `Origem: Orcamento`
 
-- a movimentacao de estoque passa a respeitar a troca real do item selecionado, inclusive quando a tela e aberta a partir de outro cadastro
-- o cadastro de pedido oferece cadastro rapido de cliente quando a busca nao encontra o registro
-- a tela financeira usa categorias vindas de cadastro previo e aceita venda avulsa com itens associados
-- o administrativo do site agora permite manter servicos e banners ja cadastrados sem recriar tudo do zero
+Lancamento manual continua existindo, mas como excecao operacional.
+
+## Entradas de estoque
+
+A tela de `Entradas` trabalha em tres etapas:
+
+1. `Documento`
+2. `Itens`
+3. `Financeiro e revisao`
+
+O objetivo dessa estrutura e:
+
+- reduzir erro de preenchimento
+- preservar os dados ao navegar entre etapas
+- deixar o impacto financeiro e de estoque visivel antes da confirmacao
+
+## Producao
+
+O modulo de producao continua separado da composicao.
+
+### Fluxo recomendado
+
+1. cadastrar o item final
+2. montar a composicao
+3. revisar disponibilidade de materiais
+4. iniciar a producao
+5. concluir a producao
+
+### Informacoes esperadas na tela
+
+- pedido relacionado, quando houver
+- produto
+- quantidade
+- materiais necessarios
+- disponibilidade
+- responsavel
+- status
+- acao principal
+- impedimento explicito quando faltar material
+
+Custos detalhados, historico, consumo e auditoria devem aparecer em camadas secundarias da interface.
+
+## Relatorios
+
+Os relatorios estao sendo consolidados para um mesmo padrao:
+
+- titulo
+- descricao
+- periodo
+- filtros
+- resumo
+- tabela
+- exportacao
+- paginacao
+
+### Categorias de navegacao
+
+- Comercial
+- Vendas
+- Estoque
+- Producao
+- Financeiro
+- Leads
+
+### Comportamentos esperados
+
+- filtros preservados ao voltar
+- filtros na URL
+- estado vazio orientando o usuario
+- carregamento visivel
+- exportacao com feedback
+- bloqueio de clique duplicado na exportacao
+
+## O que validar na homologacao
+
+### Operacao comercial
+
+- cliente criado e editado sem perder dados
+- orcamento aprovado
+- pedido criado a partir de orcamento
+- venda concluida com feedback claro
+
+### Operacao e estoque
+
+- entrada confirmada com revisao final
+- movimentacao administrativa com motivo
+- producao com disponibilidade de material
+
+### Financeiro
+
+- leitura clara de contas a receber
+- leitura clara de contas a pagar
+- origem clicavel quando houver vinculo operacional
+
+### Gestao
+
+- relatorios com filtros coerentes
+- exportacao CSV com feedback
+
+## Pendencias visuais reais
+
+Na fase atual, os principais pontos ainda sujeitos a refinamento sao:
+
+- formularios longos de `vendas` e `financeiro`
+- rodada final de responsividade e acessibilidade nos fluxos mais densos
+- cobertura automatizada inicial de interface antes da homologacao ampla
+- validacao do reflexo de estoque das vendas fisicas na base local
