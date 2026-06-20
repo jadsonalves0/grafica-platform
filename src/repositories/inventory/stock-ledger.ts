@@ -168,6 +168,24 @@ export async function registerOutputStockByFifo(tx: Tx, input: OutputStockParams
     };
   }
 
+  await tx.$queryRaw`
+    SELECT id
+    FROM products
+    WHERE id = ${input.productId}
+      AND company_id = ${input.companyId}
+    FOR UPDATE
+  `;
+
+  await tx.$queryRaw`
+    SELECT id
+    FROM stock_layers
+    WHERE company_id = ${input.companyId}
+      AND product_id = ${input.productId}
+      AND available_quantity > 0
+    ORDER BY entry_date ASC, created_at ASC
+    FOR UPDATE
+  `;
+
   const layers = await tx.stockLayer.findMany({
     where: {
       companyId: input.companyId,
@@ -178,6 +196,9 @@ export async function registerOutputStockByFifo(tx: Tx, input: OutputStockParams
     },
     orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }],
   });
+  const availableQuantity = roundQuantity(
+    layers.reduce((sum, layer) => sum + toNumber(layer.availableQuantity), 0),
+  );
 
   let remainingQuantity = quantity;
   let totalCost = 0;
@@ -210,7 +231,12 @@ export async function registerOutputStockByFifo(tx: Tx, input: OutputStockParams
   }
 
   if (remainingQuantity > 0 && !effectiveAllowNegativeStock) {
-    throw new Error("Estoque insuficiente para concluir a saida pelo criterio FIFO.");
+    throw new Error(
+      [
+        `O item ${product.name} possui ${formatQuantity(availableQuantity)} ${product.unit} disponivel(is) pelo controle FIFO, mas a operacao solicita ${formatQuantity(quantity)} ${product.unit}.`,
+        "Revise o estoque, confirme uma entrada pendente ou reduza a quantidade solicitada.",
+      ].join(" "),
+    );
   }
 
   if (remainingQuantity > 0) {
@@ -376,4 +402,11 @@ export function toNumber(value: { toNumber(): number } | number) {
 export function normalizeEmpty(value?: string | null) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function formatQuantity(value: number) {
+  return new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 3,
+  }).format(value);
 }

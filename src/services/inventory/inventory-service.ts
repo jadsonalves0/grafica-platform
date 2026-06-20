@@ -245,6 +245,10 @@ export class InventoryService extends BaseService {
     companyId: string,
     search?: string,
     categoryId?: string,
+    options?: {
+      onlyActive?: boolean;
+      limit?: number;
+    },
   ) {
     const tenantContext = this.requireContext(context);
     this.authorizationService.ensurePermission(context.permissions, PERMISSIONS.inventoryView);
@@ -257,6 +261,7 @@ export class InventoryService extends BaseService {
       companyId,
       search?.trim() || undefined,
       categoryId,
+      options,
     );
   }
 

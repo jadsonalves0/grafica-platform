@@ -8,6 +8,7 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from "@/components/forms/searchable-select";
+import { MoneyInput, QuantityInput } from "@/components/forms/number-inputs";
 import {
   Alert,
   EmptyState,
@@ -19,8 +20,6 @@ import {
   StatusBadge,
 } from "@/components/admin/ui";
 import {
-  formatCurrencyInput,
-  normalizeDecimalInput,
   normalizeReferenceInput,
   parseCurrencyInput,
   parseDecimalInput,
@@ -32,6 +31,8 @@ type ProductOption = {
   sku?: string | null;
   barcode?: string | null;
   currentStock: number;
+  availableStock: number;
+  hasStockMismatch: boolean;
   unit: string;
 };
 
@@ -143,7 +144,8 @@ export default function MovimentarEstoquePage() {
       product.sku ? `SKU ${product.sku}` : "Sem SKU",
       product.barcode ? `EAN ${product.barcode}` : "Sem EAN",
       product.unit,
-      `Saldo ${formatNumber(product.currentStock)}`,
+      `Vendavel ${formatNumber(product.availableStock)}`,
+      `Registrado ${formatNumber(product.currentStock)}`,
     ].join(" | "),
     keywords: [product.sku ?? "", product.barcode ?? "", product.unit],
   }));
@@ -188,7 +190,7 @@ export default function MovimentarEstoquePage() {
           ? requestedProductId
           : form.productId && productList.some((product) => product.id === form.productId)
             ? form.productId
-            : productList[0]?.id ?? "";
+            : "";
 
       setProducts(productList);
       setMovements(movementsResult.data);
@@ -365,7 +367,8 @@ export default function MovimentarEstoquePage() {
                       <span className="admin-list-card__subtitle">
                         {selectedProduct.sku ? `SKU ${selectedProduct.sku} | ` : ""}
                         {selectedProduct.barcode ? `EAN ${selectedProduct.barcode} | ` : ""}
-                        {selectedProduct.unit} | Saldo atual {formatNumber(selectedProduct.currentStock)}
+                        {selectedProduct.unit} | Saldo vendavel {formatNumber(selectedProduct.availableStock)} | Saldo registrado{" "}
+                        {formatNumber(selectedProduct.currentStock)}
                       </span>
                     </div>
                     <Link href={`/admin/estoque/${selectedProduct.id}`} className="admin-button admin-button--ghost">
@@ -373,6 +376,13 @@ export default function MovimentarEstoquePage() {
                     </Link>
                   </div>
                 </div>
+              ) : null}
+
+              {selectedProduct?.hasStockMismatch ? (
+                <Alert variant="warning" title="Saldo em regularizacao">
+                  O saldo registrado do item nao coincide com o saldo vendavel por FIFO. Revise as entradas e a
+                  regularizacao administrativa antes de usar este item como referencia operacional.
+                </Alert>
               ) : null}
 
               <Field label="Item" required>
@@ -383,6 +393,7 @@ export default function MovimentarEstoquePage() {
                   placeholder="Pesquisar item por nome, SKU ou EAN"
                   emptyMessage="Nenhum item cadastrado encontrado."
                   disabled={isLoading}
+                  clearable
                 />
               </Field>
 
@@ -414,20 +425,18 @@ export default function MovimentarEstoquePage() {
                 </Field>
 
                 <Field label="Quantidade" required>
-                  <input
+                  <QuantityInput
                     value={form.quantity}
-                    onChange={(event) => updateField("quantity", normalizeDecimalInput(event.target.value))}
-                    inputMode="decimal"
+                    onChange={(value) => updateField("quantity", value)}
                     className="admin-input"
                     placeholder="1"
                   />
                 </Field>
 
                 <Field label="Custo unitario">
-                  <input
+                  <MoneyInput
                     value={form.unitCost}
-                    onChange={(event) => updateField("unitCost", formatCurrencyInput(event.target.value))}
-                    inputMode="numeric"
+                    onChange={(value) => updateField("unitCost", value)}
                     className="admin-input"
                     placeholder="0,00"
                   />

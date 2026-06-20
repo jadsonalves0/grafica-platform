@@ -14,8 +14,8 @@ import {
   StickyActionBar,
   StatusBadge,
 } from "@/components/admin/ui";
+import { MoneyInput, PercentageInput, QuantityInput } from "@/components/forms/number-inputs";
 import {
-  formatCurrencyInput,
   isValidGtin,
   normalizeDecimalInput,
   normalizeGtinInput,
@@ -388,10 +388,9 @@ export function ProductForm({
             </Field>
 
             <Field label="Preco de venda atual (R$)">
-              <input
+              <MoneyInput
                 value={form.salePrice}
-                onChange={(event) => updateField("salePrice", formatCurrencyInput(event.target.value))}
-                inputMode="numeric"
+                onChange={(value) => updateField("salePrice", value)}
                 className="admin-input"
               />
             </Field>
@@ -417,21 +416,17 @@ export function ProductForm({
         >
           <div style={twoColumnGridStyle}>
             <Field label="Custo de referencia (R$)">
-              <input
+              <MoneyInput
                 value={form.costPrice}
-                onChange={(event) => updateField("costPrice", formatCurrencyInput(event.target.value))}
-                inputMode="numeric"
+                onChange={(value) => updateField("costPrice", value)}
                 className="admin-input"
               />
             </Field>
 
             <Field label="Estoque minimo">
-              <input
+              <QuantityInput
                 value={form.minimumStock}
-                onChange={(event) =>
-                  updateField("minimumStock", normalizeDecimalInput(event.target.value))
-                }
-                inputMode="decimal"
+                onChange={(value) => updateField("minimumStock", value)}
                 className="admin-input"
               />
             </Field>
@@ -444,10 +439,9 @@ export function ProductForm({
                   : "Opcional. Pode ser usada para orientar revisao de preco."
               }
             >
-              <input
+              <PercentageInput
                 value={form.desiredMargin}
-                onChange={(event) => updateField("desiredMargin", normalizeDecimalInput(event.target.value))}
-                inputMode="decimal"
+                onChange={(value) => updateField("desiredMargin", value)}
                 className="admin-input"
                 placeholder={selectedGroup?.defaultMargin ? `${selectedGroup.defaultMargin.toFixed(2).replace(".", ",")}` : "Ex.: 35"}
               />

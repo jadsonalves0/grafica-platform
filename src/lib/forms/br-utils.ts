@@ -180,50 +180,73 @@ export function isValidEmail(value: string) {
 }
 
 export function formatCurrencyInput(value: string | number) {
-  const digits = String(value).replace(/\D/g, "");
-  const normalized = digits ? Number(digits) / 100 : 0;
+  if (typeof value === "number") {
+    return formatLocalizedNumber(value, { scale: 2, fixedScale: true });
+  }
 
-  return new Intl.NumberFormat("pt-BR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(normalized);
+  return normalizeLocalizedNumberInput(value, { scale: 2 });
 }
 
 export function formatCurrencyValue(value: number) {
-  return new Intl.NumberFormat("pt-BR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value || 0);
+  return formatLocalizedNumber(value, { scale: 2, fixedScale: true });
+}
+
+export function formatCurrencyDisplay(value: string | number) {
+  const parsed = typeof value === "number" ? value : parseCurrencyInput(value);
+  return `R$ ${formatLocalizedNumber(parsed, { scale: 2, fixedScale: true })}`;
+}
+
+export function canonicalizeCurrencyInput(value: string) {
+  return canonicalizeLocalizedNumberInput(value, { scale: 2, fixedScale: true });
 }
 
 export function parseCurrencyInput(value: string) {
-  const normalized = value.replace(/\./g, "").replace(",", ".");
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return parseLocalizedNumberInput(value, { scale: 2 });
 }
 
 export function normalizeDecimalInput(value: string, decimalPlaces = 3) {
-  const prepared = value.replace(/\./g, ",").replace(/[^\d,]/g, "");
-  if (!prepared) {
-    return "";
-  }
-
-  const [integerPartRaw, ...decimalParts] = prepared.split(",");
-  const integerPart = integerPartRaw.replace(/^0+(?=\d)/, "");
-  const safeInteger = integerPart || (integerPartRaw ? "0" : "");
-
-  if (decimalParts.length === 0) {
-    return safeInteger;
-  }
-
-  const decimals = decimalParts.join("").slice(0, decimalPlaces);
-  return `${safeInteger},${decimals}`;
+  return normalizeLocalizedNumberInput(value, { scale: decimalPlaces });
 }
 
 export function parseDecimalInput(value: string) {
-  const normalized = value.replace(/\./g, "").replace(",", ".");
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return parseLocalizedNumberInput(value, { scale: 6 });
+}
+
+export function formatDecimalValue(
+  value: number,
+  decimalPlaces = 3,
+  fixedScale = false,
+) {
+  return formatLocalizedNumber(value, { scale: decimalPlaces, fixedScale });
+}
+
+export function canonicalizeDecimalInput(
+  value: string,
+  decimalPlaces = 3,
+  fixedScale = false,
+) {
+  return canonicalizeLocalizedNumberInput(value, { scale: decimalPlaces, fixedScale });
+}
+
+export function normalizePercentageInput(value: string) {
+  return normalizeLocalizedNumberInput(value, { scale: 2 });
+}
+
+export function parsePercentageInput(value: string) {
+  return parseLocalizedNumberInput(value, { scale: 4 });
+}
+
+export function formatPercentageValue(value: number, fixedScale = true) {
+  return formatLocalizedNumber(value, { scale: 2, fixedScale });
+}
+
+export function formatPercentageDisplay(value: string | number) {
+  const parsed = typeof value === "number" ? value : parsePercentageInput(value);
+  return `${formatLocalizedNumber(parsed, { scale: 2, fixedScale: true })}%`;
+}
+
+export function canonicalizePercentageInput(value: string) {
+  return canonicalizeLocalizedNumberInput(value, { scale: 2, fixedScale: true });
 }
 
 export function normalizeSkuInput(value: string) {
@@ -278,4 +301,155 @@ export function normalizeSlugInput(value: string) {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 80);
+}
+
+type LocalizedNumberOptions = {
+  scale: number;
+  fixedScale?: boolean;
+  allowNegative?: boolean;
+};
+
+function normalizeLocalizedNumberInput(value: string, options: LocalizedNumberOptions) {
+  const parts = splitLocalizedNumber(value, options);
+
+  if (!parts.integer && !parts.decimals && !parts.hasSeparator) {
+    return "";
+  }
+
+  return joinLocalizedNumber(parts, options.scale);
+}
+
+function canonicalizeLocalizedNumberInput(value: string, options: LocalizedNumberOptions) {
+  const normalized = normalizeLocalizedNumberInput(value, options);
+
+  if (!normalized) {
+    return "";
+  }
+
+  return formatLocalizedNumber(parseLocalizedNumberInput(normalized, options), {
+    scale: options.scale,
+    fixedScale: options.fixedScale,
+  });
+}
+
+function parseLocalizedNumberInput(value: string, options: LocalizedNumberOptions) {
+  const normalized = normalizeLocalizedNumberInput(value, options);
+
+  if (!normalized) {
+    return 0;
+  }
+
+  const negative = normalized.startsWith("-");
+  const unsigned = negative ? normalized.slice(1) : normalized;
+  const [integerPart = "0", decimals = ""] = unsigned.split(",");
+  const parsed = Number(`${negative ? "-" : ""}${integerPart}.${decimals}`);
+
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatLocalizedNumber(value: number, options: LocalizedNumberOptions) {
+  return new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: options.fixedScale ? options.scale : 0,
+    maximumFractionDigits: options.scale,
+  }).format(value || 0);
+}
+
+function splitLocalizedNumber(value: string, options: LocalizedNumberOptions) {
+  const scale = Math.max(options.scale, 0);
+  const raw = String(value ?? "").trim();
+
+  if (!raw) {
+    return {
+      negative: false,
+      integer: "",
+      decimals: "",
+      hasSeparator: false,
+    };
+  }
+
+  let sanitized = raw
+    .replace(/\s+/g, "")
+    .replace(/R\$/gi, "")
+    .replace(/%/g, "")
+    .replace(/[^\d,.\-]/g, "");
+
+  const negative = options.allowNegative ? sanitized.startsWith("-") : false;
+  sanitized = sanitized.replace(/-/g, "");
+
+  if (!sanitized) {
+    return {
+      negative,
+      integer: "",
+      decimals: "",
+      hasSeparator: false,
+    };
+  }
+
+  const lastComma = sanitized.lastIndexOf(",");
+  const lastDot = sanitized.lastIndexOf(".");
+  const decimalIndex = resolveDecimalIndex(sanitized, lastComma, lastDot, scale);
+
+  const integerSource = decimalIndex >= 0 ? sanitized.slice(0, decimalIndex) : sanitized;
+  const decimalSource = decimalIndex >= 0 ? sanitized.slice(decimalIndex + 1) : "";
+  const integerDigits = integerSource.replace(/[^\d]/g, "");
+  const normalizedInteger =
+    integerDigits.replace(/^0+(?=\d)/, "") || (integerDigits || decimalSource ? "0" : "");
+
+  return {
+    negative,
+    integer: normalizedInteger,
+    decimals: decimalSource.replace(/[^\d]/g, "").slice(0, scale),
+    hasSeparator: decimalIndex >= 0,
+  };
+}
+
+function resolveDecimalIndex(value: string, lastComma: number, lastDot: number, scale: number) {
+  if (lastComma >= 0 && lastDot >= 0) {
+    return Math.max(lastComma, lastDot);
+  }
+
+  const separatorIndex = Math.max(lastComma, lastDot);
+  if (separatorIndex < 0) {
+    return -1;
+  }
+
+  const separator = value[separatorIndex];
+  const occurrences = value.split(separator).length - 1;
+  const digitsAfter = value.length - separatorIndex - 1;
+
+  if (digitsAfter === 0) {
+    return separatorIndex;
+  }
+
+  if (occurrences > 1) {
+    return digitsAfter <= scale ? separatorIndex : -1;
+  }
+
+  if (digitsAfter <= scale) {
+    return separatorIndex;
+  }
+
+  if (digitsAfter === 3 && scale === 2) {
+    return -1;
+  }
+
+  return -1;
+}
+
+function joinLocalizedNumber(
+  parts: {
+    negative: boolean;
+    integer: string;
+    decimals: string;
+    hasSeparator: boolean;
+  },
+  scale: number,
+) {
+  const signal = parts.negative ? "-" : "";
+
+  if (!parts.hasSeparator || scale === 0) {
+    return `${signal}${parts.integer}`;
+  }
+
+  return `${signal}${parts.integer},${parts.decimals}`;
 }

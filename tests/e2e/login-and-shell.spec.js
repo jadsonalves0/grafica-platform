@@ -33,10 +33,10 @@ test("login administrativo e shell principal", async ({ page }, testInfo) => {
     expect(collapsedWidth).toBeGreaterThanOrEqual(64);
     expect(collapsedWidth).toBeLessThanOrEqual(72);
 
-    const compactSalesLink = page.getByRole("link", { name: "Vendas" });
-    await expect(compactSalesLink).toBeVisible();
-    await compactSalesLink.hover();
-    await expect(page.locator(".admin-sidebar__tooltip", { hasText: "Vendas" }).first()).toBeVisible();
+    const compactCommercialLink = page.getByRole("link", { name: "Comercial" });
+    await expect(compactCommercialLink).toBeVisible();
+    await compactCommercialLink.hover();
+    await expect(page.locator(".admin-sidebar__tooltip", { hasText: "Comercial" }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Expandir menu lateral" })).toBeVisible();
 
     await page.screenshot({ path: testInfo.outputPath("shell-collapsed-desktop.png"), fullPage: false });
@@ -54,7 +54,7 @@ test("login administrativo e shell principal", async ({ page }, testInfo) => {
     await expect(menuButton).toBeVisible();
     await menuButton.click();
     const drawer = page.getByRole("dialog");
-    await expect(drawer.getByText("Website")).toBeVisible();
+    await expect(drawer.getByText("Meu site")).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("shell-mobile-drawer.png"), fullPage: false });
     await page.keyboard.press("Escape");
     await expect(drawer).toBeHidden();

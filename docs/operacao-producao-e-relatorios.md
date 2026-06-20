@@ -39,12 +39,16 @@ A tela de `Vendas` concentra o registro operacional da venda com itens:
 
 - selecao de cliente
 - inclusao de itens
-- busca por nome, SKU, EAN e grupo
+- busca sob demanda por nome, SKU, EAN e grupo
+- foco inicial em pesquisa, sem carregar o catalogo inteiro na abertura
 - descontos
 - totais
 - conclusao da venda
+- carrinho lateral fixo no desktop
+- preco do item do catalogo somente leitura no carrinho
 - saida automatica de estoque para itens fisicos
 - bloqueio por saldo insuficiente quando estoque negativo estiver desabilitado
+- validacao do saldo usando a mesma disponibilidade FIFO exibida na tela
 - bloco final de sucesso com proxima acao
 - alerta de alteracoes nao salvas
 
@@ -80,6 +84,13 @@ O objetivo dessa estrutura e:
 - reduzir erro de preenchimento
 - preservar os dados ao navegar entre etapas
 - deixar o impacto financeiro e de estoque visivel antes da confirmacao
+
+O custo unitario e os demais campos monetarios agora seguem um padrao compartilhado de digitacao:
+
+- aceita `10,00`, `10,05`, `100,50`
+- aceita colagem com `R$` e com ponto decimal
+- preserva o valor ao voltar de etapa
+- formata no blur sem atrapalhar a digitacao
 
 ## Producao
 
@@ -150,9 +161,12 @@ Os relatorios estao sendo consolidados para um mesmo padrao:
 ### Operacao e estoque
 
 - entrada confirmada com revisao final
+- custo unitario aceitando moeda em `pt-BR` sem travar zeros
 - movimentacao administrativa com motivo
+- movimentacao permitindo trocar o item antes de registrar
 - producao com disponibilidade de material
 - venda fisica reduzindo saldo e gerando rastro em movimentacoes
+- venda fisica usando o mesmo saldo FIFO mostrado na tela
 
 ### Financeiro
 
@@ -172,4 +186,19 @@ Na fase atual, os principais pontos ainda sujeitos a refinamento sao:
 - formularios longos de `vendas` e `financeiro`
 - rodada final de responsividade e acessibilidade nos fluxos mais densos
 - cobertura automatizada inicial de interface antes da homologacao ampla
-- validacao manual final do reflexo de estoque das vendas fisicas na base local de homologacao
+- regularizacao administrativa dos itens que ainda possuem saldo registrado sem camada FIFO correspondente
+
+## Diagnostico de saldo e FIFO
+
+O projeto agora possui um diagnostico dedicado:
+
+- `npm run inventory:diagnose`
+
+Ele compara:
+
+- saldo registrado no produto
+- saldo por movimentos confirmados
+- saldo disponivel nas camadas FIFO
+- quantidade ja consumida por FIFO
+
+Esse diagnostico deve ser usado antes de regularizar dados antigos do piloto.

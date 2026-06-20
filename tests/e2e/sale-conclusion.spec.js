@@ -60,6 +60,7 @@ test("venda concluida a partir da tela propria de vendas", async ({ page }) => {
 
   await createServiceItem(page, itemName);
   await openAdminRoute(page, "/admin/vendas/novo", "Nova venda");
+  await expect(page.getByText("Comece pela pesquisa")).toBeVisible();
 
   await pickFirstSearchableOption(page, "Conta financeira");
   await pickFirstSearchableOption(page, "Categoria financeira");
@@ -102,6 +103,6 @@ test("venda com item fisico reduz o saldo em estoque", async ({ page }) => {
 
   const stockCard = page.locator("article").filter({ hasText: itemName }).first();
   await expect(stockCard).toBeVisible();
-  await expect(stockCard).toContainText("Saldo atual");
+  await expect(stockCard).toContainText("Saldo vendavel");
   await expect(stockCard).toContainText("3 un");
 });

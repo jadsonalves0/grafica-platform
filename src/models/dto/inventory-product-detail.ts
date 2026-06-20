@@ -12,6 +12,8 @@ export type InventoryProductDetailDto = {
   showOnWebsite: boolean;
   desiredMargin?: number | null;
   currentStock: number;
+  availableStock: number;
+  hasStockMismatch: boolean;
   minimumStock: number;
   costPrice: number;
   salePrice: number;

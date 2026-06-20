@@ -12,7 +12,8 @@ import {
   Skeleton,
   StickyActionBar,
 } from "@/components/admin/ui";
-import { normalizeDecimalInput, parseDecimalInput } from "@/lib/forms/br-utils";
+import { PercentageInput } from "@/components/forms/number-inputs";
+import { parseDecimalInput } from "@/lib/forms/br-utils";
 
 type OperationalSettings = {
   companyId: string;
@@ -242,30 +243,25 @@ export default function ParametrosPage() {
           >
             <div className="admin-form-grid admin-form-grid--3">
               <Field label="Margem padrao desejada (%)" required>
-                <input
+                <PercentageInput
                   value={form.defaultMarginPercent}
-                  onChange={(event) => updateField("defaultMarginPercent", normalizeDecimalInput(event.target.value))}
-                  inputMode="decimal"
+                  onChange={(value) => updateField("defaultMarginPercent", value)}
                   className="admin-input"
                 />
               </Field>
 
               <Field label="Margem minima (%)" required>
-                <input
+                <PercentageInput
                   value={form.minimumMarginPercent}
-                  onChange={(event) => updateField("minimumMarginPercent", normalizeDecimalInput(event.target.value))}
-                  inputMode="decimal"
+                  onChange={(value) => updateField("minimumMarginPercent", value)}
                   className="admin-input"
                 />
               </Field>
 
               <Field label="Variacao minima de custo para alerta (%)" required>
-                <input
+                <PercentageInput
                   value={form.costVariationAlertPercent}
-                  onChange={(event) =>
-                    updateField("costVariationAlertPercent", normalizeDecimalInput(event.target.value))
-                  }
-                  inputMode="decimal"
+                  onChange={(value) => updateField("costVariationAlertPercent", value)}
                   className="admin-input"
                 />
               </Field>
@@ -278,23 +274,17 @@ export default function ParametrosPage() {
           >
             <div className="admin-form-grid admin-form-grid--2">
               <Field label="Desconto maximo para usuario comum (%)" required>
-                <input
+                <PercentageInput
                   value={form.regularDiscountLimitPercent}
-                  onChange={(event) =>
-                    updateField("regularDiscountLimitPercent", normalizeDecimalInput(event.target.value))
-                  }
-                  inputMode="decimal"
+                  onChange={(value) => updateField("regularDiscountLimitPercent", value)}
                   className="admin-input"
                 />
               </Field>
 
               <Field label="Desconto maximo para gerente (%)" required>
-                <input
+                <PercentageInput
                   value={form.managerDiscountLimitPercent}
-                  onChange={(event) =>
-                    updateField("managerDiscountLimitPercent", normalizeDecimalInput(event.target.value))
-                  }
-                  inputMode="decimal"
+                  onChange={(value) => updateField("managerDiscountLimitPercent", value)}
                   className="admin-input"
                 />
               </Field>

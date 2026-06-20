@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { formatCurrencyInput, parseCurrencyInput } from "@/lib/forms/br-utils";
+import { MoneyInput } from "@/components/forms/number-inputs";
+import { parseCurrencyInput } from "@/lib/forms/br-utils";
 
 type AccountFormState = {
   name: string;
@@ -158,9 +159,9 @@ export function AccountForm({ mode, accountId, initialState, metadata }: Readonl
         </Field>
 
         <Field label="Saldo inicial">
-          <input
+          <MoneyInput
             value={form.initialBalance}
-            onChange={(event) => updateField("initialBalance", formatCurrencyInput(event.target.value))}
+            onChange={(value) => updateField("initialBalance", value)}
             style={inputStyle}
           />
         </Field>

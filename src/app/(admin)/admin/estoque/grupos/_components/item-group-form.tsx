@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { normalizeDecimalInput, parseDecimalInput } from "@/lib/forms/br-utils";
+import { PercentageInput } from "@/components/forms/number-inputs";
+import { parseDecimalInput } from "@/lib/forms/br-utils";
 
 type ItemGroupFormState = {
   name: string;
@@ -134,10 +135,9 @@ export function ItemGroupForm({
         </Field>
 
         <Field label="Margem padrao (%)">
-          <input
+          <PercentageInput
             value={form.defaultMargin}
-            onChange={(event) => updateField("defaultMargin", normalizeDecimalInput(event.target.value))}
-            inputMode="decimal"
+            onChange={(value) => updateField("defaultMargin", value)}
             style={inputStyle}
             placeholder="Ex.: 35"
           />

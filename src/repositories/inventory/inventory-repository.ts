@@ -244,10 +244,19 @@ export class InventoryRepository {
     });
   }
 
-  async listProducts(companyId: string, search?: string, categoryId?: string) {
+  async listProducts(
+    companyId: string,
+    search?: string,
+    categoryId?: string,
+    options?: {
+      onlyActive?: boolean;
+      limit?: number;
+    },
+  ) {
     return this.db.product.findMany({
       where: {
         companyId,
+        ...(options?.onlyActive ? { isActive: true } : {}),
         ...(categoryId ? { categoryId } : {}),
         ...(search
           ? {
@@ -262,10 +271,21 @@ export class InventoryRepository {
       },
       include: {
         category: true,
+        stockLayers: {
+          where: {
+            availableQuantity: {
+              gt: 0,
+            },
+          },
+          select: {
+            availableQuantity: true,
+          },
+        },
       },
       orderBy: {
         name: "asc",
       },
+      ...(options?.limit ? { take: options.limit } : {}),
     });
   }
 
@@ -277,6 +297,16 @@ export class InventoryRepository {
       },
       include: {
         category: true,
+        stockLayers: {
+          where: {
+            availableQuantity: {
+              gt: 0,
+            },
+          },
+          select: {
+            availableQuantity: true,
+          },
+        },
         priceHistories: {
           include: {
             changedByUser: true,

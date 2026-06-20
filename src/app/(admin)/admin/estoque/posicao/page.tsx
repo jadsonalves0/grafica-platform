@@ -26,6 +26,8 @@ type ProductListItem = {
   type: "RAW_MATERIAL" | "SERVICE" | "FINISHED_PRODUCT" | "RESALE";
   controlsStock: boolean;
   currentStock: number;
+  availableStock: number;
+  hasStockMismatch: boolean;
   minimumStock: number;
   costPrice: number;
   salePrice: number;
@@ -130,15 +132,17 @@ export default function PosicaoEstoquePage() {
   }, [search, categoryId]);
 
   const summary = useMemo(() => {
-    const belowMinimum = products.filter((product) => product.currentStock <= product.minimumStock).length;
-    const withoutStock = products.filter((product) => product.currentStock <= 0).length;
-    const estimatedValue = products.reduce((sum, product) => sum + product.currentStock * product.costPrice, 0);
+    const belowMinimum = products.filter((product) => product.availableStock <= product.minimumStock).length;
+    const withoutStock = products.filter((product) => product.availableStock <= 0).length;
+    const estimatedValue = products.reduce((sum, product) => sum + product.availableStock * product.costPrice, 0);
+    const mismatched = products.filter((product) => product.hasStockMismatch).length;
 
     return {
       trackedItems: products.length,
       belowMinimum,
       withoutStock,
       estimatedValue,
+      mismatched,
     };
   }, [products]);
 
@@ -166,6 +170,12 @@ export default function PosicaoEstoquePage() {
         <MetricCard label="Sem saldo" value={String(summary.withoutStock)} description="Itens zerados ou negativos." />
         <MetricCard label="Valor estimado" value={formatCurrency(summary.estimatedValue)} description="Baseado no custo de referencia atual." />
       </section>
+
+      {summary.mismatched ? (
+        <Alert variant="warning" title={`${summary.mismatched} item(ns) com divergencia entre saldo e FIFO.`}>
+          A posicao abaixo prioriza o saldo vendavel quando houver diferenca entre o saldo registrado e as camadas FIFO disponiveis.
+        </Alert>
+      ) : null}
 
       {errorMessage ? (
         <Alert variant="danger" title="Nao foi possivel carregar o estoque.">
@@ -219,8 +229,9 @@ export default function PosicaoEstoquePage() {
         ) : (
           <div className="admin-list-stack">
             {products.map((product) => {
-              const isCritical = product.currentStock <= 0;
-              const isLow = product.currentStock > 0 && product.currentStock <= product.minimumStock;
+              const isCritical = product.availableStock <= 0;
+              const isLow =
+                product.availableStock > 0 && product.availableStock <= product.minimumStock;
               const stockStatus = isCritical ? "Sem saldo" : isLow ? "Abaixo do minimo" : "Saudavel";
 
               return (
@@ -240,11 +251,18 @@ export default function PosicaoEstoquePage() {
                   </div>
 
                   <div className="admin-list-card__meta">
-                    <InfoBox label="Saldo atual" value={`${formatNumber(product.currentStock)} ${product.unit}`} />
+                    <InfoBox label="Saldo vendavel" value={`${formatNumber(product.availableStock)} ${product.unit}`} />
+                    <InfoBox label="Saldo registrado" value={`${formatNumber(product.currentStock)} ${product.unit}`} />
                     <InfoBox label="Estoque minimo" value={`${formatNumber(product.minimumStock)} ${product.unit}`} />
                     <InfoBox label="Custo ref." value={formatCurrency(product.costPrice)} />
-                    <InfoBox label="Valor em estoque" value={formatCurrency(product.currentStock * product.costPrice)} />
+                    <InfoBox label="Valor em estoque" value={formatCurrency(product.availableStock * product.costPrice)} />
                   </div>
+
+                  {product.hasStockMismatch ? (
+                    <Alert variant="warning" title="Saldo precisa de conciliacao">
+                      O saldo registrado do item ainda nao coincide com o saldo elegivel para venda pelo FIFO. Use o diagnostico e a regularizacao administrativa antes de confiar neste item para novas vendas.
+                    </Alert>
+                  ) : null}
 
                   <div className="admin-list-card__footer">
                     <span className="admin-list-card__hint">

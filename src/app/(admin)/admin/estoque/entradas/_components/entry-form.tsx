@@ -8,6 +8,7 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from "@/components/forms/searchable-select";
+import { MoneyInput, QuantityInput } from "@/components/forms/number-inputs";
 import {
   Alert,
   Field,
@@ -19,7 +20,6 @@ import {
   StickyActionBar,
 } from "@/components/admin/ui";
 import {
-  formatCurrencyInput,
   formatCurrencyValue,
   normalizeDecimalInput,
   normalizeReferenceInput,
@@ -275,13 +275,13 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
   const computedItems = useMemo(
     () =>
       form.items.map((item) => {
-        const quantity = parseDecimalInput(item.quantity);
-        const unitCost = parseCurrencyInput(item.unitCost);
+        const parsedQuantity = parseDecimalInput(item.quantity);
+        const parsedUnitCost = parseCurrencyInput(item.unitCost);
         return {
           ...item,
-          quantity,
-          unitCost,
-          subtotal: roundCurrency(quantity * unitCost),
+          parsedQuantity,
+          parsedUnitCost,
+          subtotal: roundCurrency(parsedQuantity * parsedUnitCost),
         };
       }),
     [form.items],
@@ -377,8 +377,13 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
         return `Informe uma quantidade valida para o item ${index + 1}.`;
       }
 
-      if (parseCurrencyInput(item.unitCost) < 0) {
+      const unitCost = parseCurrencyInput(item.unitCost);
+      if (unitCost < 0) {
         return `Informe um custo unitario valido para o item ${index + 1}.`;
+      }
+
+      if (!entryTypeAllowsZeroCost(form.entryType) && unitCost <= 0) {
+        return `Informe um custo maior que zero para o item ${index + 1}.`;
       }
 
       if (item.priceDecision === "CUSTOM_PRICE" && parseCurrencyInput(item.customSalePrice) <= 0) {
@@ -386,7 +391,7 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
       }
     }
 
-    if (subtotal <= 0) {
+    if (!entryTypeAllowsZeroCost(form.entryType) && subtotal <= 0) {
       return "A entrada precisa ter valor total maior que zero.";
     }
 
@@ -689,24 +694,18 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
                   </Field>
 
                   <Field label="Quantidade" required>
-                    <input
+                    <QuantityInput
                       className="admin-input"
                       value={item.quantity}
-                      onChange={(event) =>
-                        updateItem(item.id, "quantity", normalizeDecimalInput(event.target.value))
-                      }
-                      inputMode="decimal"
+                      onChange={(value) => updateItem(item.id, "quantity", value)}
                     />
                   </Field>
 
                   <Field label="Custo unitario" required>
-                    <input
+                    <MoneyInput
                       className="admin-input"
                       value={item.unitCost}
-                      onChange={(event) =>
-                        updateItem(item.id, "unitCost", formatCurrencyInput(event.target.value))
-                      }
-                      inputMode="numeric"
+                      onChange={(value) => updateItem(item.id, "unitCost", value)}
                     />
                   </Field>
 
@@ -740,13 +739,10 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
                     </Field>
 
                     <Field label="Novo preco de venda" optional>
-                      <input
+                      <MoneyInput
                         className="admin-input"
                         value={item.customSalePrice}
-                        onChange={(event) =>
-                          updateItem(item.id, "customSalePrice", formatCurrencyInput(event.target.value))
-                        }
-                        inputMode="numeric"
+                        onChange={(value) => updateItem(item.id, "customSalePrice", value)}
                         disabled={item.priceDecision !== "CUSTOM_PRICE"}
                       />
                     </Field>
@@ -927,6 +923,10 @@ function formatEntryStatus(value: "DRAFT" | "CONFIRMED" | "CANCELED") {
   if (value === "CONFIRMED") return "Confirmada";
   if (value === "CANCELED") return "Cancelada";
   return "Rascunho";
+}
+
+function entryTypeAllowsZeroCost(value: EntryFormState["entryType"]) {
+  return value === "BONUS";
 }
 
 function formatAccountType(value: string) {

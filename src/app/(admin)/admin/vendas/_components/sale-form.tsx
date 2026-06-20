@@ -11,16 +11,17 @@ import {
   FormSection,
   LoadingButton,
   SectionCard,
+  Skeleton,
   StatusBadge,
   StickyActionBar,
 } from "@/components/admin/ui";
 import { QuickCustomerPanel } from "@/components/forms/quick-customer-panel";
+import { MoneyInput, QuantityInput } from "@/components/forms/number-inputs";
 import {
   SearchableSelect,
   type SearchableSelectOption,
 } from "@/components/forms/searchable-select";
 import {
-  formatCurrencyInput,
   formatCurrencyValue,
   normalizeDecimalInput,
   parseCurrencyInput,
@@ -71,6 +72,8 @@ type ProductOption = {
   type: string;
   controlsStock: boolean;
   currentStock: number;
+  availableStock: number;
+  hasStockMismatch: boolean;
   costPrice: number;
   salePrice: number;
   desiredMargin?: number | null;
@@ -204,7 +207,8 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [orders, setOrders] = useState<OrderOption[]>([]);
   const [quotes, setQuotes] = useState<QuoteOption[]>([]);
-  const [products, setProducts] = useState<ProductOption[]>([]);
+  const [productCatalog, setProductCatalog] = useState<ProductOption[]>([]);
+  const [productResults, setProductResults] = useState<ProductOption[]>([]);
   const [groups, setGroups] = useState<GroupOption[]>([]);
   const [settings, setSettings] = useState<OperationalSettings | null>(null);
   const [groupFilter, setGroupFilter] = useState("");
@@ -212,10 +216,12 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
   const deferredProductSearch = useDeferredValue(productSearch);
   const [showQuickCustomer, setShowQuickCustomer] = useState(false);
   const [isLoadingOptions, setIsLoadingOptions] = useState(true);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [productSearchError, setProductSearchError] = useState<string | null>(null);
   const [completion, setCompletion] = useState<SaleCompletionState | null>(null);
   const [baselineState, setBaselineState] = useState(() =>
     JSON.stringify(compactSaleState(buildInitialState(initialData))),
@@ -226,9 +232,20 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
     [categories],
   );
 
+  function mergeProductCatalog(nextProducts: ProductOption[]) {
+    setProductCatalog((current) => {
+      const productMap = new Map(current.map((product) => [product.id, product]));
+      for (const product of nextProducts) {
+        productMap.set(product.id, product);
+      }
+
+      return [...productMap.values()];
+    });
+  }
+
   const productMap = useMemo(
-    () => new Map(products.map((product) => [product.id, product])),
-    [products],
+    () => new Map(productCatalog.map((product) => [product.id, product])),
+    [productCatalog],
   );
 
   useEffect(() => {
@@ -239,7 +256,7 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
       setErrorMessage(null);
 
       try {
-        const [accountsResponse, categoriesResponse, customersResponse, ordersResponse, quotesResponse, productsResponse, groupsResponse, settingsResponse] =
+        const [accountsResponse, categoriesResponse, customersResponse, ordersResponse, quotesResponse, groupsResponse, settingsResponse] =
           await Promise.all([
             fetch("/api/financial/accounts", { signal: controller.signal, cache: "no-store" }),
             fetch("/api/financial/categories", { signal: controller.signal, cache: "no-store" }),
@@ -249,7 +266,6 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
             }),
             fetch("/api/orders", { signal: controller.signal, cache: "no-store" }),
             fetch("/api/quotes", { signal: controller.signal, cache: "no-store" }),
-            fetch("/api/inventory/products", { signal: controller.signal, cache: "no-store" }),
             fetch("/api/inventory/groups", { signal: controller.signal, cache: "no-store" }),
             fetch("/api/inventory/settings", { signal: controller.signal, cache: "no-store" }),
           ]);
@@ -259,7 +275,6 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
         const customersResult = (await customersResponse.json()) as ApiResult<CustomerOption[]>;
         const ordersResult = (await ordersResponse.json()) as ApiResult<OrderOption[]>;
         const quotesResult = (await quotesResponse.json()) as ApiResult<QuoteOption[]>;
-        const productsResult = (await productsResponse.json()) as ApiResult<ProductOption[]>;
         const groupsResult = (await groupsResponse.json()) as ApiResult<GroupOption[]>;
         const settingsResult = (await settingsResponse.json()) as ApiResult<OperationalSettings>;
 
@@ -283,10 +298,6 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
           throw new Error(quotesResult.message ?? "Nao foi possivel carregar os orcamentos.");
         }
 
-        if (!productsResponse.ok || !productsResult.success || !productsResult.data) {
-          throw new Error(productsResult.message ?? "Nao foi possivel carregar os itens.");
-        }
-
         if (!groupsResponse.ok || !groupsResult.success || !groupsResult.data) {
           throw new Error(groupsResult.message ?? "Nao foi possivel carregar os grupos.");
         }
@@ -300,7 +311,6 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
         const loadedCustomers = customersResult.data;
         const loadedOrders = ordersResult.data;
         const loadedQuotes = quotesResult.data;
-        const loadedProducts = productsResult.data;
         const loadedGroups = groupsResult.data;
         const loadedSettings = settingsResult.data;
 
@@ -309,7 +319,6 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
         setCustomers(loadedCustomers);
         setOrders(loadedOrders);
         setQuotes(loadedQuotes);
-        setProducts(loadedProducts);
         setGroups(loadedGroups);
         setSettings(loadedSettings);
 
@@ -359,6 +368,110 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
 
     productSearchRef.current?.focus();
   }, [completion]);
+
+  useEffect(() => {
+    const productIds = [...new Set(form.items.map((item) => item.productId).filter(Boolean))];
+    const missingProductIds = productIds.filter((productId) => !productMap.has(productId));
+
+    if (!missingProductIds.length) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function loadMissingProducts() {
+      try {
+        const responses = await Promise.all(
+          missingProductIds.map((productId) =>
+            fetch(`/api/inventory/products/${productId}`, {
+              signal: controller.signal,
+              cache: "no-store",
+            }),
+          ),
+        );
+        const results = (await Promise.all(
+          responses.map((response) => response.json()),
+        )) as Array<ApiResult<ProductOption>>;
+        const loadedProducts = results
+          .filter((result, index) => responses[index].ok && result.success && result.data)
+          .map((result) => result.data as ProductOption);
+
+        if (loadedProducts.length) {
+          mergeProductCatalog(loadedProducts);
+        }
+      } catch (error) {
+        if ((error as Error).name === "AbortError") {
+          return;
+        }
+      }
+    }
+
+    void loadMissingProducts();
+
+    return () => controller.abort();
+  }, [form.items, productMap]);
+
+  useEffect(() => {
+    const normalizedQuery = deferredProductSearch.trim();
+    const shouldSearch = normalizedQuery.length >= 2 || Boolean(groupFilter);
+
+    if (!shouldSearch) {
+      setProductResults([]);
+      setProductSearchError(null);
+      setIsLoadingProducts(false);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function searchProducts() {
+      setIsLoadingProducts(true);
+      setProductSearchError(null);
+
+      try {
+        const params = new URLSearchParams();
+        params.set("onlyActive", "true");
+        params.set("limit", "12");
+        if (normalizedQuery.length >= 2) {
+          params.set("search", normalizedQuery);
+        }
+        if (groupFilter) {
+          params.set("categoryId", groupFilter);
+        }
+
+        const response = await fetch(`/api/inventory/products?${params.toString()}`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        const result = (await response.json()) as ApiResult<ProductOption[]>;
+
+        if (!response.ok || !result.success || !result.data) {
+          throw new Error(result.message ?? "Nao foi possivel pesquisar os itens.");
+        }
+
+        setProductResults(result.data);
+        mergeProductCatalog(result.data);
+      } catch (error) {
+        if ((error as Error).name === "AbortError") {
+          return;
+        }
+
+        setProductResults([]);
+        setProductSearchError(
+          error instanceof Error ? error.message : "Falha ao pesquisar os itens para a venda.",
+        );
+      } finally {
+        setIsLoadingProducts(false);
+      }
+    }
+
+    const timeout = window.setTimeout(searchProducts, normalizedQuery.length >= 2 ? 250 : 0);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeout);
+    };
+  }, [deferredProductSearch, groupFilter]);
 
   const comparableState = useMemo(
     () => JSON.stringify(compactSaleState(form)),
@@ -427,44 +540,27 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
     [quotes],
   );
 
-  const filteredProducts = useMemo(() => {
-    const normalizedQuery = normalizeSearchText(deferredProductSearch);
-
-    return products
-      .filter((product) => product.isActive || form.items.some((item) => item.productId === product.id))
-      .filter((product) => (groupFilter ? product.categoryId === groupFilter : true))
-      .filter((product) => {
-        if (!normalizedQuery) {
-          return true;
-        }
-
-        return normalizeSearchText(
-          [
-            product.name,
-            product.categoryName,
-            product.sku,
-            product.barcode,
-            formatProductType(product.type),
-          ]
-            .filter(Boolean)
-            .join(" "),
-        ).includes(normalizedQuery);
-      })
-      .slice(0, 8);
-  }, [deferredProductSearch, form.items, groupFilter, products]);
+  const filteredProducts = useMemo(
+    () =>
+      productResults.filter(
+        (product) => product.isActive || form.items.some((item) => item.productId === product.id),
+      ),
+    [form.items, productResults],
+  );
+  const hasProductSearchCriteria = deferredProductSearch.trim().length >= 2 || Boolean(groupFilter);
 
   const computedItems = useMemo(
     () =>
       form.items.map((item) => {
         const product = item.productId ? productMap.get(item.productId) ?? null : null;
-        const quantity = parseDecimalInput(item.quantity);
-        const unitPrice = parseCurrencyInput(item.unitPrice);
-        const grossTotal = roundCurrency(quantity * unitPrice);
-        const discountAmount = Math.min(parseCurrencyInput(item.discountAmount), grossTotal);
-        const netTotal = roundCurrency(grossTotal - discountAmount);
-        const netUnitPrice = quantity > 0 ? roundCurrency(netTotal / quantity) : 0;
+        const parsedQuantity = parseDecimalInput(item.quantity);
+        const parsedUnitPrice = parseCurrencyInput(item.unitPrice);
+        const grossTotal = roundCurrency(parsedQuantity * parsedUnitPrice);
+        const parsedDiscountAmount = Math.min(parseCurrencyInput(item.discountAmount), grossTotal);
+        const netTotal = roundCurrency(grossTotal - parsedDiscountAmount);
+        const netUnitPrice = parsedQuantity > 0 ? roundCurrency(netTotal / parsedQuantity) : 0;
         const unitCost = product?.costPrice ?? 0;
-        const totalCost = roundCurrency(unitCost * quantity);
+        const totalCost = roundCurrency(unitCost * parsedQuantity);
         const marginPercent = netTotal > 0 ? roundCurrency(((netTotal - totalCost) / netTotal) * 100) : 0;
         const targetMargin = product?.desiredMargin ?? settings?.minimumMarginPercent ?? 0;
         const hasMarginAlert = Boolean(product) && netTotal > 0 && marginPercent < targetMargin;
@@ -472,16 +568,16 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
           product?.controlsStock &&
             settings &&
             !settings.allowNegativeStock &&
-            quantity > product.currentStock,
+            parsedQuantity > product.availableStock,
         );
 
         return {
           ...item,
           product,
-          quantity,
-          unitPrice,
+          parsedQuantity,
+          parsedUnitPrice,
           grossTotal,
-          discountAmount,
+          parsedDiscountAmount,
           netTotal,
           netUnitPrice,
           totalCost,
@@ -489,6 +585,8 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
           targetMargin,
           hasMarginAlert,
           hasStockAlert,
+          availableStock: product?.availableStock ?? product?.currentStock ?? 0,
+          hasStockMismatch: product?.hasStockMismatch ?? false,
         };
       }),
     [form.items, productMap, settings],
@@ -497,9 +595,9 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
   const totals = useMemo(
     () => ({
       gross: roundCurrency(computedItems.reduce((sum, item) => sum + item.grossTotal, 0)),
-      discount: roundCurrency(computedItems.reduce((sum, item) => sum + item.discountAmount, 0)),
+      discount: roundCurrency(computedItems.reduce((sum, item) => sum + item.parsedDiscountAmount, 0)),
       net: roundCurrency(computedItems.reduce((sum, item) => sum + item.netTotal, 0)),
-      quantity: roundQuantity(computedItems.reduce((sum, item) => sum + item.quantity, 0)),
+      quantity: roundQuantity(computedItems.reduce((sum, item) => sum + item.parsedQuantity, 0)),
       stockAlerts: computedItems.filter((item) => item.hasStockAlert).length,
       marginAlerts: computedItems.filter((item) => item.hasMarginAlert).length,
     }),
@@ -595,20 +693,20 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
         return `Informe a descricao do item ${index + 1}.`;
       }
 
-      if (item.quantity <= 0) {
+      if (item.parsedQuantity <= 0) {
         return `Informe uma quantidade valida para o item ${index + 1}.`;
       }
 
-      if (item.unitPrice < 0) {
+      if (item.parsedUnitPrice < 0) {
         return `Informe um preco valido para o item ${index + 1}.`;
       }
 
-      if (item.discountAmount < 0 || item.discountAmount > item.grossTotal) {
+      if (item.parsedDiscountAmount < 0 || item.parsedDiscountAmount > item.grossTotal) {
         return `Revise o desconto do item ${index + 1}.`;
       }
 
       if (item.hasStockAlert) {
-        return `Nao ha saldo suficiente para ${item.product?.name ?? `o item ${index + 1}`}. Ajuste a quantidade ou libere estoque negativo nos parametros.`;
+        return `O item ${item.product?.name ?? `#${index + 1}`} possui ${formatNumber(item.availableStock)} ${item.product?.unit ?? ""} disponivel(is) pelo controle FIFO, mas a venda solicita ${formatNumber(item.parsedQuantity)}. Revise o estoque ou reduza a quantidade.`;
       }
     }
 
@@ -651,7 +749,7 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
         items: computedItems.map((item) => ({
           productId: item.productId || undefined,
           description: item.description.trim(),
-          quantity: item.quantity,
+          quantity: item.parsedQuantity,
           unitPrice: item.netUnitPrice,
         })),
       };
@@ -755,11 +853,11 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
       {successMessage ? <Alert variant="success">{successMessage}</Alert> : null}
       {infoMessage ? <Alert variant="info">{infoMessage}</Alert> : null}
 
-      <div className="admin-layout-grid admin-layout-grid--sidebar">
+      <div className="admin-layout-grid admin-layout-grid--sale">
         <div className="admin-page-stack">
           <SectionCard
-            title="Adicionar itens"
-            description="Pesquise por nome, SKU ou EAN. Pressione Enter para incluir o primeiro item da lista."
+            title="Pesquisar e adicionar itens"
+            description="Busque por nome, SKU ou EAN/GTIN. O catalogo so aparece quando voce pesquisa ou escolhe um grupo."
           >
             <div className="admin-page-stack">
               <div className="admin-form-grid admin-form-grid--2">
@@ -770,7 +868,7 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
                     onChange={(event) => setProductSearch(event.target.value)}
                     onKeyDown={handleProductSearchKeyDown}
                     className="admin-input"
-                    placeholder="Nome, SKU ou EAN/GTIN"
+                    placeholder="Digite pelo menos 2 caracteres"
                     autoFocus
                   />
                 </Field>
@@ -793,7 +891,20 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
                 </Field>
               </div>
 
-              {filteredProducts.length === 0 ? (
+              {productSearchError ? (
+                <Alert variant="danger" title="Nao foi possivel pesquisar os itens.">
+                  {productSearchError}
+                </Alert>
+              ) : null}
+
+              {!hasProductSearchCriteria ? (
+                <EmptyState
+                  title="Comece pela pesquisa"
+                  description="Digite pelo menos 2 caracteres ou escolha um grupo para carregar somente os itens relevantes para esta venda."
+                />
+              ) : isLoadingProducts ? (
+                <Skeleton lines={6} />
+              ) : filteredProducts.length === 0 ? (
                 <EmptyState
                   title="Nenhum item encontrado"
                   description="Ajuste a busca ou o grupo para localizar um item do catalogo."
@@ -802,10 +913,10 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
                 <div className="admin-list-stack">
                   {filteredProducts.map((product) => {
                     const stockStatus =
-                      product.controlsStock && product.currentStock <= 0
-                        ? "Sem saldo"
+                      product.controlsStock && product.availableStock <= 0
+                        ? "Sem saldo vendavel"
                         : product.controlsStock
-                          ? `${formatNumber(product.currentStock)} ${product.unit} em estoque`
+                          ? `${formatNumber(product.availableStock)} ${product.unit} disponivel(is)`
                           : "Servico sem controle de estoque";
 
                     return (
@@ -831,6 +942,12 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
                           <MetricTile compact label="Preco" value={formatCurrency(product.salePrice)} />
                           <MetricTile compact label="Saldo" value={stockStatus} />
                         </div>
+
+                        {product.hasStockMismatch ? (
+                          <Alert variant="warning" title="Saldo regularizavel">
+                            O saldo exibido nesta venda segue o FIFO disponivel. O saldo registrado do item ainda precisa de conciliacao administrativa.
+                          </Alert>
+                        ) : null}
                       </article>
                     );
                   })}
@@ -838,10 +955,12 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
               )}
             </div>
           </SectionCard>
+        </div>
 
+        <div className="admin-page-stack admin-sticky-panel">
           <SectionCard
             title="Carrinho"
-            description="Mantenha no foco apenas quantidade, preco, desconto e subtotal. Os alertas tecnicos aparecem somente quando importam."
+            description="Quantidade, desconto e subtotal ficam sempre visiveis durante a venda."
             actions={
               <button type="button" className="admin-link-button" onClick={addManualItem}>
                 Adicionar item livre
@@ -864,7 +983,9 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
                         </strong>
                         <span className="admin-list-card__subtitle">
                           {item.product?.categoryName ?? "Item livre"}
-                          {item.product?.controlsStock ? ` | Saldo atual ${formatNumber(item.product.currentStock)} ${item.product.unit}` : ""}
+                          {item.product?.controlsStock
+                            ? ` | Saldo FIFO ${formatNumber(item.availableStock)} ${item.product.unit}`
+                            : ""}
                         </span>
                       </div>
                       <button
@@ -876,31 +997,35 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
                       </button>
                     </div>
 
-                    <div className="admin-form-grid admin-form-grid--4">
+                    <div className="admin-form-grid admin-form-grid--2">
                       <Field label="Quantidade" required>
-                        <input
+                        <QuantityInput
                           value={item.quantity}
-                          onChange={(event) => updateItem(item.id, "quantity", normalizeDecimalInput(event.target.value))}
+                          onChange={(value) => updateItem(item.id, "quantity", value)}
                           className="admin-input"
-                          inputMode="decimal"
+                          placeholder="1"
                         />
                       </Field>
 
-                      <Field label="Preco aplicado" required>
-                        <input
-                          value={item.unitPrice}
-                          onChange={(event) => updateItem(item.id, "unitPrice", formatCurrencyInput(event.target.value))}
-                          className="admin-input"
-                          inputMode="numeric"
-                        />
+                        <Field label={item.productId ? "Preco de tabela" : "Preco unitario"} required>
+                          {item.productId ? (
+                          <div className="admin-readonly-box">{formatCurrency(item.parsedUnitPrice)}</div>
+                        ) : (
+                          <MoneyInput
+                            value={item.unitPrice}
+                            onChange={(value) => updateItem(item.id, "unitPrice", value)}
+                            className="admin-input"
+                            placeholder="0,00"
+                          />
+                        )}
                       </Field>
 
                       <Field label="Desconto">
-                        <input
+                        <MoneyInput
                           value={item.discountAmount}
-                          onChange={(event) => updateItem(item.id, "discountAmount", formatCurrencyInput(event.target.value))}
+                          onChange={(value) => updateItem(item.id, "discountAmount", value)}
                           className="admin-input"
-                          inputMode="numeric"
+                          placeholder="0,00"
                         />
                       </Field>
 
@@ -920,18 +1045,29 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
                           placeholder="Descreva o item vendido"
                         />
                       </Field>
-                    ) : null}
+                    ) : (
+                      <div className="admin-list-card__meta">
+                        <MetricTile compact label="Preco original" value={formatCurrency(item.parsedUnitPrice)} />
+                        <MetricTile compact label="Preco liquido" value={formatCurrency(item.netUnitPrice)} />
+                        <MetricTile compact label="Margem estimada" value={formatPercent(item.marginPercent)} />
+                      </div>
+                    )}
 
-                    {item.hasStockAlert || item.hasMarginAlert ? (
+                    {item.hasStockAlert || item.hasMarginAlert || item.hasStockMismatch ? (
                       <div className="admin-page-stack">
                         {item.hasStockAlert ? (
-                          <Alert variant="warning" title="Saldo insuficiente para esta quantidade.">
-                            Revise a quantidade ou permita estoque negativo nos parametros antes de concluir esta venda.
+                          <Alert variant="warning" title="Saldo FIFO insuficiente para esta quantidade.">
+                            O item possui {formatNumber(item.availableStock)} {item.product?.unit ?? ""} disponivel(is) para venda, mas esta linha solicita {formatNumber(item.parsedQuantity)}.
                           </Alert>
                         ) : null}
                         {item.hasMarginAlert ? (
                           <Alert variant="warning" title="Margem estimada abaixo do minimo configurado.">
                             Esta linha ficara com margem estimada de {formatPercent(item.marginPercent)} frente ao minimo de {formatPercent(item.targetMargin)}.
+                          </Alert>
+                        ) : null}
+                        {item.hasStockMismatch ? (
+                          <Alert variant="info" title="Saldo exibido pela venda usa o FIFO.">
+                            Este item possui divergencia entre saldo registrado e camadas disponiveis. A venda esta considerando apenas o saldo realmente elegivel para consumo.
                           </Alert>
                         ) : null}
                       </div>
@@ -941,9 +1077,7 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
               </div>
             )}
           </SectionCard>
-        </div>
 
-        <div className="admin-page-stack">
           <SectionCard title="Cliente e recebimento" description="Defina quem esta comprando e como a venda entrara no financeiro.">
             <div className="admin-page-stack">
               <div className="admin-form-grid admin-form-grid--2">
@@ -1067,6 +1201,14 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
 
           <SectionCard title="Revisao da venda" description="Confira total, descontos e alertas antes de concluir.">
             <div className="admin-summary-list">
+              <div className="admin-summary-row">
+                <span style={{ color: "var(--muted)" }}>Cliente</span>
+                <strong>
+                  {form.customerId
+                    ? customers.find((customer) => customer.id === form.customerId)?.name ?? "Cliente"
+                    : "Consumidor nao identificado"}
+                </strong>
+              </div>
               <div className="admin-summary-row">
                 <span style={{ color: "var(--muted)" }}>Itens</span>
                 <strong>{computedItems.length}</strong>

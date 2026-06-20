@@ -27,6 +27,7 @@ type NavSection = {
   label: string;
   items: NavItem[];
   compactHref?: string;
+  placement?: "main" | "footer";
   visible?: (viewer: Viewer) => boolean;
 };
 
@@ -57,12 +58,14 @@ const navSections: NavSection[] = [
     id: "home",
     label: "Inicio",
     compactHref: "/dashboard",
+    placement: "main",
     items: [{ label: "Inicio", href: "/dashboard" }],
   },
   {
-    id: "sales",
-    label: "Vendas",
+    id: "commercial",
+    label: "Comercial",
     compactHref: "/admin/pedidos",
+    placement: "main",
     visible: (viewer) =>
       hasAnyPermission(viewer, [
         PERMISSIONS.customersView,
@@ -97,29 +100,28 @@ const navSections: NavSection[] = [
         href: "/admin/vendas",
         visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.financialView, PERMISSIONS.financialManage]),
       },
-    ],
-  },
-  {
-    id: "production",
-    label: "Producao",
-    compactHref: "/admin/producao",
-    visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryView, PERMISSIONS.inventoryUpdate]),
-    items: [
       {
-        label: "Producoes",
-        href: "/admin/producao",
+        label: "Produtos e servicos",
+        href: "/admin/estoque",
+        isActive: isItemCatalogPath,
         visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryView]),
       },
     ],
   },
   {
-    id: "inventory",
-    label: "Estoque",
-    compactHref: "/admin/estoque/posicao",
-    visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryView]),
+    id: "operations",
+    label: "Operacao",
+    compactHref: "/admin/producao",
+    placement: "main",
+    visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryView, PERMISSIONS.inventoryUpdate]),
     items: [
       {
-        label: "Posicao de estoque",
+        label: "Producao",
+        href: "/admin/producao",
+        visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryView]),
+      },
+      {
+        label: "Estoque",
         href: "/admin/estoque/posicao",
         visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryView]),
       },
@@ -129,7 +131,7 @@ const navSections: NavSection[] = [
         visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryView]),
       },
       {
-        label: "Movimentacoes",
+        label: "Ajustes de estoque",
         href: "/admin/estoque/movimentar",
         visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryUpdate]),
       },
@@ -139,6 +141,7 @@ const navSections: NavSection[] = [
     id: "financial",
     label: "Financeiro",
     compactHref: "/admin/financeiro",
+    placement: "main",
     visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.financialView, PERMISSIONS.financialManage]),
     items: [
       {
@@ -158,7 +161,7 @@ const navSections: NavSection[] = [
         visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.financialView]),
       },
       {
-        label: "Lancamentos",
+        label: "Lancamento manual",
         href: "/admin/financeiro/lancamentos/novo",
         visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.financialManage]),
       },
@@ -166,8 +169,9 @@ const navSections: NavSection[] = [
   },
   {
     id: "website",
-    label: "Website",
+    label: "Meu site",
     compactHref: "/admin/site",
+    placement: "main",
     visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.siteView, PERMISSIONS.siteUpdate]),
     items: [
       {
@@ -192,46 +196,25 @@ const navSections: NavSection[] = [
     id: "reports",
     label: "Relatorios",
     compactHref: "/admin/relatorios",
+    placement: "main",
     visible: (viewer) =>
       hasAnyPermission(viewer, [PERMISSIONS.financialView, PERMISSIONS.inventoryView, PERMISSIONS.ordersView]),
     items: [{ label: "Central de relatorios", href: "/admin/relatorios" }],
   },
   {
-    id: "registry",
-    label: "Cadastros",
-    compactHref: "/admin/estoque",
-    visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryView, PERMISSIONS.financialManage]),
-    items: [
-      {
-        label: "Itens",
-        href: "/admin/estoque",
-        isActive: isItemCatalogPath,
-        visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryView]),
-      },
-      {
-        label: "Grupos de itens",
-        href: "/admin/estoque/grupos",
-        visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryView]),
-      },
-      {
-        label: "Contas financeiras",
-        href: "/admin/financeiro/contas/nova",
-        visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.financialManage]),
-      },
-      {
-        label: "Categorias financeiras",
-        href: "/admin/financeiro/categorias",
-        visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.financialManage]),
-      },
-    ],
-  },
-  {
-    id: "admin",
-    label: "Administracao",
+    id: "settings",
+    label: "Configuracoes",
     compactHref: "/admin/empresa",
+    placement: "footer",
     visible: (viewer) =>
       viewer.isPlatformAdmin ||
-      hasAnyPermission(viewer, [PERMISSIONS.usersView, PERMISSIONS.companiesView, PERMISSIONS.companiesUpdate]),
+      hasAnyPermission(viewer, [
+        PERMISSIONS.inventoryView,
+        PERMISSIONS.financialManage,
+        PERMISSIONS.usersView,
+        PERMISSIONS.companiesView,
+        PERMISSIONS.companiesUpdate,
+      ]),
     items: [
       {
         label: "Empresa",
@@ -239,17 +222,32 @@ const navSections: NavSection[] = [
         visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.companiesView, PERMISSIONS.companiesUpdate]),
       },
       {
-        label: "Usuarios",
+        label: "Usuarios e acessos",
         href: "/admin/usuarios",
         visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.usersView]),
       },
       {
-        label: "Parametros",
+        label: "Produtos e grupos",
+        href: "/admin/estoque",
+        isActive: (pathname) =>
+          isItemCatalogPath(pathname) || pathname.startsWith("/admin/estoque/grupos"),
+        visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryView]),
+      },
+      {
+        label: "Configuracoes financeiras",
+        href: "/admin/financeiro/categorias",
+        isActive: (pathname) =>
+          pathname.startsWith("/admin/financeiro/categorias") ||
+          pathname.startsWith("/admin/financeiro/contas"),
+        visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.financialManage]),
+      },
+      {
+        label: "Regras operacionais",
         href: "/admin/parametros",
         visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.companiesUpdate]),
       },
       {
-        label: "Auditoria",
+        label: "Historico de alteracoes",
         href: "/admin/auditoria",
         visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.companiesView]),
       },
@@ -268,6 +266,7 @@ export function AdminShell({
   const router = useRouter();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [expandedSectionId, setExpandedSectionId] = useState<string | null>(null);
 
   useEffect(() => {
     const storedState = window.localStorage.getItem("grafica-platform:sidebar-collapsed");
@@ -289,8 +288,29 @@ export function AdminShell({
         .filter((section) => section.items.length > 0),
     [viewer],
   );
+  const mainSections = useMemo(
+    () => visibleSections.filter((section) => section.placement !== "footer"),
+    [visibleSections],
+  );
+  const footerSections = useMemo(
+    () => visibleSections.filter((section) => section.placement === "footer"),
+    [visibleSections],
+  );
+  const activeSectionId = useMemo(
+    () =>
+      visibleSections.find((section) => section.items.some((item) => matchesItem(pathname, item)))?.id ??
+      mainSections[0]?.id ??
+      null,
+    [mainSections, pathname, visibleSections],
+  );
 
   const breadcrumbs = useMemo(() => buildBreadcrumbs(pathname, visibleSections), [pathname, visibleSections]);
+
+  useEffect(() => {
+    if (!isCollapsed && activeSectionId) {
+      setExpandedSectionId(activeSectionId);
+    }
+  }, [activeSectionId, isCollapsed]);
 
   async function handleSignOut() {
     try {
@@ -329,7 +349,7 @@ export function AdminShell({
 
         {collapsed ? (
           <nav className="admin-sidebar__compact-nav" aria-label="Navegacao principal">
-            {visibleSections.map((section) => {
+            {[...mainSections, ...footerSections].map((section) => {
               const shortcut = resolveCompactItem(section, pathname);
               const isSectionActive = section.items.some((item) => matchesItem(pathname, item));
 
@@ -353,39 +373,107 @@ export function AdminShell({
             })}
           </nav>
         ) : (
-          <nav className="admin-sidebar__nav" aria-label="Navegacao principal">
-            {visibleSections.map((section) => {
-              const isSectionActive = section.items.some((item) => matchesItem(pathname, item));
+          <div className="admin-sidebar__nav">
+            <nav className="admin-sidebar__main-nav" aria-label="Navegacao principal">
+              {mainSections.map((section) => {
+                if (section.id === "home") {
+                  const item = section.items[0];
+                  const isActive = matchesItem(pathname, item);
 
-              return (
-                <details
-                  key={section.id}
-                  className="admin-sidebar__group"
-                  open={isSectionActive || section.id === "home"}
-                >
-                  <summary className="admin-sidebar__group-summary">
-                    <span>{section.label}</span>
-                  </summary>
-                  <div className="admin-sidebar__items">
-                    {section.items.map((item) => {
-                      const isActive = matchesItem(pathname, item);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`admin-sidebar__item ${isActive ? "is-active" : ""}`}
+                      aria-current={isActive ? "page" : undefined}
+                    >
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                }
 
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          className={`admin-sidebar__item ${isActive ? "is-active" : ""}`}
-                          aria-current={isActive ? "page" : undefined}
-                        >
-                          <span>{item.label}</span>
-                        </Link>
-                      );
-                    })}
+                const isSectionActive = section.items.some((item) => matchesItem(pathname, item));
+                const isExpanded = expandedSectionId === section.id;
+
+                return (
+                  <div key={section.id} className="admin-sidebar__group">
+                    <button
+                      type="button"
+                      className={`admin-sidebar__group-summary ${isSectionActive ? "is-active" : ""}`}
+                      onClick={() =>
+                        setExpandedSectionId((current) => (current === section.id ? null : section.id))
+                      }
+                      aria-expanded={isExpanded}
+                    >
+                      <span>{section.label}</span>
+                      <span aria-hidden="true">{isExpanded ? "-" : "+"}</span>
+                    </button>
+                    {isExpanded ? (
+                      <div className="admin-sidebar__items">
+                        {section.items.map((item) => {
+                          const isActive = matchesItem(pathname, item);
+
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              className={`admin-sidebar__item ${isActive ? "is-active" : ""}`}
+                              aria-current={isActive ? "page" : undefined}
+                            >
+                              <span>{item.label}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    ) : null}
                   </div>
-                </details>
-              );
-            })}
-          </nav>
+                );
+              })}
+            </nav>
+
+            {footerSections.length ? (
+              <div className="admin-sidebar__settings">
+                {footerSections.map((section) => {
+                  const isSectionActive = section.items.some((item) => matchesItem(pathname, item));
+                  const isExpanded = expandedSectionId === section.id;
+
+                  return (
+                    <div key={section.id} className="admin-sidebar__group">
+                      <button
+                        type="button"
+                        className={`admin-sidebar__group-summary ${isSectionActive ? "is-active" : ""}`}
+                        onClick={() =>
+                          setExpandedSectionId((current) => (current === section.id ? null : section.id))
+                        }
+                        aria-expanded={isExpanded}
+                      >
+                        <span>{section.label}</span>
+                        <span aria-hidden="true">{isExpanded ? "-" : "+"}</span>
+                      </button>
+                      {isExpanded ? (
+                        <div className="admin-sidebar__items">
+                          {section.items.map((item) => {
+                            const isActive = matchesItem(pathname, item);
+
+                            return (
+                              <Link
+                                key={item.href}
+                                href={item.href}
+                                className={`admin-sidebar__item ${isActive ? "is-active" : ""}`}
+                                aria-current={isActive ? "page" : undefined}
+                              >
+                                <span>{item.label}</span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
         )}
 
         {allowCollapseToggle ? (

@@ -4,7 +4,7 @@
 
 Este guia registra o padrao visual e operacional atual do painel administrativo da `Grafica Platform`.
 
-Ele existe para evitar regressao de usabilidade durante a consolidacao da plataforma.
+Ele existe para evitar regressao de usabilidade, manter consistencia entre modulos e orientar novas telas sem recriar componentes nem mascaras locais.
 
 ## Separacao de temas
 
@@ -17,8 +17,8 @@ Usar:
 - superficies brancas
 - contraste alto
 - tipografia sem serifa
-- poucos elementos decorativos
 - densidade operacional moderada
+- poucos elementos decorativos
 
 Evitar:
 
@@ -60,6 +60,7 @@ No `Sidebar`:
 - o controle de recolhimento deve ficar dentro da propria sidebar
 - o item ativo precisa continuar evidente no estado recolhido
 - o `drawer` mobile nao deve herdar o estado recolhido do desktop
+- apenas um grupo principal deve permanecer expandido por vez
 
 No `Topbar`:
 
@@ -83,6 +84,13 @@ Nos wrappers de pagina:
 - `StickyActionBar`
 - `LoadingButton`
 
+Campos numericos compartilhados:
+
+- `MoneyInput`
+- `DecimalInput`
+- `PercentageInput`
+- `QuantityInput`
+
 Nos formularios de `orcamentos` e `pedidos`:
 
 - abrir primeiro as informacoes principais
@@ -94,8 +102,11 @@ Nos formularios de `orcamentos` e `pedidos`:
 No fluxo de `vendas`:
 
 - usar tela propria, separada do lancamento manual
+- iniciar por pesquisa, sem carregar o catalogo inteiro ao abrir
 - manter a pesquisa e a inclusao de itens na area principal
 - manter resumo, total e acao principal sempre visiveis
+- deixar o carrinho fixo no desktop
+- tratar preco do item do catalogo como somente leitura
 - esconder custo, margem detalhada e informacoes tecnicas ate quando forem realmente necessarias
 - usar alerta de saida sem salvar quando houver carrinho em andamento
 
@@ -115,6 +126,63 @@ No fluxo de `vendas`:
 - `MetricCard`
 
 Nao criar variantes locais quando existir equivalente oficial.
+
+## Arquitetura atual do menu
+
+Os grupos principais da sidebar devem seguir a navegacao operacional:
+
+- `Inicio`
+- `Comercial`
+- `Operacao`
+- `Financeiro`
+- `Meu site`
+- `Relatorios`
+
+No rodape:
+
+- `Configuracoes`
+- recolher menu
+- perfil
+
+### Estrutura recomendada
+
+`Comercial`
+
+- Leads
+- Clientes
+- Orcamentos
+- Pedidos
+- Vendas
+- Produtos e servicos
+
+`Operacao`
+
+- Producao
+- Estoque
+- Entradas
+- Ajustes de estoque
+
+`Financeiro`
+
+- Visao geral
+- Contas a receber
+- Contas a pagar
+- Lancamento manual
+
+`Meu site`
+
+- Visao geral
+- Leads do site
+- Visualizar site
+
+`Configuracoes`
+
+- Empresa
+- Usuarios e acessos
+- Produtos e grupos
+- Configuracoes financeiras
+- Regras operacionais
+- Historico de alteracoes
 
 ## Padrao de pagina
 
@@ -176,6 +244,21 @@ Sempre:
 2. informacoes complementares
 3. opcoes avancadas
 4. acoes
+
+### Campos monetarios, percentuais e quantidades
+
+Todos os campos financeiros e decimais devem usar os componentes compartilhados.
+
+Regras:
+
+- moeda aceita digitacao natural em `pt-BR`
+- colagem pode usar `R$`, virgula ou ponto decimal
+- formatacao final acontece no blur, sem impedir a digitacao
+- percentual aceita ate duas casas
+- quantidade respeita a escala operacional e nao herda mascara de moeda
+- valores digitados devem ser preservados em erro
+
+Campos detalhados e escalas atuais estao documentados em `docs/campos-numericos.md`.
 
 ### Validacao
 
@@ -263,16 +346,17 @@ Usar mensagens curtas e especificas:
 
 - `Cliente atualizado com sucesso.`
 - `Entrada confirmada e estoque atualizado.`
+- `Venda concluida com sucesso.`
 
 ### Erro
 
-Nos relatórios:
+Mostrar contexto e correcao esperada.
+
+Em relatorios:
 
 - exportacao deve mostrar `Gerando arquivo...`
-- bloquear clique duplicado enquanto o arquivo estiver sendo preparado
-- devolver confirmacao de sucesso ou falha visivel
-
-Mostrar contexto e correcao esperada.
+- o clique deve ficar bloqueado durante a geracao
+- o sistema deve devolver confirmacao de sucesso ou falha visivel
 
 ## Confirmacoes
 
@@ -284,6 +368,22 @@ Usar `ConfirmDialog` apenas em acoes relevantes:
 - concluir venda
 - cancelar documento
 - publicar website
+
+## Estoque e FIFO
+
+Para itens com controle de estoque, a disponibilidade operacional deve seguir a mesma fonte usada na conclusao da venda:
+
+`saldo vendavel = soma das quantidades disponiveis nas camadas FIFO elegiveis`
+
+Quando houver divergencia entre saldo registrado e saldo vendavel:
+
+- alertar visualmente na venda e no estoque
+- bloquear venda acima do saldo FIFO disponivel
+- orientar regularizacao administrativa
+
+O diagnostico padrao fica em:
+
+- `npm run inventory:diagnose`
 
 ## Responsividade
 
@@ -317,5 +417,7 @@ Sempre validar:
 - retorno de foco ao fechar
 - mensagens de erro anunciaveis
 - texto junto com status visual
+- `aria-current` no item ativo
+- `aria-expanded` no controle da sidebar
 
 Nao remover `outline` sem substituicao visivel.

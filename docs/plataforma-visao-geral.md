@@ -77,14 +77,17 @@ Os componentes base do painel ficam em `src/components/admin` e hoje cobrem:
 O menu administrativo esta organizado por tarefa:
 
 - `Inicio`
-- `Vendas`
-- `Producao`
-- `Estoque`
+- `Comercial`
+- `Operacao`
 - `Financeiro`
-- `Website`
+- `Meu site`
 - `Relatorios`
-- `Cadastros`
-- `Administracao`
+
+No rodape do menu ficam:
+
+- `Configuracoes`
+- recolher menu
+- perfil e saida
 
 Os itens exibidos respeitam o perfil visual do usuario, sem substituir a autorizacao do backend.
 
@@ -153,7 +156,13 @@ Os indicadores devem ser tratados como ponto de partida para o trabalho diario.
 - wrappers de `novo`, `editar` e `detalhe` padronizados com larguras consistentes e sem padding local
 - `orcamentos`, `pedidos`, `vendas`, `entradas`, `producao`, `relatorios`, `leads do site`, `empresa`, `parametros` e `movimentacoes` alinhados ao mesmo shell visual
 - `vendas` com fluxo proprio de operacao, separado do formulario generico do financeiro
+- `vendas` com pesquisa sob demanda, sem carregar o catalogo inteiro ao abrir
+- `vendas` com carrinho lateral fixo no desktop e foco inicial na busca
+- `vendas` com preco de item do catalogo somente leitura no carrinho
+- `vendas` usando saldo vendavel por FIFO como fonte de verdade visual e transacional
 - `vendas` com reflexo de estoque para itens fisicos na mesma transacao do registro comercial
+- `estoque` com aviso explicito quando saldo registrado e saldo FIFO ainda nao coincidem
+- `movimentacoes` sem item preso ao abrir pelo menu e com troca de item confiavel
 - `financeiro` com leitura de origem operacional, incluindo entrada, pedido, orcamento e lancamento manual
 - `financeiro` com origem clicavel tambem para vendas registradas pela tela propria
 - `lancamento manual` tratado visualmente como excecao e nao como fluxo concorrente a venda
@@ -183,6 +192,44 @@ Os modulos abaixo ja funcionam e ja seguem o shell atual, mas ainda merecem roda
 - formularios longos devem priorizar os campos essenciais
 - dados digitados nao devem se perder em erro de validacao
 - operacoes criticas devem exibir confirmacao com consequencia
+
+## Campos monetarios e decimais
+
+Os formularios operacionais passaram a compartilhar componentes reutilizaveis:
+
+- `MoneyInput`
+- `DecimalInput`
+- `PercentageInput`
+- `QuantityInput`
+
+Regras atuais:
+
+- moeda aceita digitacao natural em `pt-BR` e normaliza colagem com `R$`, virgula ou ponto
+- percentual aceita ate duas casas
+- quantidade respeita escala operacional e nao reaproveita a mascara de moeda
+- formatacao final acontece ao perder o foco, sem impedir a digitacao
+
+## Estoque, saldo e FIFO
+
+Para itens com controle de estoque, a disponibilidade usada em `Vendas` passa a seguir a mesma fonte validada no backend:
+
+`saldo vendavel = soma das quantidades disponiveis nas camadas FIFO elegiveis`
+
+Quando houver divergencia entre:
+
+- saldo registrado no produto
+- saldo por movimentos confirmados
+- saldo disponivel em camadas FIFO
+
+o sistema deve:
+
+- alertar visualmente a divergencia
+- bloquear venda acima do saldo FIFO disponivel
+- orientar regularizacao administrativa
+
+Comando de diagnostico disponivel:
+
+- `npm run inventory:diagnose`
 
 ## Situacao da homologacao
 

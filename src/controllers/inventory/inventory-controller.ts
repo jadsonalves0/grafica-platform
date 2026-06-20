@@ -245,9 +245,19 @@ export class InventoryController extends BaseController {
     companyId: string,
     search?: string,
     categoryId?: string,
+    options?: {
+      onlyActive?: boolean;
+      limit?: number;
+    },
   ): Promise<ControllerResult<InventoryProductListItemDto[]>> {
     try {
-      const products = await this.inventoryService.listProducts(context, companyId, search, categoryId);
+      const products = await this.inventoryService.listProducts(
+        context,
+        companyId,
+        search,
+        categoryId,
+        options,
+      );
       return this.ok(products.map(mapProduct));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unexpected error.";
@@ -408,11 +418,22 @@ function mapProduct(product: {
   showOnWebsite: boolean;
   desiredMargin: { toNumber(): number } | number | null;
   currentStock: { toNumber(): number } | number;
+  stockLayers?: Array<{ availableQuantity: { toNumber(): number } | number }>;
   minimumStock: { toNumber(): number } | number;
   costPrice: { toNumber(): number } | number;
   salePrice: { toNumber(): number } | number;
   isActive: boolean;
 }): InventoryProductListItemDto {
+  const currentStock = toNumber(product.currentStock);
+  const availableStock = product.controlsStock
+    ? roundQuantity(
+        (product.stockLayers ?? []).reduce(
+          (sum, layer) => sum + toNumber(layer.availableQuantity),
+          0,
+        ),
+      )
+    : currentStock;
+
   return {
     id: product.id,
     categoryId: product.categoryId,
@@ -425,7 +446,9 @@ function mapProduct(product: {
     controlsStock: product.controlsStock,
     showOnWebsite: product.showOnWebsite,
     desiredMargin: product.desiredMargin === null ? null : toNumber(product.desiredMargin),
-    currentStock: toNumber(product.currentStock),
+    currentStock,
+    availableStock,
+    hasStockMismatch: product.controlsStock && Math.abs(currentStock - availableStock) > 0.0001,
     minimumStock: toNumber(product.minimumStock),
     costPrice: toNumber(product.costPrice),
     salePrice: toNumber(product.salePrice),
@@ -447,6 +470,7 @@ function mapProductDetail(product: {
   showOnWebsite: boolean;
   desiredMargin: { toNumber(): number } | number | null;
   currentStock: { toNumber(): number } | number;
+  stockLayers?: Array<{ availableQuantity: { toNumber(): number } | number }>;
   minimumStock: { toNumber(): number } | number;
   costPrice: { toNumber(): number } | number;
   salePrice: { toNumber(): number } | number;
@@ -465,6 +489,16 @@ function mapProductDetail(product: {
     changedByUser?: { name: string } | null;
   }>;
 }): InventoryProductDetailDto {
+  const currentStock = toNumber(product.currentStock);
+  const availableStock = product.controlsStock
+    ? roundQuantity(
+        (product.stockLayers ?? []).reduce(
+          (sum, layer) => sum + toNumber(layer.availableQuantity),
+          0,
+        ),
+      )
+    : currentStock;
+
   return {
     id: product.id,
     companyId: product.companyId,
@@ -478,7 +512,9 @@ function mapProductDetail(product: {
     controlsStock: product.controlsStock,
     showOnWebsite: product.showOnWebsite,
     desiredMargin: product.desiredMargin === null ? null : toNumber(product.desiredMargin),
-    currentStock: toNumber(product.currentStock),
+    currentStock,
+    availableStock,
+    hasStockMismatch: product.controlsStock && Math.abs(currentStock - availableStock) > 0.0001,
     minimumStock: toNumber(product.minimumStock),
     costPrice: toNumber(product.costPrice),
     salePrice: toNumber(product.salePrice),
@@ -658,4 +694,8 @@ function mapMovement(movement: {
 
 function toNumber(value: { toNumber(): number } | number) {
   return typeof value === "number" ? value : value.toNumber();
+}
+
+function roundQuantity(value: number) {
+  return Math.round(value * 1000) / 1000;
 }

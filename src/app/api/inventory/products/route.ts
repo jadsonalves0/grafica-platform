@@ -24,7 +24,16 @@ export async function GET(request: Request) {
     const companyId = searchParams.get("companyId") ?? context.companyId;
     const search = searchParams.get("search") ?? undefined;
     const categoryId = searchParams.get("categoryId") ?? undefined;
-    const result = await controller.listProducts(context, companyId, search, categoryId);
+    const onlyActive = searchParams.get("onlyActive") === "true";
+    const limitParam = searchParams.get("limit");
+    const parsedLimit = limitParam ? Number.parseInt(limitParam, 10) : undefined;
+    const result = await controller.listProducts(context, companyId, search, categoryId, {
+      onlyActive,
+      limit:
+        parsedLimit && Number.isFinite(parsedLimit) && parsedLimit > 0
+          ? parsedLimit
+          : undefined,
+    });
     return NextResponse.json(result, { status: result.success ? 200 : 400 });
   } catch (error) {
     return apiErrorResponse(error);
