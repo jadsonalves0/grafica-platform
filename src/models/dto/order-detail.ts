@@ -7,6 +7,9 @@ export type OrderDetailDto = {
   code: string;
   status: string;
   productionStatus: string;
+  hasLinkedSale?: boolean;
+  linkedSaleEntryId?: string | null;
+  readyForSale?: boolean;
   deliveryDate?: string | null;
   totalAmount: number;
   notes?: string | null;

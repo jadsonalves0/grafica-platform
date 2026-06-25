@@ -27,13 +27,12 @@ import {
   parseCurrencyInput,
   parseDecimalInput,
 } from "@/lib/forms/br-utils";
+import {
+  useCustomerLookup,
+  type CustomerLookupOption,
+} from "@/lib/forms/use-customer-lookup";
 
-type CustomerOption = {
-  id: string;
-  name: string;
-  email?: string | null;
-  whatsapp?: string | null;
-};
+type CustomerOption = CustomerLookupOption;
 
 type ProductOption = {
   id: string;
@@ -145,7 +144,6 @@ function buildInitialState(initialData?: QuoteDetailResponse["data"]): QuoteForm
 export function QuoteForm({ mode, customers, products, initialData, quoteId }: Readonly<QuoteFormProps>) {
   const router = useRouter();
   const errorSummaryRef = useRef<HTMLDivElement | null>(null);
-  const [customerOptions, setCustomerOptions] = useState<CustomerOption[]>(customers);
   const [form, setForm] = useState<QuoteFormState>(() => buildInitialState(initialData));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
@@ -160,6 +158,18 @@ export function QuoteForm({ mode, customers, products, initialData, quoteId }: R
       errorSummaryRef.current?.focus();
     }
   }, [errorMessage]);
+
+  const {
+    currentQuery: customerSearchQuery,
+    customerLookupOptions,
+    isSearching: isSearchingCustomers,
+    searchError: customerSearchError,
+    setQuery: setCustomerSearchQuery,
+    registerCustomer,
+  } = useCustomerLookup({
+    initialCustomers: customers,
+    includeInactive: mode === "edit",
+  });
 
   const pricing = useMemo(() => {
     const items = form.items.map((item) => {
@@ -190,17 +200,6 @@ export function QuoteForm({ mode, customers, products, initialData, quoteId }: R
       totalAmount,
     };
   }, [form]);
-
-  const customerLookupOptions = useMemo<SearchableSelectOption[]>(
-    () =>
-      customerOptions.map((customer) => ({
-        value: customer.id,
-        label: customer.name,
-        description: [customer.email, customer.whatsapp].filter(Boolean).join(" | ") || undefined,
-        keywords: [customer.email ?? "", customer.whatsapp ?? ""],
-      })),
-    [customerOptions],
-  );
 
   const availableProducts = useMemo(
     () =>
@@ -265,9 +264,7 @@ export function QuoteForm({ mode, customers, products, initialData, quoteId }: R
     email?: string | null;
     whatsapp?: string | null;
   }) {
-    setCustomerOptions((current) =>
-      [...current, customer].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
-    );
+    registerCustomer(customer);
     updateField("customerId", customer.id);
     setShowQuickCustomer(false);
     setSuccessMessage("Cliente cadastrado e selecionado no orcamento.");
@@ -465,12 +462,20 @@ export function QuoteForm({ mode, customers, products, initialData, quoteId }: R
                   value={form.customerId}
                   options={customerLookupOptions}
                   onChange={(value) => updateField("customerId", value)}
+                  onQueryChange={setCustomerSearchQuery}
                   placeholder="Pesquisar cliente por nome, e-mail ou WhatsApp"
-                  emptyMessage="Nenhum cliente encontrado para esta busca."
+                  emptyMessage={
+                    customerSearchQuery.trim().length < 2
+                      ? "Digite pelo menos 2 caracteres para pesquisar clientes."
+                      : customerSearchError ?? "Nenhum cliente encontrado para esta busca."
+                  }
+                  loadingMessage="Pesquisando clientes..."
+                  isLoading={isSearchingCustomers}
+                  inputName="customerSearch"
+                  ariaLabel="Pesquisar cliente da proposta"
                 />
               )}
             </Field>
-
             <Field label="Valido ate" optional helpText="Use quando a proposta tiver prazo de resposta.">
               <input
                 type="date"
@@ -549,6 +554,8 @@ export function QuoteForm({ mode, customers, products, initialData, quoteId }: R
                       placeholder="Pesquisar por nome, SKU ou EAN"
                       emptyMessage="Nenhum item cadastrado encontrado."
                       clearable
+                      inputName={`quoteItemSearch-${index + 1}`}
+                      ariaLabel={`Pesquisar item do catalogo ${index + 1}`}
                     />
                   </Field>
 

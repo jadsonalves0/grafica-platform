@@ -233,7 +233,7 @@ export async function registerOutputStockByFifo(tx: Tx, input: OutputStockParams
   if (remainingQuantity > 0 && !effectiveAllowNegativeStock) {
     throw new Error(
       [
-        `O item ${product.name} possui ${formatQuantity(availableQuantity)} ${product.unit} disponivel(is) pelo controle FIFO, mas a operacao solicita ${formatQuantity(quantity)} ${product.unit}.`,
+        `O item ${product.name} possui ${formatQuantity(availableQuantity)} ${product.unit} disponivel(is) para venda, mas a operacao solicita ${formatQuantity(quantity)} ${product.unit}.`,
         "Revise o estoque, confirme uma entrada pendente ou reduza a quantidade solicitada.",
       ].join(" "),
     );

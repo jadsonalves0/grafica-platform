@@ -26,11 +26,12 @@ import {
   parseCurrencyInput,
   parseDecimalInput,
 } from "@/lib/forms/br-utils";
+import {
+  useCustomerLookup,
+  type CustomerLookupOption,
+} from "@/lib/forms/use-customer-lookup";
 
-type CustomerOption = {
-  id: string;
-  name: string;
-};
+type CustomerOption = CustomerLookupOption;
 
 type QuoteOption = {
   id: string;
@@ -71,6 +72,9 @@ type OrderDetail = {
   productionStatus: "PENDING" | "IN_PRODUCTION" | "WAITING_APPROVAL" | "READY" | "DELIVERED";
   deliveryDate?: string | null;
   notes?: string | null;
+  hasLinkedSale?: boolean;
+  linkedSaleEntryId?: string | null;
+  readyForSale?: boolean;
   items: Array<{
     id: string;
     productId?: string | null;
@@ -91,12 +95,12 @@ type ApiResult<T> = {
 type OrderFormProps = {
   mode: "create" | "edit";
   order?: OrderDetail;
+  onOrderChanged?: (order: OrderDetail) => void;
 };
 
-export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
+export function OrderForm({ mode, order, onOrderChanged }: Readonly<OrderFormProps>) {
   const router = useRouter();
   const errorSummaryRef = useRef<HTMLDivElement | null>(null);
-  const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [quotes, setQuotes] = useState<QuoteOption[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [customerId, setCustomerId] = useState(order?.customerId ?? "");
@@ -129,6 +133,18 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
     }
   }, [errorMessage]);
 
+  const {
+    currentQuery: customerSearchQuery,
+    customerLookupOptions,
+    isSearching: isSearchingCustomers,
+    searchError: customerSearchError,
+    setQuery: setCustomerSearchQuery,
+    registerCustomer,
+  } = useCustomerLookup({
+    initialCustomers: order?.customerId && order?.customerName ? [{ id: order.customerId, name: order.customerName }] : [],
+    includeInactive: mode === "edit",
+  });
+
   useEffect(() => {
     const controller = new AbortController();
 
@@ -136,12 +152,7 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
       setIsLoadingOptions(true);
 
       try {
-        const customersEndpoint = mode === "edit" ? "/api/customers?includeInactive=true" : "/api/customers";
-        const [customersResponse, quotesResponse, productsResponse] = await Promise.all([
-          fetch(customersEndpoint, {
-            signal: controller.signal,
-            cache: "no-store",
-          }),
+        const [quotesResponse, productsResponse] = await Promise.all([
           fetch("/api/quotes", {
             signal: controller.signal,
             cache: "no-store",
@@ -152,14 +163,8 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
           }),
         ]);
 
-        const customersResult = (await customersResponse.json()) as ApiResult<Array<{ id: string; name: string }>>;
         const quotesResult = (await quotesResponse.json()) as ApiResult<Array<QuoteOption>>;
         const productsResult = (await productsResponse.json()) as ApiResult<ProductOption[]>;
-
-        if (!customersResponse.ok || !customersResult.success || !customersResult.data) {
-          setErrorMessage(customersResult.message ?? "Nao foi possivel carregar os clientes do pedido.");
-          return;
-        }
 
         if (!quotesResponse.ok || !quotesResult.success || !quotesResult.data) {
           setErrorMessage(quotesResult.message ?? "Nao foi possivel carregar os orcamentos aprovados.");
@@ -171,7 +176,6 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
           return;
         }
 
-        setCustomers(customersResult.data);
         setQuotes(quotesResult.data.filter((quote) => quote.status === "APPROVED"));
         setProducts(productsResult.data);
       } catch (error) {
@@ -204,15 +208,6 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
   const selectedQuote = useMemo(
     () => quotes.find((quote) => quote.id === quoteId) ?? null,
     [quoteId, quotes],
-  );
-
-  const customerLookupOptions = useMemo<SearchableSelectOption[]>(
-    () =>
-      customers.map((customer) => ({
-        value: customer.id,
-        label: customer.name,
-      })),
-    [customers],
   );
 
   const quoteLookupOptions = useMemo<SearchableSelectOption[]>(
@@ -300,11 +295,7 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
     email?: string | null;
     whatsapp?: string | null;
   }) {
-    setCustomers((current) =>
-      [...current, { id: customer.id, name: customer.name }].sort((a, b) =>
-        a.name.localeCompare(b.name, "pt-BR"),
-      ),
-    );
+    registerCustomer(customer);
     setCustomerId(customer.id);
     setShowQuickCustomer(false);
     setSuccessMessage("Cliente cadastrado e selecionado com sucesso.");
@@ -388,18 +379,21 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
         body: JSON.stringify(payload),
       });
 
-      const result = (await response.json()) as ApiResult<{ id: string; code: string }>;
+      const result = (await response.json()) as ApiResult<OrderDetail>;
 
       if (!response.ok || !result.success || !result.data) {
         setErrorMessage(result.message ?? "Nao foi possivel salvar o pedido. Revise os dados e tente novamente.");
         return;
       }
 
+      const savedOrder = result.data;
+
+      onOrderChanged?.(savedOrder);
       setSuccessMessage(mode === "create" ? "Pedido criado com sucesso." : "Pedido atualizado com sucesso.");
 
       window.setTimeout(() => {
         if (mode === "create") {
-          router.push(`/admin/pedidos/${result.data!.id}`);
+          router.push(`/admin/pedidos/${savedOrder.id}`);
         } else {
           router.push("/admin/pedidos?feedback=updated");
         }
@@ -433,14 +427,18 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
         }),
       });
 
-      const result = (await response.json()) as ApiResult<{ id: string }>;
+      const result = (await response.json()) as ApiResult<OrderDetail>;
 
-      if (!response.ok || !result.success) {
+      if (!response.ok || !result.success || !result.data) {
         setErrorMessage(result.message ?? "Nao foi possivel atualizar o andamento do pedido.");
         return;
       }
 
+      setStatus(result.data.status);
+      setProductionStatus(result.data.productionStatus);
+      onOrderChanged?.(result.data);
       setSuccessMessage("Andamento atualizado com sucesso.");
+      router.refresh();
     } catch {
       setErrorMessage("Nao foi possivel atualizar o andamento do pedido. Tente novamente.");
     } finally {
@@ -531,8 +529,17 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
                   onChange={setCustomerId}
                   options={customerLookupOptions}
                   placeholder="Pesquisar cliente por nome"
+                  onQueryChange={setCustomerSearchQuery}
                   disabled={Boolean(quoteId) || isLoadingOptions}
-                  emptyMessage="Nenhum cliente encontrado."
+                  emptyMessage={
+                    customerSearchQuery.trim().length < 2
+                      ? "Digite pelo menos 2 caracteres para pesquisar clientes."
+                      : customerSearchError ?? "Nenhum cliente encontrado."
+                  }
+                  loadingMessage="Pesquisando clientes..."
+                  isLoading={isSearchingCustomers}
+                  inputName="orderCustomerSearch"
+                  ariaLabel="Pesquisar cliente do pedido"
                 />
               )}
             </Field>
@@ -622,14 +629,16 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
                       style={{ gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1.3fr) minmax(120px, 0.6fr) minmax(150px, 0.8fr) minmax(140px, 0.8fr)" }}
                     >
                       <Field label={`Item cadastrado ${index + 1}`} optional helpText="Procure por nome, SKU ou EAN para preencher mais rapido.">
-                        <SearchableSelect
-                          value={item.productId}
-                          options={productLookupOptions}
-                          onChange={(value) => handleProductSelection(item.id, value)}
-                          placeholder="Pesquisar por nome, SKU ou EAN"
-                          emptyMessage="Nenhum item cadastrado encontrado."
-                          clearable
-                        />
+                    <SearchableSelect
+                      value={item.productId}
+                      options={productLookupOptions}
+                      onChange={(value) => handleProductSelection(item.id, value)}
+                      placeholder="Pesquisar por nome, SKU ou EAN"
+                      emptyMessage="Nenhum item cadastrado encontrado."
+                      clearable
+                      inputName={`orderItemSearch-${index + 1}`}
+                      ariaLabel={`Pesquisar item do catalogo ${index + 1}`}
+                    />
                       </Field>
 
                       <Field label={`Descricao do item ${index + 1}`} required>

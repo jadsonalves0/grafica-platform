@@ -108,7 +108,7 @@ test("venda com item fisico reduz o saldo em estoque", async ({ page }) => {
   await expect(stockCard).toContainText("3 un");
 });
 
-test("venda acima do saldo FIFO mostra erro operacional claro", async ({ page }) => {
+test("venda acima do saldo mostra erro operacional claro", async ({ page }) => {
   await authenticateAsAdmin(page);
 
   const itemName = uniqueName("Revenda bloqueio e2e");
@@ -126,6 +126,6 @@ test("venda acima do saldo FIFO mostra erro operacional claro", async ({ page })
   await page.getByRole("button", { name: "Concluir venda" }).click();
 
   await expect(page.getByText(itemName)).toBeVisible();
-  await expect(page.getByText("controle FIFO", { exact: false })).toBeVisible();
+  await expect(page.getByText("disponivel(is) para venda", { exact: false })).toBeVisible();
   await expect(page.getByText("Revise o estoque", { exact: false })).toBeVisible();
 });

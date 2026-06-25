@@ -886,6 +886,8 @@ export function EntryForm({
                             placeholder="Pesquisar por nome, SKU ou EAN"
                             emptyMessage="Nenhum item encontrado."
                             clearable
+                            inputName={`financialManualItemSearch-${index + 1}`}
+                            ariaLabel={`Pesquisar item financeiro ${index + 1}`}
                           />
                         </Field>
 

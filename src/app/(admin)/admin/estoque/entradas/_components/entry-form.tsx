@@ -670,6 +670,8 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
                       placeholder="Pesquisar por nome, SKU ou EAN"
                       disabled={isLoadingOptions}
                       emptyMessage="Nenhum item encontrado."
+                      inputName={`inventoryEntryItemSearch-${index + 1}`}
+                      ariaLabel={`Pesquisar item de entrada ${index + 1}`}
                     />
                   </Field>
 

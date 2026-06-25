@@ -13,24 +13,40 @@ type SearchableSelectProps = {
   value: string;
   options: SearchableSelectOption[];
   onChange: (value: string) => void;
+  onQueryChange?: (query: string) => void;
   placeholder?: string;
   disabled?: boolean;
   emptyMessage?: string;
+  loadingMessage?: string;
   clearable?: boolean;
   maxResults?: number;
   autoFocus?: boolean;
+  isLoading?: boolean;
+  inputId?: string;
+  inputName?: string;
+  ariaLabel?: string;
+  autoComplete?: string;
+  inputMode?: "search" | "text" | "email" | "tel" | "url" | "none" | "decimal" | "numeric";
 };
 
 export function SearchableSelect({
   value,
   options,
   onChange,
+  onQueryChange,
   placeholder = "Pesquisar...",
   disabled = false,
   emptyMessage = "Nenhum resultado encontrado.",
+  loadingMessage = "Pesquisando...",
   clearable = false,
   maxResults = 8,
   autoFocus = false,
+  isLoading = false,
+  inputId,
+  inputName,
+  ariaLabel,
+  autoComplete = "off",
+  inputMode = "search",
 }: Readonly<SearchableSelectProps>) {
   const listboxId = useId();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -96,6 +112,7 @@ export function SearchableSelect({
     setQuery(nextValue);
     setIsOpen(true);
     setHighlightedIndex(0);
+    onQueryChange?.(nextValue);
 
     if (value) {
       onChange("");
@@ -114,6 +131,7 @@ export function SearchableSelect({
     setQuery("");
     setIsOpen(false);
     setHighlightedIndex(0);
+    onQueryChange?.("");
     inputRef.current?.focus();
   }
 
@@ -160,7 +178,10 @@ export function SearchableSelect({
     <div ref={containerRef} style={{ position: "relative", display: "grid", gap: 8 }}>
       <div style={inputShellStyle(disabled)}>
         <input
+          id={inputId}
+          name={inputName ?? inputId ?? `${listboxId}-lookup-search`}
           ref={inputRef}
+          type="search"
           value={query}
           onChange={(event) => handleInputChange(event.target.value)}
           onFocus={() => setIsOpen(true)}
@@ -168,8 +189,12 @@ export function SearchableSelect({
           placeholder={placeholder}
           disabled={disabled}
           autoFocus={autoFocus}
-          autoComplete="off"
+          autoComplete={autoComplete}
+          autoCorrect="off"
+          spellCheck={false}
+          inputMode={inputMode}
           role="combobox"
+          aria-label={ariaLabel ?? placeholder}
           aria-expanded={isOpen}
           aria-controls={listboxId}
           aria-activedescendant={
@@ -191,7 +216,9 @@ export function SearchableSelect({
 
       {isOpen && !disabled ? (
         <div id={listboxId} role="listbox" style={dropdownStyle}>
-          {filteredOptions.length === 0 ? (
+          {isLoading ? (
+            <div style={emptyStateStyle}>{loadingMessage}</div>
+          ) : filteredOptions.length === 0 ? (
             <div style={emptyStateStyle}>{emptyMessage}</div>
           ) : (
             filteredOptions.map((option) => (

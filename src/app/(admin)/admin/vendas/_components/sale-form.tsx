@@ -48,6 +48,20 @@ type OrderOption = {
   customerName: string;
 };
 
+type OrderPrefillDetail = {
+  id: string;
+  code: string;
+  customerId: string;
+  customerName: string;
+  items: Array<{
+    id: string;
+    productId?: string | null;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+  }>;
+};
+
 type QuoteOption = {
   id: string;
   code: string;
@@ -128,6 +142,7 @@ type SaleFormProps = {
   mode: "create" | "edit";
   entryId?: string;
   initialData?: SaleInitialData;
+  prefillOrderId?: string | null;
 };
 
 type ApiResult<T> = {
@@ -197,7 +212,7 @@ function buildInitialState(initialData?: SaleInitialData): SaleFormState {
   };
 }
 
-export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>) {
+export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonly<SaleFormProps>) {
   const router = useRouter();
   const productSearchRef = useRef<HTMLInputElement | null>(null);
 
@@ -217,12 +232,14 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
   const [showQuickCustomer, setShowQuickCustomer] = useState(false);
   const [isLoadingOptions, setIsLoadingOptions] = useState(true);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [isHydratingOrder, setIsHydratingOrder] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [productSearchError, setProductSearchError] = useState<string | null>(null);
   const [completion, setCompletion] = useState<SaleCompletionState | null>(null);
+  const [hydratedOrderId, setHydratedOrderId] = useState<string | null>(null);
   const [baselineState, setBaselineState] = useState(() =>
     JSON.stringify(compactSaleState(buildInitialState(initialData))),
   );
@@ -362,12 +379,96 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
   }, [mode]);
 
   useEffect(() => {
+    if (mode !== "create" || !prefillOrderId || form.orderId || isLoadingOptions) {
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      orderId: prefillOrderId,
+    }));
+  }, [form.orderId, isLoadingOptions, mode, prefillOrderId]);
+
+  useEffect(() => {
     if (completion) {
       return;
     }
 
     productSearchRef.current?.focus();
   }, [completion]);
+
+  useEffect(() => {
+    if (mode !== "create" || !form.orderId || hydratedOrderId === form.orderId) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function hydrateFromOrder() {
+      setIsHydratingOrder(true);
+
+      try {
+        const response = await fetch(`/api/orders/${form.orderId}`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        const result = (await response.json()) as ApiResult<OrderPrefillDetail>;
+
+        if (!response.ok || !result.success || !result.data) {
+          throw new Error(result.message ?? "Nao foi possivel carregar o pedido para faturamento.");
+        }
+
+        const nextOrder = result.data;
+        setForm((current) => {
+          const canReplaceItems =
+            current.items.length === 0 ||
+            current.items.every(
+              (item) =>
+                !item.productId &&
+                !item.description.trim() &&
+                parseDecimalInput(item.quantity) <= 1 &&
+                parseCurrencyInput(item.unitPrice) <= 0,
+            );
+
+          return {
+            ...current,
+            customerId: current.customerId || nextOrder.customerId,
+            orderId: nextOrder.id,
+            description:
+              current.description.trim() || `Faturamento do pedido ${nextOrder.code}`,
+            items: canReplaceItems
+              ? nextOrder.items.map((item) => ({
+                  id: item.id,
+                  productId: item.productId ?? "",
+                  description: item.description,
+                  quantity: normalizeDecimalInput(String(item.quantity)),
+                  unitPrice: formatCurrencyValue(item.unitPrice),
+                  discountAmount: "0,00",
+                }))
+              : current.items,
+          };
+        });
+        setInfoMessage(`Pedido ${nextOrder.code} reaproveitado para o faturamento desta venda.`);
+        setHydratedOrderId(nextOrder.id);
+      } catch (error) {
+        if ((error as Error).name === "AbortError") {
+          return;
+        }
+
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "Nao foi possivel reaproveitar o pedido para a venda.",
+        );
+      } finally {
+        setIsHydratingOrder(false);
+      }
+    }
+
+    void hydrateFromOrder();
+
+    return () => controller.abort();
+  }, [form.orderId, hydratedOrderId, mode]);
 
   useEffect(() => {
     const productIds = [...new Set(form.items.map((item) => item.productId).filter(Boolean))];
@@ -852,6 +953,11 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
 
       {successMessage ? <Alert variant="success">{successMessage}</Alert> : null}
       {infoMessage ? <Alert variant="info">{infoMessage}</Alert> : null}
+      {isHydratingOrder ? (
+        <Alert variant="info" title="Preparando faturamento do pedido.">
+          Estamos reaproveitando cliente e itens do pedido selecionado para acelerar esta venda.
+        </Alert>
+      ) : null}
 
       <div className="admin-layout-grid admin-layout-grid--sale">
         <div className="admin-page-stack">
@@ -864,6 +970,13 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
                 <Field label="Buscar item">
                   <input
                     ref={productSearchRef}
+                    type="search"
+                    name="catalogItemSearch"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    inputMode="search"
+                    aria-label="Pesquisar item do catalogo para venda"
                     value={productSearch}
                     onChange={(event) => setProductSearch(event.target.value)}
                     onKeyDown={handleProductSearchKeyDown}
@@ -1088,6 +1201,7 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
                     options={accountOptions}
                     placeholder="Selecionar conta"
                     disabled={isLoadingOptions}
+                    inputName="saleAccountSearch"
                   />
                 </Field>
 
@@ -1098,6 +1212,7 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
                     options={categoryOptions}
                     placeholder="Selecionar categoria"
                     disabled={isLoadingOptions}
+                    inputName="saleCategorySearch"
                   />
                 </Field>
 
@@ -1109,6 +1224,7 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
                     placeholder="Pesquisar cliente"
                     disabled={isLoadingOptions}
                     clearable
+                    inputName="saleCustomerSearch"
                   />
                 </Field>
 
@@ -1173,6 +1289,7 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
                     placeholder="Selecionar pedido"
                     disabled={isLoadingOptions}
                     clearable
+                    inputName="saleOrderSearch"
                   />
                 </Field>
 
@@ -1184,6 +1301,7 @@ export function SaleForm({ mode, entryId, initialData }: Readonly<SaleFormProps>
                     placeholder="Selecionar orcamento"
                     disabled={isLoadingOptions}
                     clearable
+                    inputName="saleQuoteSearch"
                   />
                 </Field>
               </div>

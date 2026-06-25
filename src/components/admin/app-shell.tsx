@@ -76,11 +76,6 @@ const navSections: NavSection[] = [
       ]),
     items: [
       {
-        label: "Leads",
-        href: "/admin/site/leads",
-        visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.siteView, PERMISSIONS.siteUpdate]),
-      },
-      {
         label: "Clientes",
         href: "/admin/clientes",
         visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.customersView]),
@@ -99,12 +94,6 @@ const navSections: NavSection[] = [
         label: "Vendas",
         href: "/admin/vendas",
         visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.financialView, PERMISSIONS.financialManage]),
-      },
-      {
-        label: "Produtos e servicos",
-        href: "/admin/estoque",
-        isActive: isItemCatalogPath,
-        visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryView]),
       },
     ],
   },
@@ -152,17 +141,22 @@ const navSections: NavSection[] = [
       },
       {
         label: "Contas a receber",
-        href: "/admin/financeiro?entryType=INCOME&status=PENDING",
+        href: "/admin/financeiro?view=receivable&status=PENDING",
         visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.financialView]),
       },
       {
         label: "Contas a pagar",
-        href: "/admin/financeiro?entryType=EXPENSE&status=PENDING",
+        href: "/admin/financeiro?view=payable&status=PENDING",
         visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.financialView]),
       },
       {
-        label: "Lancamento manual",
-        href: "/admin/financeiro/lancamentos/novo",
+        label: "Caixa e bancos",
+        href: "/admin/financeiro?view=cash",
+        visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.financialView]),
+      },
+      {
+        label: "Lancamentos manuais",
+        href: "/admin/financeiro?view=manual",
         visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.financialManage]),
       },
     ],
@@ -202,6 +196,36 @@ const navSections: NavSection[] = [
     items: [{ label: "Central de relatorios", href: "/admin/relatorios" }],
   },
   {
+    id: "registries",
+    label: "Cadastros",
+    compactHref: "/admin/estoque",
+    placement: "footer",
+    visible: (viewer) =>
+      hasAnyPermission(viewer, [
+        PERMISSIONS.inventoryView,
+        PERMISSIONS.financialManage,
+      ]),
+    items: [
+      {
+        label: "Produtos e servicos",
+        href: "/admin/estoque",
+        isActive: isItemCatalogPath,
+        visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryView]),
+      },
+      {
+        label: "Grupos de itens",
+        href: "/admin/estoque/grupos",
+        visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryView]),
+      },
+      {
+        label: "Categorias financeiras",
+        href: "/admin/financeiro/categorias",
+        isActive: (pathname) => pathname.startsWith("/admin/financeiro/categorias"),
+        visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.financialManage]),
+      },
+    ],
+  },
+  {
     id: "settings",
     label: "Configuracoes",
     compactHref: "/admin/empresa",
@@ -209,7 +233,6 @@ const navSections: NavSection[] = [
     visible: (viewer) =>
       viewer.isPlatformAdmin ||
       hasAnyPermission(viewer, [
-        PERMISSIONS.inventoryView,
         PERMISSIONS.financialManage,
         PERMISSIONS.usersView,
         PERMISSIONS.companiesView,
@@ -227,18 +250,9 @@ const navSections: NavSection[] = [
         visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.usersView]),
       },
       {
-        label: "Produtos e grupos",
-        href: "/admin/estoque",
-        isActive: (pathname) =>
-          isItemCatalogPath(pathname) || pathname.startsWith("/admin/estoque/grupos"),
-        visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryView]),
-      },
-      {
-        label: "Configuracoes financeiras",
-        href: "/admin/financeiro/categorias",
-        isActive: (pathname) =>
-          pathname.startsWith("/admin/financeiro/categorias") ||
-          pathname.startsWith("/admin/financeiro/contas"),
+        label: "Contas financeiras",
+        href: "/admin/financeiro/contas/nova",
+        isActive: (pathname) => pathname.startsWith("/admin/financeiro/contas"),
         visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.financialManage]),
       },
       {

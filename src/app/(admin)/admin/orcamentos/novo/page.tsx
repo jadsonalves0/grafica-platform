@@ -10,13 +10,6 @@ import {
   Skeleton,
 } from "@/components/admin/ui";
 
-type CustomerOption = {
-  id: string;
-  name: string;
-  email?: string | null;
-  whatsapp?: string | null;
-};
-
 type ProductOption = {
   id: string;
   name: string;
@@ -29,17 +22,6 @@ type ProductOption = {
   isActive: boolean;
 };
 
-type CustomersResponse = {
-  success: boolean;
-  message?: string;
-  data?: Array<{
-    id: string;
-    name: string;
-    email?: string | null;
-    whatsapp?: string | null;
-  }>;
-};
-
 type ProductsResponse = {
   success: boolean;
   message?: string;
@@ -47,7 +29,6 @@ type ProductsResponse = {
 };
 
 export default function NovoOrcamentoPage() {
-  const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -55,30 +36,16 @@ export default function NovoOrcamentoPage() {
   useEffect(() => {
     const controller = new AbortController();
 
-    async function loadCustomers() {
+    async function loadProducts() {
       setIsLoading(true);
       setErrorMessage(null);
 
       try {
-        const [customersResponse, productsResponse] = await Promise.all([
-          fetch("/api/customers", {
-            signal: controller.signal,
-            cache: "no-store",
-          }),
-          fetch("/api/inventory/products", {
-            signal: controller.signal,
-            cache: "no-store",
-          }),
-        ]);
-
-        const customersResult = (await customersResponse.json()) as CustomersResponse;
+        const productsResponse = await fetch("/api/inventory/products", {
+          signal: controller.signal,
+          cache: "no-store",
+        });
         const productsResult = (await productsResponse.json()) as ProductsResponse;
-
-        if (!customersResponse.ok || !customersResult.success || !customersResult.data) {
-          setErrorMessage(customersResult.message ?? "Nao foi possivel carregar os clientes.");
-          setCustomers([]);
-          return;
-        }
 
         if (!productsResponse.ok || !productsResult.success || !productsResult.data) {
           setErrorMessage(productsResult.message ?? "Nao foi possivel carregar os itens.");
@@ -86,22 +53,20 @@ export default function NovoOrcamentoPage() {
           return;
         }
 
-        setCustomers(customersResult.data);
         setProducts(productsResult.data);
       } catch (error) {
         if ((error as Error).name === "AbortError") {
           return;
         }
 
-        setErrorMessage("Falha ao carregar clientes e itens para o orcamento.");
-        setCustomers([]);
+        setErrorMessage("Falha ao carregar os itens para o orcamento.");
         setProducts([]);
       } finally {
         setIsLoading(false);
       }
     }
 
-    void loadCustomers();
+    void loadProducts();
 
     return () => controller.abort();
   }, []);
@@ -126,12 +91,12 @@ export default function NovoOrcamentoPage() {
       {isLoading ? (
         <SectionCard
           title="Carregando base comercial"
-          description="Estamos trazendo clientes e itens cadastrados para iniciar a proposta."
+          description="Estamos trazendo os itens cadastrados para iniciar a proposta."
         >
           <Skeleton lines={7} />
         </SectionCard>
       ) : (
-        <QuoteForm mode="create" customers={customers} products={products} />
+        <QuoteForm mode="create" customers={[]} products={products} />
       )}
     </main>
   );

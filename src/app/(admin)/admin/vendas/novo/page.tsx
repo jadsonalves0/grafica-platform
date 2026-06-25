@@ -1,9 +1,14 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+
 import { SaleForm } from "@/app/(admin)/admin/vendas/_components/sale-form";
 import { PageHeader } from "@/components/admin/ui";
 
 export default function NovaVendaPage() {
+  const searchParams = useSearchParams();
+  const orderId = searchParams.get("orderId");
+
   return (
     <main className="admin-page-stack admin-page-shell admin-page-shell--wide">
       <PageHeader
@@ -12,7 +17,7 @@ export default function NovaVendaPage() {
         secondaryActions={[{ href: "/admin/vendas", label: "Voltar para vendas", variant: "secondary" }]}
       />
 
-      <SaleForm mode="create" />
+      <SaleForm mode="create" prefillOrderId={orderId} />
     </main>
   );
 }

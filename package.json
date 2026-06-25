@@ -12,6 +12,7 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "inventory:diagnose": "node scripts/inventory-diagnose.mjs",
+    "inventory:backfill-fifo": "node scripts/inventory-backfill-fifo.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",

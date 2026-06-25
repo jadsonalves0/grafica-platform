@@ -449,6 +449,8 @@ export default function ProducaoPage() {
                   placeholder="Pesquisar produto final por nome, SKU ou EAN"
                   disabled={isLoading}
                   emptyMessage="Nenhum produto final encontrado."
+                  inputName="productionProductSearch"
+                  ariaLabel="Pesquisar produto final da producao"
                 />
               </Field>
 

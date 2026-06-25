@@ -148,12 +148,10 @@ No rodape:
 
 `Comercial`
 
-- Leads
 - Clientes
 - Orcamentos
 - Pedidos
 - Vendas
-- Produtos e servicos
 
 `Operacao`
 
@@ -167,6 +165,7 @@ No rodape:
 - Visao geral
 - Contas a receber
 - Contas a pagar
+- Caixa e bancos
 - Lancamento manual
 
 `Meu site`
@@ -175,12 +174,17 @@ No rodape:
 - Leads do site
 - Visualizar site
 
+`Cadastros`
+
+- Produtos e servicos
+- Grupos de itens
+- Categorias financeiras
+
 `Configuracoes`
 
 - Empresa
 - Usuarios e acessos
-- Produtos e grupos
-- Configuracoes financeiras
+- Contas financeiras
 - Regras operacionais
 - Historico de alteracoes
 
@@ -260,6 +264,16 @@ Regras:
 - `orcamentos`, `pedidos`, `entradas`, `producao`, `ficha tecnica` e `lancamento manual` nao devem reimplementar mascaras locais
 
 Campos detalhados e escalas atuais estao documentados em `docs/campos-numericos.md`.
+
+### Campos de busca reutilizaveis
+
+Buscas de item, produto, materia-prima e catalogo devem:
+
+- usar `type="search"` quando houver campo textual livre
+- usar `autoComplete="off"` ou valor semanticamente neutro
+- evitar `name`, `id` ou `aria-label` com termos como `document`, `cpf`, `cnpj`, `doc` ou `identification`
+- preferir nomes como `quoteItemSearch`, `orderItemSearch`, `catalogItemSearch`, `inventoryMovementItemSearch`
+- preservar acessibilidade por teclado mesmo com autocomplete do navegador desativado
 
 ### Validacao
 
@@ -387,6 +401,10 @@ O diagnostico padrao fica em:
 - `npm run inventory:diagnose`
 
 O consumo transacional usa lock no produto e nas camadas elegiveis antes da baixa FIFO, para impedir concorrencia sobre a mesma disponibilidade.
+
+Quando o piloto local tiver movimentos de entrada confirmados sem camada correspondente e sem consumo posterior, a regularizacao assistida pode usar:
+
+- `npm run inventory:backfill-fifo`
 
 ## Responsividade
 

@@ -33,6 +33,9 @@ type OrderListItem = {
   code: string;
   status: CommercialStatus;
   productionStatus: ProductionStatus;
+  hasLinkedSale?: boolean;
+  linkedSaleEntryId?: string | null;
+  readyForSale?: boolean;
   customerName: string;
   totalAmount: number;
   deliveryDate?: string | null;
@@ -379,14 +382,35 @@ export default function PedidosPage() {
 
                 <div className="admin-list-card__footer">
                   <span className="admin-list-card__hint">
-                    Atualize o andamento, revise a producao ou siga para a proxima etapa valida.
+                    {order.hasLinkedSale
+                      ? "O pedido ja possui faturamento vinculado. Revise a producao ou abra a venda relacionada."
+                      : order.readyForSale
+                        ? "O pedido esta pronto para faturamento. Gere a venda para refletir no financeiro."
+                        : "Atualize o andamento, revise a producao ou siga para a proxima etapa valida."}
                   </span>
-                  <Link
-                    href={`/admin/pedidos/${order.id}`}
-                    className="admin-button admin-button--secondary"
-                  >
-                    Abrir pedido
-                  </Link>
+                  <div className="admin-row">
+                    {order.hasLinkedSale && order.linkedSaleEntryId ? (
+                      <Link
+                        href={`/admin/vendas/${order.linkedSaleEntryId}`}
+                        className="admin-button admin-button--secondary"
+                      >
+                        Abrir venda
+                      </Link>
+                    ) : order.readyForSale ? (
+                      <Link
+                        href={`/admin/vendas/novo?orderId=${order.id}`}
+                        className="admin-button admin-button--primary"
+                      >
+                        Gerar venda
+                      </Link>
+                    ) : null}
+                    <Link
+                      href={`/admin/pedidos/${order.id}`}
+                      className="admin-button admin-button--secondary"
+                    >
+                      Abrir pedido
+                    </Link>
+                  </div>
                 </div>
               </article>
             ))}

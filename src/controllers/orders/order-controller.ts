@@ -53,6 +53,9 @@ export class OrderController extends BaseController {
           customerId: order.customerId,
           customerName: order.customer.name,
           quoteId: order.quoteId,
+          hasLinkedSale: hasLinkedSale(order),
+          linkedSaleEntryId: findLinkedSaleEntryId(order),
+          readyForSale: isReadyForSale(order),
           totalAmount: toNumber(order.totalAmount),
           deliveryDate: order.deliveryDate?.toISOString() ?? null,
           createdAt: order.createdAt.toISOString(),
@@ -127,6 +130,11 @@ function mapOrderDetail(order: {
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
+  financials?: Array<{
+    id: string;
+    entryType: string;
+    status: string;
+  }>;
   items: Array<{
     id: string;
     productId: string | null;
@@ -145,6 +153,9 @@ function mapOrderDetail(order: {
     code: order.code,
     status: order.status,
     productionStatus: order.productionStatus,
+    hasLinkedSale: hasLinkedSale(order),
+    linkedSaleEntryId: findLinkedSaleEntryId(order),
+    readyForSale: isReadyForSale(order),
     deliveryDate: order.deliveryDate?.toISOString() ?? null,
     totalAmount: toNumber(order.totalAmount),
     notes: order.notes,
@@ -163,4 +174,46 @@ function mapOrderDetail(order: {
 
 function toNumber(value: { toNumber(): number } | number) {
   return typeof value === "number" ? value : value.toNumber();
+}
+
+function hasLinkedSale(order: {
+  financials?: Array<{
+    id: string;
+    entryType: string;
+    status: string;
+  }>;
+}) {
+  return order.financials?.some(
+    (entry) =>
+      (entry.entryType === "INCOME" || entry.entryType === "RECEIVABLE") &&
+      entry.status !== "CANCELED",
+  ) ?? false;
+}
+
+function findLinkedSaleEntryId(order: {
+  financials?: Array<{
+    id: string;
+    entryType: string;
+    status: string;
+  }>;
+}) {
+  return (
+    order.financials?.find(
+      (entry) =>
+        (entry.entryType === "INCOME" || entry.entryType === "RECEIVABLE") &&
+        entry.status !== "CANCELED",
+    )?.id ?? null
+  );
+}
+
+function isReadyForSale(order: {
+  status: string;
+  productionStatus: string;
+}) {
+  return (
+    order.status !== "CANCELED" &&
+    (order.productionStatus === "READY" ||
+      order.productionStatus === "DELIVERED" ||
+      order.status === "COMPLETED")
+  );
 }

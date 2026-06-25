@@ -394,6 +394,8 @@ export default function ComposicaoProdutoPage() {
                         options={materialLookupOptions}
                         placeholder="Pesquisar por nome, SKU ou EAN"
                         emptyMessage="Nenhuma materia-prima encontrada."
+                        inputName={`recipeMaterialSearch-${index + 1}`}
+                        ariaLabel={`Pesquisar materia-prima ${index + 1}`}
                       />
                       {item.material ? (
                         <span style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.5 }}>

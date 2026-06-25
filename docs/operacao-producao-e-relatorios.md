@@ -31,6 +31,16 @@ As telas de apoio e gestao agora seguem o mesmo shell visual:
 - `empresa`
 - `parametros`
 
+## Orcamentos e pedidos
+
+- `Novo orcamento` pesquisa cliente no servidor, sem depender de lista carregada inteira na abertura
+- a selecao do cliente precisa sobreviver a erro de validacao e troca de item
+- `Pedido` continua sendo compromisso operacional
+- `Venda` continua sendo fato comercial e financeiro
+- pedido pronto ou atendido nao vira receita sozinho
+- quando um pedido estiver pronto para faturamento, a interface deve orientar `Gerar venda`
+- quando a venda ja existir, a proxima acao deve ser `Abrir venda`
+
 ## Vendas e financeiro
 
 ### Vendas
@@ -56,9 +66,11 @@ A tela de `Vendas` concentra o registro operacional da venda com itens:
 
 O modulo financeiro deve ser entendido como leitura e tratamento dos efeitos financeiros:
 
+- `Visao financeira`
 - `A receber`
 - `A pagar`
 - `Caixa e bancos`
+- `Lancamentos manuais`
 
 Quando existir origem automatica, a tela deve deixar claro:
 
@@ -70,6 +82,15 @@ Quando existir origem automatica, a tela deve deixar claro:
 Para vendas com itens, a origem deve apontar para a propria tela comercial da venda, sem parecer um lancamento manual generico.
 
 Lancamento manual continua existindo, mas como excecao operacional.
+
+### Regra entre pedido e financeiro
+
+Nesta fase, a regra adotada e:
+
+- pedido atendido ou pronto nao gera financeiro automaticamente
+- pedido atendido deve orientar faturamento pela tela de `Vendas`
+- o financeiro passa a considerar o valor somente depois da venda gerada
+- a visao financeira mostra pedidos prontos como pendencia de faturamento, nao como receita realizada
 
 Quando houver necessidade de detalhar itens em um lancamento manual:
 
@@ -201,6 +222,7 @@ Na fase atual, os principais pontos ainda sujeitos a refinamento sao:
 O projeto agora possui um diagnostico dedicado:
 
 - `npm run inventory:diagnose`
+- `npm run inventory:backfill-fifo`
 
 Ele compara:
 
@@ -222,3 +244,5 @@ trata-se de saldo legado sem camada FIFO disponivel. A regularizacao recomendada
 - criar documento auditavel de saldo inicial ou entrada
 - recriar a camada FIFO com origem rastreavel
 - nao liberar venda real desse item antes da regularizacao
+
+Na base piloto local usada nesta rodada, os itens `Banner` e `item teste 1` ja foram reconciliados com camadas FIFO reaproveitando movimentos de entrada confirmados.

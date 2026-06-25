@@ -394,6 +394,8 @@ export default function MovimentarEstoquePage() {
                   emptyMessage="Nenhum item cadastrado encontrado."
                   disabled={isLoading}
                   clearable
+                  inputName="inventoryMovementItemSearch"
+                  ariaLabel="Pesquisar item da movimentacao de estoque"
                 />
               </Field>
 

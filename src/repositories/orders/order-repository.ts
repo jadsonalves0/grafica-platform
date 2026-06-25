@@ -44,6 +44,13 @@ export class OrderRepository {
       include: {
         customer: true,
         items: true,
+        financials: {
+          select: {
+            id: true,
+            entryType: true,
+            status: true,
+          },
+        },
       },
     });
   }
@@ -63,6 +70,13 @@ export class OrderRepository {
       },
       include: {
         customer: true,
+        financials: {
+          select: {
+            id: true,
+            entryType: true,
+            status: true,
+          },
+        },
       },
       orderBy: {
         createdAt: "desc",
@@ -80,6 +94,13 @@ export class OrderRepository {
         customer: true,
         items: true,
         quote: true,
+        financials: {
+          select: {
+            id: true,
+            entryType: true,
+            status: true,
+          },
+        },
       },
     });
   }
@@ -128,6 +149,13 @@ export class OrderRepository {
         include: {
           customer: true,
           items: true,
+          financials: {
+            select: {
+              id: true,
+              entryType: true,
+              status: true,
+            },
+          },
         },
       });
     });
@@ -151,6 +179,13 @@ export class OrderRepository {
       include: {
         customer: true,
         items: true,
+        financials: {
+          select: {
+            id: true,
+            entryType: true,
+            status: true,
+          },
+        },
       },
     });
   }

@@ -35,11 +35,14 @@ Cobertura automatizada atual:
 1. login e shell principal
 2. cadastro de item
 3. entrada salva e confirmada
-4. venda concluida
-5. venda fisica reduzindo saldo em estoque
-6. movimentacao com troca de item
-7. configuracao e publicacao do website
-8. integracao de entrada, camada FIFO, bloqueio acima do saldo e isolamento por empresa
+4. orcamento com cliente pesquisado
+5. pedido a partir de orcamento aprovado
+6. venda concluida
+7. venda fisica reduzindo saldo em estoque
+8. movimentacao com troca de item
+9. navegacao financeira segmentada
+10. configuracao e publicacao do website
+11. integracao de entrada, camada FIFO, bloqueio acima do saldo e isolamento por empresa
 
 ## Bloco 1. Shell e navegacao
 
@@ -52,7 +55,7 @@ Cobertura automatizada atual:
    - `Financeiro`
    - `Meu site`
    - `Relatorios`
-5. validar `Configuracoes` no rodape
+5. validar `Cadastros` e `Configuracoes` no rodape
 6. recolher e expandir o menu no desktop
 7. abrir e fechar o `drawer` no celular
 8. validar item ativo
@@ -82,24 +85,27 @@ Cobertura automatizada atual:
 
 ## Bloco 4. Produtos e grupos
 
-1. abrir `Configuracoes > Produtos e grupos`
+1. abrir `Cadastros > Produtos e servicos`
 2. cadastrar grupo
 3. editar grupo
 4. cadastrar item
 5. validar tipo `servico` sem controle de estoque
 6. validar historico de custo e preco
 7. validar campos monetarios e percentuais
+8. validar que `Produtos e servicos` nao aparece em `Configuracoes`
 
 ## Bloco 5. Orcamentos
 
 1. abrir `Comercial > Orcamentos`
 2. criar orcamento
-3. pesquisar cliente
-4. pesquisar item do catalogo
-5. ajustar quantidade
-6. ajustar valor
-7. salvar
-8. aprovar
+3. pesquisar cliente por nome
+4. validar que a busca traz apenas clientes da empresa logada
+5. validar que o campo de item nao aciona autocomplete de documento do navegador
+6. pesquisar item do catalogo
+7. ajustar quantidade
+8. ajustar valor
+9. salvar
+10. aprovar
 
 ## Bloco 6. Pedidos
 
@@ -111,6 +117,8 @@ Cobertura automatizada atual:
 6. editar entrega e observacoes
 7. alterar status comercial
 8. alterar status de producao
+9. validar cabecalho atualizado sem sair e voltar
+10. validar acao `Gerar venda` quando o pedido ficar pronto para faturamento
 
 ## Bloco 7. Vendas
 
@@ -130,7 +138,8 @@ Cobertura automatizada atual:
 14. validar bloco final de sucesso
 15. repetir com item fisico
 16. validar que o saldo mostrado na venda coincide com o saldo aceito no backend
-17. validar bloqueio ao vender acima do saldo FIFO
+17. validar bloqueio ao vender acima do saldo disponivel
+18. validar mensagem operacional sem expor regra interna de FIFO
 
 ## Bloco 8. Estoque e entradas
 
@@ -161,20 +170,24 @@ Cobertura automatizada atual:
 ## Bloco 10. Financeiro
 
 1. abrir `Financeiro`
-2. validar blocos `a receber`, `a pagar` e `caixa`
-3. abrir uma conta a receber
-4. validar `Origem: Venda`
-5. abrir uma conta a pagar
-6. validar `Origem: Entrada`
-7. validar `Lancamento manual` como excecao operacional
-8. criar lancamento manual simples
+2. validar `Visao financeira`
+3. abrir `Contas a receber` e confirmar que nao mistura contas a pagar
+4. abrir `Contas a pagar` e confirmar que nao mistura receitas
+5. abrir `Caixa e bancos`
+6. abrir `Lancamentos manuais`
+7. abrir uma conta a receber
+8. validar `Origem: Venda`
+9. abrir uma conta a pagar
+10. validar `Origem: Entrada`
+11. validar pedido pronto para faturamento sem tratar como receita
+12. criar lancamento manual simples
 
 ## Bloco 11. Configuracoes
 
 1. abrir `Configuracoes > Empresa`
 2. abrir `Configuracoes > Usuarios e acessos`
-3. abrir `Configuracoes > Regras operacionais`
-4. abrir `Configuracoes > Configuracoes financeiras`
+3. abrir `Configuracoes > Contas financeiras`
+4. abrir `Configuracoes > Regras operacionais`
 5. abrir `Configuracoes > Historico de alteracoes`
 
 ## Bloco 12. Meu site
@@ -202,12 +215,12 @@ Cobertura automatizada atual:
 
 Se algum dos itens abaixo falhar, tratar como bloqueador funcional:
 
-- venda fisica com saldo exato recusada pelo FIFO
+- venda fisica com saldo exato recusada apesar do saldo disponivel mostrado
 - saldo mostrado diferente do saldo validado
 - entrada confirmada sem gerar camada FIFO
 - item fixo na movimentacao
 - mascara monetaria impedindo `10,00` ou `10,05`
-- itens antigos com saldo registrado e FIFO zerado
+- pedido pronto para faturamento aparecendo como receita sem venda gerada
 
 ## Diagnostico obrigatorio de estoque
 
@@ -223,9 +236,8 @@ Se aparecer divergencia entre:
 
 registrar o item e tratar como regularizacao administrativa antes de seguir para vendas reais.
 
-Na base local atual, o diagnostico continua apontando pelo menos:
+Se o ambiente piloto local apontar saldo legado sem camadas, executar primeiro:
 
-- `Banner`
-- `item teste 1`
+- `npm run inventory:backfill-fifo`
 
-Esses itens nao devem ser usados em venda fisica real antes da regularizacao auditavel do saldo legado.
+Se ainda houver divergencia depois disso, tratar como regularizacao administrativa antes de seguir para vendas reais.

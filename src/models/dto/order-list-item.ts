@@ -3,6 +3,9 @@ export type OrderListItemDto = {
   code: string;
   status: string;
   productionStatus: string;
+  hasLinkedSale?: boolean;
+  linkedSaleEntryId?: string | null;
+  readyForSale?: boolean;
   customerId: string;
   customerName: string;
   quoteId?: string | null;

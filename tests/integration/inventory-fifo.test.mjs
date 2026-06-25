@@ -129,7 +129,7 @@ export const cases = [
             assert.match(String(error), new RegExp(product.name));
             assert.match(String(error), /2/);
             assert.match(String(error), /3/);
-            assert.match(String(error), /controle FIFO/i);
+            assert.match(String(error), /disponivel\(is\) para venda/i);
             return true;
           },
         );

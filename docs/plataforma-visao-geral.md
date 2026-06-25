@@ -85,6 +85,7 @@ O menu administrativo esta organizado por tarefa:
 
 No rodape do menu ficam:
 
+- `Cadastros`
 - `Configuracoes`
 - recolher menu
 - perfil e saida
@@ -106,7 +107,6 @@ Os indicadores devem ser tratados como ponto de partida para o trabalho diario.
 
 ### Operacao comercial
 
-- leads
 - clientes
 - orcamentos
 - pedidos
@@ -124,9 +124,12 @@ Os indicadores devem ser tratados como ponto de partida para o trabalho diario.
 ### Financeiro e gestao
 
 - visao financeira
+- contas a receber
+- contas a pagar
+- caixa e bancos
 - contas financeiras
 - categorias financeiras
-- lancamentos
+- lancamentos manuais
 - relatorios
 - empresa
 - parametros
@@ -151,6 +154,7 @@ Os indicadores devem ser tratados como ponto de partida para o trabalho diario.
 - listagens de `clientes`, `orcamentos`, `pedidos`, `vendas`, `entradas`, `estoque`, `usuarios`, `perfis`, `auditoria`, `grupos de itens` e `categorias financeiras` no padrao atual
 - `clientes` com formulario em secoes, validacao mais clara e confirmacoes acessiveis
 - `orcamentos` e `pedidos` com formularios reorganizados em blocos operacionais, resumo lateral e barra fixa de acao
+- `orcamentos` com busca de cliente no servidor, preservando a selecao durante o preenchimento
 - shell administrativo compactado com sidebar mais estreita, topbar mais baixa e filtros mais densos
 - listagens principais com indicadores mais baixos, menos espaco vazio e maior aproveitamento da primeira dobra
 - wrappers de `novo`, `editar` e `detalhe` padronizados com larguras consistentes e sem padding local
@@ -164,9 +168,12 @@ Os indicadores devem ser tratados como ponto de partida para o trabalho diario.
 - `vendas` com reflexo de estoque para itens fisicos na mesma transacao do registro comercial
 - `estoque` com consumo FIFO protegido por lock transacional no produto e nas camadas elegiveis
 - `estoque` com aviso explicito quando saldo registrado e saldo FIFO ainda nao coincidem
+- `estoque` com rotina de regularizacao para bases piloto que possuem movimentos confirmados sem camada FIFO correspondente
 - `movimentacoes` sem item preso ao abrir pelo menu e com troca de item confiavel
 - `financeiro` com leitura de origem operacional, incluindo entrada, pedido, orcamento e lancamento manual
 - `financeiro` com origem clicavel tambem para vendas registradas pela tela propria
+- `financeiro` separado em `visao geral`, `contas a receber`, `contas a pagar`, `caixa e bancos` e `lancamentos manuais`
+- `pedidos` mostrando proxima acao de faturamento com `Gerar venda` ou `Abrir venda`, em vez de virar receita automaticamente
 - `lancamento manual` tratado visualmente como excecao e nao como fluxo concorrente a venda
 - `producao` com destaque para impedimento por falta de material no lote atual
 - `ficha tecnica` tratada com linguagem operacional voltada a materiais, consumo padrao e custo estimado
@@ -183,7 +190,7 @@ Os modulos abaixo ja funcionam e ja seguem o shell atual, mas ainda merecem roda
 - detalhes profundos finais de `producao` e `composicao`
 - refinamentos finais de relatorios detalhados e filtros avancados por relatorio
 - execucao completa da bateria automatizada de navegador no ambiente local de homologacao
-- validacao funcional manual final dos itens antigos que o diagnostico ainda aponta como saldo legado sem camada FIFO
+- rodada final de acabamento visual do formulario completo de `lancamento manual`
 
 ## Principios operacionais definidos
 
@@ -232,6 +239,7 @@ o sistema deve:
 Comando de diagnostico disponivel:
 
 - `npm run inventory:diagnose`
+- `npm run inventory:backfill-fifo` para base piloto local, quando houver movimentos de entrada confirmados sem camada e sem saidas consumidas
 
 ## Situacao da homologacao
 
@@ -251,8 +259,11 @@ A plataforma possui uma base inicial de testes de interface com `Playwright`, co
 - login e shell principal
 - cadastro de item
 - entrada salva e confirmada
+- criacao de orcamento com cliente pesquisado
+- criacao de pedido a partir de orcamento aprovado
 - venda concluida
 - venda com item fisico reduzindo saldo em estoque
+- navegacao segmentada do financeiro
 - configuracao e publicacao do website
 
 Essa cobertura ainda e incremental, mas ja serve para detectar regressao visual e de fluxo nos principais caminhos do piloto.

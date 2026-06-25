@@ -21,6 +21,9 @@ type OrderDetail = {
   code: string;
   status: "OPEN" | "IN_PROGRESS" | "COMPLETED" | "CANCELED";
   productionStatus: "PENDING" | "IN_PRODUCTION" | "WAITING_APPROVAL" | "READY" | "DELIVERED";
+  hasLinkedSale?: boolean;
+  linkedSaleEntryId?: string | null;
+  readyForSale?: boolean;
   deliveryDate?: string | null;
   notes?: string | null;
   items: Array<{
@@ -106,6 +109,13 @@ export default function EditarPedidoPage() {
       <PageHeader
         title={order?.code ? `Pedido ${order.code}` : "Editar pedido"}
         description="Revise cliente, entrega, itens e andamento operacional a partir de um unico ponto de controle."
+        primaryAction={
+          order?.hasLinkedSale
+            ? { href: `/admin/vendas/${order.linkedSaleEntryId}`, label: "Abrir venda" }
+            : order?.readyForSale
+              ? { href: `/admin/vendas/novo?orderId=${order.id}`, label: "Gerar venda" }
+              : undefined
+        }
         secondaryActions={[
           { href: "/admin/pedidos", label: "Voltar para pedidos" },
         ]}
@@ -142,7 +152,7 @@ export default function EditarPedidoPage() {
             </div>
           </section>
 
-          <OrderForm mode="edit" order={order} />
+          <OrderForm mode="edit" order={order} onOrderChanged={setOrder} />
         </>
       ) : null}
     </main>
