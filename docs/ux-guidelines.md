@@ -257,6 +257,7 @@ Regras:
 - percentual aceita ate duas casas
 - quantidade respeita a escala operacional e nao herda mascara de moeda
 - valores digitados devem ser preservados em erro
+- `orcamentos`, `pedidos`, `entradas`, `producao`, `ficha tecnica` e `lancamento manual` nao devem reimplementar mascaras locais
 
 Campos detalhados e escalas atuais estao documentados em `docs/campos-numericos.md`.
 
@@ -384,6 +385,8 @@ Quando houver divergencia entre saldo registrado e saldo vendavel:
 O diagnostico padrao fica em:
 
 - `npm run inventory:diagnose`
+
+O consumo transacional usa lock no produto e nas camadas elegiveis antes da baixa FIFO, para impedir concorrencia sobre a mesma disponibilidade.
 
 ## Responsividade
 

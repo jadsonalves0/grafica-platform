@@ -1,13 +1,15 @@
 # Release Notes
 
-## 2026-06-19 - Estabilizacao operacional do painel
+## 2026-06-25 - Estabilizacao operacional do painel
 
 ### Corrigido
 
 - padrao compartilhado para campos monetarios, percentuais e quantitativos
 - custo unitario da entrada com digitacao natural em `pt-BR`
+- `orcamentos`, `pedidos`, `producao`, `ficha tecnica` e `lancamento manual` migrados para o mesmo padrao numerico
 - venda usando saldo vendavel por FIFO como mesma fonte de verdade do backend
 - mensagem operacional para falta de saldo FIFO
+- comparacao `uuid` x `text` corrigida no lock transacional do FIFO
 - tela de movimentacao sem item preso ao abrir pelo menu
 - menu administrativo reorganizado por tarefa
 
@@ -19,6 +21,7 @@
 - alerta de divergencia entre saldo registrado e saldo vendavel
 - diagnostico operacional de estoque com `npm run inventory:diagnose`
 - cobertura automatizada inicial para numericos, venda, movimentacao e shell
+- suite de integracao para entrada, camada FIFO, bloqueio acima do saldo e isolamento por empresa
 
 ### Documentado
 

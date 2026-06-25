@@ -155,12 +155,14 @@ Os indicadores devem ser tratados como ponto de partida para o trabalho diario.
 - listagens principais com indicadores mais baixos, menos espaco vazio e maior aproveitamento da primeira dobra
 - wrappers de `novo`, `editar` e `detalhe` padronizados com larguras consistentes e sem padding local
 - `orcamentos`, `pedidos`, `vendas`, `entradas`, `producao`, `relatorios`, `leads do site`, `empresa`, `parametros` e `movimentacoes` alinhados ao mesmo shell visual
+- `orcamentos`, `pedidos`, `lancamentos manuais`, `producao` e `ficha tecnica` usando o mesmo padrao compartilhado de campos monetarios, percentuais e quantitativos
 - `vendas` com fluxo proprio de operacao, separado do formulario generico do financeiro
 - `vendas` com pesquisa sob demanda, sem carregar o catalogo inteiro ao abrir
 - `vendas` com carrinho lateral fixo no desktop e foco inicial na busca
 - `vendas` com preco de item do catalogo somente leitura no carrinho
 - `vendas` usando saldo vendavel por FIFO como fonte de verdade visual e transacional
 - `vendas` com reflexo de estoque para itens fisicos na mesma transacao do registro comercial
+- `estoque` com consumo FIFO protegido por lock transacional no produto e nas camadas elegiveis
 - `estoque` com aviso explicito quando saldo registrado e saldo FIFO ainda nao coincidem
 - `movimentacoes` sem item preso ao abrir pelo menu e com troca de item confiavel
 - `financeiro` com leitura de origem operacional, incluindo entrada, pedido, orcamento e lancamento manual
@@ -180,8 +182,8 @@ Os modulos abaixo ja funcionam e ja seguem o shell atual, mas ainda merecem roda
 - alguns formularios longos mais densos, especialmente `vendas` e `lancamentos financeiros`
 - detalhes profundos finais de `producao` e `composicao`
 - refinamentos finais de relatorios detalhados e filtros avancados por relatorio
-- execucao completa da bateria automatizada no ambiente local de homologacao
-- validacao funcional completa do reflexo de estoque das vendas com itens fisicos na base local de homologacao
+- execucao completa da bateria automatizada de navegador no ambiente local de homologacao
+- validacao funcional manual final dos itens antigos que o diagnostico ainda aponta como saldo legado sem camada FIFO
 
 ## Principios operacionais definidos
 
@@ -256,3 +258,17 @@ A plataforma possui uma base inicial de testes de interface com `Playwright`, co
 Essa cobertura ainda e incremental, mas ja serve para detectar regressao visual e de fluxo nos principais caminhos do piloto.
 
 Na bateria atual, o login pela interface continua coberto explicitamente, enquanto as jornadas seguintes aproveitam autenticacao automatizada por API para reduzir ruido e focar no modulo validado.
+
+O projeto tambem possui uma suite de integracao para o nucleo de estoque:
+
+- `npm run test:integration`
+
+Essa suite cobre:
+
+- entrada gerando camada FIFO
+- consumo FIFO com saldo exato
+- bloqueio acima do saldo disponivel
+- item de servico sem consumo de camada
+- cancelamento de entrada sem consumo previo
+- regularizacao manual incidindo no item correto
+- isolamento por empresa

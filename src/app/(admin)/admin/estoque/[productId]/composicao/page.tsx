@@ -8,6 +8,7 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from "@/components/forms/searchable-select";
+import { PercentageInput, QuantityInput } from "@/components/forms/number-inputs";
 import { Alert, PageHeader } from "@/components/admin/ui";
 import {
   normalizeDecimalInput,
@@ -180,6 +181,8 @@ export default function ComposicaoProdutoPage() {
     () =>
       items.map((item) => {
         const material = availableMaterials.find((product) => product.id === item.materialProductId) ?? null;
+        const rawQuantityPerUnit = item.quantityPerUnit;
+        const rawLossPercent = item.lossPercent;
         const quantityPerUnit = parseDecimalInput(item.quantityPerUnit);
         const lossPercent = parseDecimalInput(item.lossPercent);
         const requiredQuantity = roundQuantity(quantityPerUnit * (1 + lossPercent / 100));
@@ -189,6 +192,8 @@ export default function ComposicaoProdutoPage() {
         return {
           ...item,
           material,
+          rawQuantityPerUnit,
+          rawLossPercent,
           quantityPerUnit,
           lossPercent,
           requiredQuantity,
@@ -403,19 +408,18 @@ export default function ComposicaoProdutoPage() {
                   </Field>
 
                   <Field label="Qtde por unidade" required>
-                    <input
-                      value={item.quantityPerUnit}
-                      onChange={(event) => updateItem(item.id, "quantityPerUnit", normalizeDecimalInput(event.target.value))}
-                      inputMode="decimal"
+                    <QuantityInput
+                      value={item.rawQuantityPerUnit}
+                      onChange={(value) => updateItem(item.id, "quantityPerUnit", value)}
+                      scale={4}
                       style={inputStyle}
                     />
                   </Field>
 
                   <Field label="Perda (%)">
-                    <input
-                      value={item.lossPercent}
-                      onChange={(event) => updateItem(item.id, "lossPercent", normalizeDecimalInput(event.target.value))}
-                      inputMode="decimal"
+                    <PercentageInput
+                      value={item.rawLossPercent}
+                      onChange={(value) => updateItem(item.id, "lossPercent", value)}
                       style={inputStyle}
                     />
                   </Field>

@@ -24,10 +24,11 @@ Antes de iniciar:
 Executar antes da homologacao manual:
 
 1. `npm run test:unit`
-2. `npm run inventory:diagnose`
-3. `npx playwright install chromium`
-4. `npm run test:e2e`
-5. `npx playwright show-report`, se houver falha
+2. `npm run test:integration`
+3. `npm run inventory:diagnose`
+4. `npx playwright install chromium`
+5. `npm run test:e2e`
+6. `npx playwright show-report`, se houver falha
 
 Cobertura automatizada atual:
 
@@ -38,6 +39,7 @@ Cobertura automatizada atual:
 5. venda fisica reduzindo saldo em estoque
 6. movimentacao com troca de item
 7. configuracao e publicacao do website
+8. integracao de entrada, camada FIFO, bloqueio acima do saldo e isolamento por empresa
 
 ## Bloco 1. Shell e navegacao
 
@@ -220,3 +222,10 @@ Se aparecer divergencia entre:
 - `saldoFifoDisponivel`
 
 registrar o item e tratar como regularizacao administrativa antes de seguir para vendas reais.
+
+Na base local atual, o diagnostico continua apontando pelo menos:
+
+- `Banner`
+- `item teste 1`
+
+Esses itens nao devem ser usados em venda fisica real antes da regularizacao auditavel do saldo legado.

@@ -71,6 +71,12 @@ Para vendas com itens, a origem deve apontar para a propria tela comercial da ve
 
 Lancamento manual continua existindo, mas como excecao operacional.
 
+Quando houver necessidade de detalhar itens em um lancamento manual:
+
+- usar isso apenas como excecao
+- nao tratar como alternativa principal a `Vendas`
+- manter o mesmo padrao de `MoneyInput` e `QuantityInput`
+
 ## Entradas de estoque
 
 A tela de `Entradas` trabalha em tres etapas:
@@ -91,6 +97,8 @@ O custo unitario e os demais campos monetarios agora seguem um padrao compartilh
 - aceita colagem com `R$` e com ponto decimal
 - preserva o valor ao voltar de etapa
 - formata no blur sem atrapalhar a digitacao
+- preserva o valor ao avancar e voltar etapas
+- preserva o valor em erro de validacao
 
 ## Producao
 
@@ -202,3 +210,15 @@ Ele compara:
 - quantidade ja consumida por FIFO
 
 Esse diagnostico deve ser usado antes de regularizar dados antigos do piloto.
+
+Se o resultado indicar:
+
+- `saldoRegistrado > 0`
+- `saldoMovimentos = saldoRegistrado`
+- `saldoFifoDisponivel = 0`
+
+trata-se de saldo legado sem camada FIFO disponivel. A regularizacao recomendada e:
+
+- criar documento auditavel de saldo inicial ou entrada
+- recriar a camada FIFO com origem rastreavel
+- nao liberar venda real desse item antes da regularizacao

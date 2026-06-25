@@ -19,6 +19,7 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from "@/components/forms/searchable-select";
+import { MoneyInput, QuantityInput } from "@/components/forms/number-inputs";
 import {
   formatCurrencyInput,
   formatCurrencyValue,
@@ -162,12 +163,16 @@ export function QuoteForm({ mode, customers, products, initialData, quoteId }: R
 
   const pricing = useMemo(() => {
     const items = form.items.map((item) => {
+      const rawQuantity = item.quantity;
+      const rawUnitPrice = item.unitPrice;
       const quantity = parseDecimalInput(item.quantity);
       const unitPrice = parseCurrencyInput(item.unitPrice);
       const total = roundCurrency(quantity * unitPrice);
 
       return {
         ...item,
+        rawQuantity,
+        rawUnitPrice,
         quantity,
         unitPrice,
         total,
@@ -476,10 +481,9 @@ export function QuoteForm({ mode, customers, products, initialData, quoteId }: R
             </Field>
 
             <Field label="Desconto total (R$)" optional helpText="Aplicado ao total do orcamento, sem alterar o preco historico dos itens.">
-              <input
+              <MoneyInput
                 value={form.discountAmount}
-                onChange={(event) => updateField("discountAmount", formatCurrencyInput(event.target.value))}
-                inputMode="numeric"
+                onChange={(value) => updateField("discountAmount", value)}
                 placeholder="0,00"
                 className="admin-input"
               />
@@ -557,22 +561,17 @@ export function QuoteForm({ mode, customers, products, initialData, quoteId }: R
                   </Field>
 
                   <Field label="Quantidade" required>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.001"
-                      value={item.quantity || ""}
-                      onChange={(event) => updateItem(item.id, "quantity", normalizeDecimalInput(event.target.value))}
-                      inputMode="decimal"
+                    <QuantityInput
+                      value={item.rawQuantity || ""}
+                      onChange={(value) => updateItem(item.id, "quantity", value)}
                       className="admin-input"
                     />
                   </Field>
 
                   <Field label="Valor unitario" required>
-                    <input
-                      value={item.unitPrice || ""}
-                      onChange={(event) => updateItem(item.id, "unitPrice", formatCurrencyInput(event.target.value))}
-                      inputMode="numeric"
+                    <MoneyInput
+                      value={item.rawUnitPrice || ""}
+                      onChange={(value) => updateItem(item.id, "unitPrice", value)}
                       className="admin-input"
                     />
                   </Field>

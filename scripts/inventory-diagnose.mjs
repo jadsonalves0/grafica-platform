@@ -36,12 +36,10 @@ async function main() {
         },
       },
       stockMoves: {
-        where: {
-          status: "CONFIRMED",
-        },
         select: {
           id: true,
           movementType: true,
+          status: true,
           quantity: true,
           reasonCode: true,
           inventoryEntryId: true,
@@ -56,6 +54,16 @@ async function main() {
           totalCost: true,
         },
       },
+      inventoryEntryItems: {
+        where: {
+          inventoryEntry: {
+            status: "CANCELED",
+          },
+        },
+        select: {
+          inventoryEntryId: true,
+        },
+      },
     },
     orderBy: [{ companyId: "asc" }, { name: "asc" }],
   });
@@ -63,8 +71,10 @@ async function main() {
   const rows = products
     .map((product) => {
       const currentStock = toNumber(product.currentStock);
+      const confirmedMoves = product.stockMoves.filter((movement) => movement.status === "CONFIRMED");
+      const reversedMoves = product.stockMoves.filter((movement) => movement.status === "REVERSED");
       const movementBalance = roundQuantity(
-        product.stockMoves.reduce((sum, movement) => {
+        confirmedMoves.reduce((sum, movement) => {
           const quantity = toNumber(movement.quantity);
           if (movement.movementType === "INPUT") {
             return sum + quantity;
@@ -93,6 +103,18 @@ async function main() {
       const hasMismatch =
         Math.abs(currentStock - movementBalance) > 0.0001 ||
         Math.abs(currentStock - fifoAvailable) > 0.0001;
+      const origemProvavel = describeLikelyOrigin({
+        currentStock,
+        movementBalance,
+        fifoAvailable,
+        fifoOriginal,
+        reversedMoves: reversedMoves.length,
+      });
+      const acaoRecomendada = describeRecommendedAction({
+        currentStock,
+        movementBalance,
+        fifoAvailable,
+      });
 
       return {
         company: product.company.tradeName,
@@ -106,8 +128,12 @@ async function main() {
         saldoConsumidoFifo: fifoConsumed,
         diferencaFifo: missingFifo,
         custoReferencia: toNumber(product.costPrice),
-        movimentosConfirmados: product.stockMoves.length,
+        movimentosConfirmados: confirmedMoves.length,
+        movimentosEstornados: reversedMoves.length,
         camadasFifo: product.stockLayers.length,
+        entradasCanceladasRelacionadas: product.inventoryEntryItems.length,
+        origemProvavel,
+        acaoRecomendada,
         divergente: hasMismatch ? "SIM" : "NAO",
       };
     })
@@ -137,4 +163,48 @@ function toNumber(value) {
 
 function roundQuantity(value) {
   return Math.round(value * 1000) / 1000;
+}
+
+function describeLikelyOrigin({
+  currentStock,
+  movementBalance,
+  fifoAvailable,
+  fifoOriginal,
+  reversedMoves,
+}) {
+  if (currentStock > 0 && movementBalance === currentStock && fifoAvailable === 0) {
+    return "Saldo legado sem camada FIFO disponivel";
+  }
+
+  if (Math.abs(currentStock - movementBalance) > 0.0001) {
+    return "Saldo cadastral divergente dos movimentos confirmados";
+  }
+
+  if (fifoOriginal > 0 && fifoAvailable < movementBalance) {
+    return reversedMoves > 0
+      ? "Camadas FIFO estornadas ou consumidas sem recomposicao equivalente"
+      : "Camadas FIFO abaixo do saldo projetado";
+  }
+
+  return "Revisar entradas, estornos e ajustes administrativos do item";
+}
+
+function describeRecommendedAction({
+  currentStock,
+  movementBalance,
+  fifoAvailable,
+}) {
+  if (currentStock > 0 && movementBalance === currentStock && fifoAvailable === 0) {
+    return "Regularizar com documento auditavel de saldo inicial ou entrada para recriar as camadas FIFO";
+  }
+
+  if (Math.abs(currentStock - movementBalance) > 0.0001) {
+    return "Conferir movimentos confirmados, estornos e ajustes antes de vender ou produzir";
+  }
+
+  if (fifoAvailable < movementBalance) {
+    return "Revisar entradas confirmadas, camadas disponiveis e cancelar documentos apenas com recomposicao rastreavel";
+  }
+
+  return "Revisar manualmente o historico do item antes de liberar a operacao";
 }

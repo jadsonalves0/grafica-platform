@@ -22,13 +22,15 @@ Esta matriz registra o padrao atual dos principais campos monetarios, percentuai
 | Orcamento > desconto | moeda | 2 casas | sim | nao | `MoneyInput` |
 | Pedido > quantidade do item | quantidade | ate 3 casas | nao | nao | `QuantityInput` |
 | Pedido > preco unitario | moeda | 2 casas | sim | nao | `MoneyInput` |
-| Pedido > desconto | moeda | 2 casas | sim | nao | `MoneyInput` |
-| Ficha tecnica > consumo padrao | quantidade | ate 3 casas | sim | nao | `QuantityInput` |
+| Ficha tecnica > consumo padrao | quantidade | ate 4 casas | sim | nao | `QuantityInput` |
 | Ficha tecnica > perda prevista | percentual | ate 2 casas | sim | nao | `PercentageInput` |
 | Producao > quantidade planejada | quantidade | ate 3 casas | nao | nao | `QuantityInput` |
 | Producao > quantidade produzida | quantidade | ate 3 casas | sim | nao | `QuantityInput` |
 | Conta financeira > saldo inicial | moeda | 2 casas | sim | sim, conforme tipo da conta | `MoneyInput` |
 | Lancamento manual > valor | moeda | 2 casas | nao | nao | `MoneyInput` |
+| Lancamento manual > quantidade do item | quantidade | ate 3 casas | nao | nao | `QuantityInput` |
+| Lancamento manual > preco do item | moeda | 2 casas | sim | nao | `MoneyInput` |
+| Lancamento manual > desconto do item | moeda | 2 casas | sim | nao | `MoneyInput` |
 | Parametros > margem minima | percentual | ate 2 casas | sim | nao | `PercentageInput` |
 | Parametros > margem padrao | percentual | ate 2 casas | sim | nao | `PercentageInput` |
 | Parametros > desconto regular | percentual | ate 2 casas | sim | nao | `PercentageInput` |

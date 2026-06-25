@@ -19,8 +19,8 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from "@/components/forms/searchable-select";
+import { QuantityInput } from "@/components/forms/number-inputs";
 import {
-  normalizeDecimalInput,
   parseDecimalInput,
 } from "@/lib/forms/br-utils";
 
@@ -453,10 +453,9 @@ export default function ProducaoPage() {
               </Field>
 
               <Field label="Quantidade produzida" required>
-                <input
+                <QuantityInput
                   value={quantityProduced}
-                  onChange={(event) => setQuantityProduced(normalizeDecimalInput(event.target.value))}
-                  inputMode="decimal"
+                  onChange={setQuantityProduced}
                   className="admin-input"
                 />
               </Field>

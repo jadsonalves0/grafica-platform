@@ -18,6 +18,7 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from "@/components/forms/searchable-select";
+import { MoneyInput, QuantityInput } from "@/components/forms/number-inputs";
 import {
   formatCurrencyInput,
   formatCurrencyValue,
@@ -640,19 +641,17 @@ export function OrderForm({ mode, order }: Readonly<OrderFormProps>) {
                       </Field>
 
                       <Field label="Quantidade" required>
-                        <input
+                        <QuantityInput
                           value={item.quantity}
-                          onChange={(event) => updateItem(item.id, "quantity", normalizeDecimalInput(event.target.value))}
-                          inputMode="decimal"
+                          onChange={(value) => updateItem(item.id, "quantity", value)}
                           className="admin-input"
                         />
                       </Field>
 
                       <Field label="Valor unitario" required>
-                        <input
+                        <MoneyInput
                           value={item.unitPrice}
-                          onChange={(event) => updateItem(item.id, "unitPrice", formatCurrencyInput(event.target.value))}
-                          inputMode="numeric"
+                          onChange={(value) => updateItem(item.id, "unitPrice", value)}
                           className="admin-input"
                         />
                       </Field>

@@ -5,14 +5,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { StickyActionBar } from "@/components/admin/ui";
+import { MoneyInput, QuantityInput } from "@/components/forms/number-inputs";
 import {
   SearchableSelect,
   type SearchableSelectOption,
 } from "@/components/forms/searchable-select";
 import {
-  formatCurrencyInput,
   formatCurrencyValue,
-  normalizeDecimalInput,
   parseCurrencyInput,
   parseDecimalInput,
 } from "@/lib/forms/br-utils";
@@ -343,6 +342,9 @@ export function EntryForm({
   const computedItems = useMemo(
     () =>
       form.items.map((item) => {
+        const rawQuantity = item.quantity;
+        const rawUnitPrice = item.unitPrice;
+        const rawDiscountAmount = item.discountAmount ?? "0,00";
         const quantity = parseDecimalInput(item.quantity);
         const unitPrice = parseCurrencyInput(item.unitPrice);
         const grossTotal = roundCurrency(quantity * unitPrice);
@@ -351,6 +353,9 @@ export function EntryForm({
 
         return {
           ...item,
+          rawQuantity,
+          rawUnitPrice,
+          rawDiscountAmount,
           quantity,
           unitPrice,
           grossTotal,
@@ -505,7 +510,9 @@ export function EntryForm({
       }
 
       if (computedAmount <= 0) {
-        return "A venda avulsa precisa ter valor maior que zero.";
+        return isSaleMode
+          ? "A venda precisa ter valor maior que zero."
+          : "O detalhamento manual precisa ter valor maior que zero.";
       }
     } else if (parseCurrencyInput(form.amount) <= 0) {
       return "Informe um valor maior que zero.";
@@ -812,13 +819,13 @@ export function EntryForm({
               <p style={{ margin: "6px 0 0", color: "var(--muted)", lineHeight: 1.6 }}>
                 {isSaleMode
                   ? "Associe os itens vendidos, revise o total e conclua a venda em um fluxo proprio."
-                  : "Registre uma despesa avulsa, uma receita simples ou detalhe uma venda avulsa com itens vendidos."}
+                  : "Use esta tela para lancamentos manuais. Quando precisar, detalhe itens manualmente sem substituir o fluxo principal de vendas."}
               </p>
             </div>
 
             {!isSaleMode && form.entryType === "INCOME" ? (
               <button type="button" onClick={toggleItemizedSale} style={ghostButtonStyle}>
-                {isItemizedSale ? "Remover itens da venda avulsa" : "Lancar venda avulsa com itens"}
+                {isItemizedSale ? "Voltar para valor unico" : "Detalhar itens manualmente"}
               </button>
             ) : null}
           </div>
@@ -844,9 +851,13 @@ export function EntryForm({
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
                     <div>
-                      <strong style={{ display: "block", marginBottom: 6 }}>Itens da venda</strong>
+                      <strong style={{ display: "block", marginBottom: 6 }}>
+                        {isSaleMode ? "Itens da venda" : "Itens do lancamento manual"}
+                      </strong>
                       <span style={{ color: "var(--muted)", fontSize: 14 }}>
-                        Pesquise o item, ajuste a quantidade, aplique desconto quando necessario e confira o total liquido.
+                        {isSaleMode
+                          ? "Pesquise o item, ajuste a quantidade, aplique desconto quando necessario e confira o total liquido."
+                          : "Use esse detalhamento somente quando o lancamento manual realmente precisar discriminar itens e valores."}
                       </span>
                     </div>
                     <button type="button" onClick={addItem} style={secondaryButtonStyle}>
@@ -889,28 +900,25 @@ export function EntryForm({
 
                       <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
                         <Field label="Quantidade" required>
-                          <input
-                            value={item.quantity}
-                            onChange={(event) => updateItem(item.id, "quantity", normalizeDecimalInput(event.target.value))}
-                            inputMode="decimal"
+                          <QuantityInput
+                            value={item.rawQuantity}
+                            onChange={(value) => updateItem(item.id, "quantity", value)}
                             style={inputStyle}
                           />
                         </Field>
 
                         <Field label="Preco de tabela" required>
-                          <input
-                            value={item.unitPrice}
-                            onChange={(event) => updateItem(item.id, "unitPrice", formatCurrencyInput(event.target.value))}
-                            inputMode="numeric"
+                          <MoneyInput
+                            value={item.rawUnitPrice}
+                            onChange={(value) => updateItem(item.id, "unitPrice", value)}
                             style={inputStyle}
                           />
                         </Field>
 
                         <Field label="Desconto (R$)">
-                          <input
-                            value={item.discountAmount}
-                            onChange={(event) => updateItem(item.id, "discountAmount", formatCurrencyInput(event.target.value))}
-                            inputMode="numeric"
+                          <MoneyInput
+                            value={item.rawDiscountAmount}
+                            onChange={(value) => updateItem(item.id, "discountAmount", value)}
                             style={inputStyle}
                           />
                         </Field>
@@ -990,11 +998,10 @@ export function EntryForm({
                 </Field>
 
                 <Field label="Valor" required>
-                  <input
+                  <MoneyInput
                     value={form.amount}
-                    onChange={(event) => updateField("amount", formatCurrencyInput(event.target.value))}
+                    onChange={(value) => updateField("amount", value)}
                     style={inputStyle}
-                    inputMode="numeric"
                   />
                 </Field>
 

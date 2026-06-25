@@ -61,6 +61,7 @@ test("venda concluida a partir da tela propria de vendas", async ({ page }) => {
   await createServiceItem(page, itemName);
   await openAdminRoute(page, "/admin/vendas/novo", "Nova venda");
   await expect(page.getByText("Comece pela pesquisa")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Adicionar" })).toHaveCount(0);
 
   await pickFirstSearchableOption(page, "Conta financeira");
   await pickFirstSearchableOption(page, "Categoria financeira");
@@ -105,4 +106,26 @@ test("venda com item fisico reduz o saldo em estoque", async ({ page }) => {
   await expect(stockCard).toBeVisible();
   await expect(stockCard).toContainText("Saldo vendavel");
   await expect(stockCard).toContainText("3 un");
+});
+
+test("venda acima do saldo FIFO mostra erro operacional claro", async ({ page }) => {
+  await authenticateAsAdmin(page);
+
+  const itemName = uniqueName("Revenda bloqueio e2e");
+  const documentNumber = `SALE-BLOCK-${Date.now()}`;
+
+  await createPhysicalItem(page, itemName);
+  await confirmStockEntry(page, itemName, documentNumber);
+
+  await openAdminRoute(page, "/admin/vendas/novo", "Nova venda");
+  await pickFirstSearchableOption(page, "Conta financeira");
+  await pickFirstSearchableOption(page, "Categoria financeira");
+  await page.getByLabel("Buscar item").fill(itemName);
+  await page.getByRole("button", { name: "Adicionar" }).first().click();
+  await page.getByLabel("Quantidade").first().fill("6");
+  await page.getByRole("button", { name: "Concluir venda" }).click();
+
+  await expect(page.getByText(itemName)).toBeVisible();
+  await expect(page.getByText("controle FIFO", { exact: false })).toBeVisible();
+  await expect(page.getByText("Revise o estoque", { exact: false })).toBeVisible();
 });

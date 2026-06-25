@@ -37,7 +37,10 @@ test("entrada salva e confirmada", async ({ page }) => {
 
   await pickSearchableOption(page, "Item cadastrado", itemName);
   await page.getByLabel("Quantidade").fill("10");
-  await page.getByLabel("Custo unitario").fill("8,00");
+  await page.getByLabel("Custo unitario").fill("10,05");
+  await page.getByRole("button", { name: "Continuar" }).click();
+  await page.getByRole("button", { name: "Voltar" }).click();
+  await expect(page.getByLabel("Custo unitario")).toHaveValue(/10,05/);
   await page.getByRole("button", { name: "Continuar" }).click();
   await page.getByRole("button", { name: "Salvar entrada" }).click();
 

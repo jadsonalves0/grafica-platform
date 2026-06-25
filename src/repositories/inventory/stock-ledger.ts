@@ -171,16 +171,16 @@ export async function registerOutputStockByFifo(tx: Tx, input: OutputStockParams
   await tx.$queryRaw`
     SELECT id
     FROM products
-    WHERE id = ${input.productId}
-      AND company_id = ${input.companyId}
+    WHERE id = CAST(${input.productId} AS UUID)
+      AND company_id = CAST(${input.companyId} AS UUID)
     FOR UPDATE
   `;
 
   await tx.$queryRaw`
     SELECT id
     FROM stock_layers
-    WHERE company_id = ${input.companyId}
-      AND product_id = ${input.productId}
+    WHERE company_id = CAST(${input.companyId} AS UUID)
+      AND product_id = CAST(${input.productId} AS UUID)
       AND available_quantity > 0
     ORDER BY entry_date ASC, created_at ASC
     FOR UPDATE
