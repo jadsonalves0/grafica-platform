@@ -59,7 +59,7 @@ test("venda concluida a partir da tela propria de vendas", async ({ page }) => {
   const itemName = uniqueName("Servico venda e2e");
 
   await createServiceItem(page, itemName);
-  await openAdminRoute(page, "/admin/vendas/novo", "Nova venda");
+  await openAdminRoute(page, "/admin/vendas/novo", "Vendas");
   await expect(page.getByText("Comece pela pesquisa")).toBeVisible();
   await expect(page.getByRole("button", { name: "Adicionar" })).toHaveCount(0);
 
@@ -76,6 +76,10 @@ test("venda concluida a partir da tela propria de vendas", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Venda concluida" })).toBeVisible();
   await expect(page.getByText("Situacao financeira")).toBeVisible();
   await expect(page.getByRole("link", { name: "Abrir venda" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Abrir conta a receber" })).toBeVisible();
+  await page.getByRole("link", { name: "Abrir conta a receber" }).click();
+  await expect(page).toHaveURL(/\/admin\/financeiro\/lancamentos\/.+/, { timeout: 30_000 });
+  await expect(page.getByRole("link", { name: "Abrir venda" })).toBeVisible();
   await expectNoCriticalViolations(page, AxeBuilder);
 });
 
@@ -88,7 +92,7 @@ test("venda com item fisico reduz o saldo em estoque", async ({ page }) => {
   await createPhysicalItem(page, itemName);
   await confirmStockEntry(page, itemName, documentNumber);
 
-  await openAdminRoute(page, "/admin/vendas/novo", "Nova venda");
+  await openAdminRoute(page, "/admin/vendas/novo", "Vendas");
   await pickFirstSearchableOption(page, "Conta financeira");
   await pickFirstSearchableOption(page, "Categoria financeira");
   await page.getByLabel("Buscar item").fill(itemName);
@@ -117,7 +121,7 @@ test("venda acima do saldo mostra erro operacional claro", async ({ page }) => {
   await createPhysicalItem(page, itemName);
   await confirmStockEntry(page, itemName, documentNumber);
 
-  await openAdminRoute(page, "/admin/vendas/novo", "Nova venda");
+  await openAdminRoute(page, "/admin/vendas/novo", "Vendas");
   await pickFirstSearchableOption(page, "Conta financeira");
   await pickFirstSearchableOption(page, "Categoria financeira");
   await page.getByLabel("Buscar item").fill(itemName);

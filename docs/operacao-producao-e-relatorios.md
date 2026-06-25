@@ -47,6 +47,7 @@ As telas de apoio e gestao agora seguem o mesmo shell visual:
 
 A tela de `Vendas` concentra o registro operacional da venda com itens:
 
+- cabecalho operacional com cliente, origem e situacao financeira
 - selecao de cliente
 - inclusao de itens
 - busca sob demanda por nome, SKU, EAN e grupo
@@ -60,6 +61,7 @@ A tela de `Vendas` concentra o registro operacional da venda com itens:
 - bloqueio por saldo insuficiente quando estoque negativo estiver desabilitado
 - validacao do saldo usando a mesma disponibilidade FIFO exibida na tela
 - bloco final de sucesso com proxima acao
+- abertura direta da conta a receber gerada
 - alerta de alteracoes nao salvas
 
 ### Financeiro
@@ -81,6 +83,8 @@ Quando existir origem automatica, a tela deve deixar claro:
 
 Para vendas com itens, a origem deve apontar para a propria tela comercial da venda, sem parecer um lancamento manual generico.
 
+Quando a conta nascer de uma venda com itens, o detalhe financeiro deve permitir `Abrir venda`.
+
 Lancamento manual continua existindo, mas como excecao operacional.
 
 ### Regra entre pedido e financeiro
@@ -91,6 +95,7 @@ Nesta fase, a regra adotada e:
 - pedido atendido deve orientar faturamento pela tela de `Vendas`
 - o financeiro passa a considerar o valor somente depois da venda gerada
 - a visao financeira mostra pedidos prontos como pendencia de faturamento, nao como receita realizada
+- quando a venda nascer do pedido, a propria tela do pedido deve exibir `Abrir venda` e `Abrir conta a receber`
 
 Quando houver necessidade de detalhar itens em um lancamento manual:
 

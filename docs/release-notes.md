@@ -21,12 +21,17 @@
 - venda com pesquisa sob demanda, sem carregar o catalogo inteiro ao abrir
 - carrinho lateral fixo no desktop
 - preco do item do catalogo como somente leitura no carrinho
+- `vendas` com cabecalho operacional mais claro para cliente, origem e reflexo financeiro
+- conclusao de venda com acesso direto para `Abrir conta a receber`
+- `pedidos` com bloco explicito de faturamento e atalhos para `Gerar venda`, `Abrir venda` e `Abrir conta a receber`
+- `financeiro` com contas a receber abrindo a venda vinculada quando a origem for comercial
+- shell administrativo em layout hibrido, com navegacao principal no topo e coluna lateral contextual
 - alerta de divergencia entre saldo registrado e saldo vendavel
 - diagnostico operacional de estoque com `npm run inventory:diagnose`
 - regularizacao assistida de base piloto com `npm run inventory:backfill-fifo`
 - cobertura automatizada inicial para numericos, venda, movimentacao e shell
 - suite de integracao para entrada, camada FIFO, bloqueio acima do saldo e isolamento por empresa
-- jornadas Playwright para orcamento com cliente pesquisado, pedido pronto para faturamento e navegacao financeira segmentada
+- jornadas Playwright para orcamento com cliente pesquisado, pedido pronto para faturamento, venda vinculada ao pedido e navegacao financeira segmentada
 
 ### Documentado
 

@@ -48,20 +48,21 @@ Cobertura automatizada atual:
 
 1. entrar no login
 2. abrir o dashboard
-3. validar `Inicio` no menu
+3. validar `Inicio` na navegacao principal do topo
 4. validar grupos principais:
    - `Comercial`
    - `Operacao`
    - `Financeiro`
    - `Meu site`
    - `Relatorios`
-5. validar `Cadastros` e `Configuracoes` no rodape
-6. recolher e expandir o menu no desktop
-7. abrir e fechar o `drawer` no celular
-8. validar item ativo
-9. validar tooltip no estado recolhido
-10. validar menu diferente por perfil
-11. validar saida da sessao
+5. validar `Cadastros` e `Configuracoes` na area auxiliar
+6. validar coluna lateral contextual do modulo ativo no desktop
+7. recolher e expandir o menu no desktop
+8. abrir e fechar o `drawer` no celular
+9. validar item ativo
+10. validar tooltip no estado recolhido
+11. validar menu diferente por perfil
+12. validar saida da sessao
 
 ## Bloco 2. Estados globais
 
@@ -118,7 +119,10 @@ Cobertura automatizada atual:
 7. alterar status comercial
 8. alterar status de producao
 9. validar cabecalho atualizado sem sair e voltar
-10. validar acao `Gerar venda` quando o pedido ficar pronto para faturamento
+10. validar bloco de `Faturamento` no detalhe do pedido
+11. validar acao `Gerar venda` quando o pedido ficar pronto para faturamento
+12. depois da venda gerada, validar `Abrir venda`
+13. depois da venda concluida, validar `Abrir conta a receber`
 
 ## Bloco 7. Vendas
 
@@ -136,10 +140,12 @@ Cobertura automatizada atual:
 12. testar cadastro rapido de cliente sem perder carrinho
 13. concluir venda
 14. validar bloco final de sucesso
-15. repetir com item fisico
-16. validar que o saldo mostrado na venda coincide com o saldo aceito no backend
-17. validar bloqueio ao vender acima do saldo disponivel
-18. validar mensagem operacional sem expor regra interna de FIFO
+15. validar `Abrir conta a receber`
+16. validar `Voltar para pedido` quando a venda nascer de pedido
+17. repetir com item fisico
+18. validar que o saldo mostrado na venda coincide com o saldo aceito no backend
+19. validar bloqueio ao vender acima do saldo disponivel
+20. validar mensagem operacional sem expor regra interna de FIFO
 
 ## Bloco 8. Estoque e entradas
 
@@ -177,10 +183,11 @@ Cobertura automatizada atual:
 6. abrir `Lancamentos manuais`
 7. abrir uma conta a receber
 8. validar `Origem: Venda`
-9. abrir uma conta a pagar
-10. validar `Origem: Entrada`
-11. validar pedido pronto para faturamento sem tratar como receita
-12. criar lancamento manual simples
+9. validar `Abrir venda` a partir da conta a receber quando a origem for comercial
+10. abrir uma conta a pagar
+11. validar `Origem: Entrada`
+12. validar pedido pronto para faturamento sem tratar como receita
+13. criar lancamento manual simples
 
 ## Bloco 11. Configuracoes
 

@@ -206,6 +206,30 @@ export class FinancialRepository {
     });
   }
 
+  async findActiveSaleByOrderId(companyId: string, orderId: string, excludeEntryId?: string) {
+    return this.db.financialEntry.findFirst({
+      where: {
+        companyId,
+        orderId,
+        entryType: "INCOME",
+        status: {
+          not: "CANCELED",
+        },
+        ...(excludeEntryId
+          ? {
+              id: {
+                not: excludeEntryId,
+              },
+            }
+          : {}),
+        items: {
+          some: {},
+        },
+      },
+      include: financialEntryInclude,
+    });
+  }
+
   async updateEntry(
     entryId: string,
     input: {

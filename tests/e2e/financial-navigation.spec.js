@@ -1,11 +1,18 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-import {
-  authenticateAsAdmin,
-  expectNoCriticalViolations,
-  openAdminRoute,
-} from "./helpers/session";
+import { authenticateAsAdmin, expectNoCriticalViolations, openAdminRoute } from "./helpers/session";
+
+async function openDrawerIfNeeded(page) {
+  const viewportWidth = page.viewportSize()?.width ?? 0;
+  if (viewportWidth > 1024) {
+    return false;
+  }
+
+  await page.getByRole("button", { name: "Abrir navegacao" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  return true;
+}
 
 async function expandSidebarGroup(page, name) {
   const button = page.getByRole("button", { name: new RegExp(`^${name}`, "i") }).first();
@@ -22,20 +29,37 @@ test("financeiro muda o conteudo por opcao e o menu reposiciona cadastros", asyn
   await openAdminRoute(page, "/admin/financeiro", "Visao financeira");
   await expect(page.getByText("Pedidos prontos para faturamento")).toBeVisible();
 
-  await expandSidebarGroup(page, "Financeiro");
-  await page.getByRole("link", { name: "Contas a receber" }).click();
+  const isMobile = (page.viewportSize()?.width ?? 0) <= 1024;
+  if (isMobile) {
+    await openDrawerIfNeeded(page);
+    await expandSidebarGroup(page, "Financeiro");
+    await page.getByRole("link", { name: "Contas a receber" }).click();
+  } else {
+    const moduleTabs = page.locator(".admin-module-tabs");
+    await moduleTabs.getByRole("link", { name: "Contas a receber" }).click();
+  }
   await expect(page).toHaveURL(/view=receivable/);
   await expect(page.getByRole("heading", { name: "Contas a receber" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Contas a pagar" })).toHaveCount(0);
 
-  await expandSidebarGroup(page, "Financeiro");
-  await page.getByRole("link", { name: "Contas a pagar" }).click();
+  if (isMobile) {
+    await openDrawerIfNeeded(page);
+    await expandSidebarGroup(page, "Financeiro");
+    await page.getByRole("link", { name: "Contas a pagar" }).click();
+  } else {
+    await page.locator(".admin-module-tabs").getByRole("link", { name: "Contas a pagar" }).click();
+  }
   await expect(page).toHaveURL(/view=payable/);
   await expect(page.getByRole("heading", { name: "Contas a pagar" })).toBeVisible();
   await expect(page.getByText("Contas a receber")).toHaveCount(0);
 
-  await expandSidebarGroup(page, "Financeiro");
-  await page.getByRole("link", { name: "Lancamentos manuais" }).click();
+  if (isMobile) {
+    await openDrawerIfNeeded(page);
+    await expandSidebarGroup(page, "Financeiro");
+    await page.getByRole("link", { name: "Lancamentos manuais" }).click();
+  } else {
+    await page.locator(".admin-module-tabs").getByRole("link", { name: "Lancamentos manuais" }).click();
+  }
   await expect(page).toHaveURL(/view=manual/);
   await expect(page.getByRole("heading", { name: "Lancamentos manuais" })).toBeVisible();
   await page.getByRole("link", { name: "Novo lancamento manual" }).click();
@@ -46,15 +70,30 @@ test("financeiro muda o conteudo por opcao e o menu reposiciona cadastros", asyn
   await expect(page.getByLabel("Categoria")).toBeVisible();
   await expect(page.getByLabel("Valor")).toBeVisible();
 
-  await openAdminRoute(page, "/dashboard", "Central de trabalho");
-  await expandSidebarGroup(page, "Cadastros");
-  await expect(page.getByRole("link", { name: "Produtos e servicos" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Grupos de itens" })).toBeVisible();
+  if (isMobile) {
+    await openDrawerIfNeeded(page);
+    await expandSidebarGroup(page, "Cadastros");
+    await page.getByRole("link", { name: "Produtos e servicos" }).click();
+  } else {
+    await page.locator(".admin-topbar__utility").getByRole("link", { name: "Cadastros" }).click();
+  }
+  await expect(page).toHaveURL(/\/admin\/estoque/);
+  if (!isMobile) {
+    await expect(page.locator(".admin-module-tabs").getByRole("link", { name: "Produtos e servicos" })).toHaveAttribute("aria-current", "page");
+    await expect(page.locator(".admin-module-tabs").getByRole("link", { name: "Grupos de itens" })).toBeVisible();
+  }
 
-  await expandSidebarGroup(page, "Configuracoes");
-  await expect(page.getByRole("link", { name: "Produtos e servicos" })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Grupos de itens" })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Empresa" })).toBeVisible();
+  if (isMobile) {
+    await openDrawerIfNeeded(page);
+    await expandSidebarGroup(page, "Configuracoes");
+    await page.getByRole("link", { name: "Empresa" }).click();
+    await expect(page).toHaveURL(/\/admin\/empresa/);
+  } else {
+    await page.locator(".admin-topbar__utility").getByRole("link", { name: "Configuracoes" }).click();
+    await expect(page.locator(".admin-module-tabs").getByRole("link", { name: "Empresa" })).toBeVisible();
+    await expect(page.locator(".admin-module-tabs").getByRole("link", { name: "Produtos e servicos" })).toHaveCount(0);
+    await expect(page.locator(".admin-module-tabs").getByRole("link", { name: "Grupos de itens" })).toHaveCount(0);
+  }
 
   await expectNoCriticalViolations(page, AxeBuilder);
 });

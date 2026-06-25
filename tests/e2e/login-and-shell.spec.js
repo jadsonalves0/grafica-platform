@@ -20,6 +20,9 @@ test("login administrativo e shell principal", async ({ page }, testInfo) => {
   if (viewportWidth > 1024) {
     const topbarMenuButton = page.getByRole("button", { name: "Abrir navegacao" });
     await expect(topbarMenuButton).toBeHidden();
+    await expect(page.locator(".admin-top-nav").getByRole("link", { name: "Inicio" })).toHaveAttribute("aria-current", "page");
+    await expect(page.locator(".admin-topbar__utility").getByRole("link", { name: "Cadastros" })).toBeVisible();
+    await expect(page.locator(".admin-topbar__utility").getByRole("link", { name: "Configuracoes" })).toBeVisible();
 
     const sidebar = page.locator(".admin-sidebar");
     const expandedWidth = await sidebar.evaluate((element) => element.getBoundingClientRect().width);
@@ -33,10 +36,10 @@ test("login administrativo e shell principal", async ({ page }, testInfo) => {
     expect(collapsedWidth).toBeGreaterThanOrEqual(64);
     expect(collapsedWidth).toBeLessThanOrEqual(72);
 
-    const compactCommercialLink = page.getByRole("link", { name: "Comercial" });
-    await expect(compactCommercialLink).toBeVisible();
-    await compactCommercialLink.hover();
-    await expect(page.locator(".admin-sidebar__tooltip", { hasText: "Comercial" }).first()).toBeVisible();
+    const compactRegistriesLink = page.locator(".admin-sidebar__compact-nav").getByRole("link", { name: "Cadastros" });
+    await expect(compactRegistriesLink).toBeVisible();
+    await compactRegistriesLink.hover();
+    await expect(page.locator(".admin-sidebar__tooltip", { hasText: "Cadastros" }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Expandir menu lateral" })).toBeVisible();
 
     await page.screenshot({ path: testInfo.outputPath("shell-collapsed-desktop.png"), fullPage: false });
@@ -55,6 +58,7 @@ test("login administrativo e shell principal", async ({ page }, testInfo) => {
     await menuButton.click();
     const drawer = page.getByRole("dialog");
     await expect(drawer.getByText("Meu site")).toBeVisible();
+    await expect(drawer.getByText("Cadastros")).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("shell-mobile-drawer.png"), fullPage: false });
     await page.keyboard.press("Escape");
     await expect(drawer).toBeHidden();

@@ -97,12 +97,18 @@ export default function VendasPage() {
     const validSales = sales.filter((sale) => sale.status !== "CANCELED");
     const paidSales = validSales.filter((sale) => sale.status === "PAID");
     const pendingSales = validSales.filter((sale) => sale.status === "PENDING");
+    const totalItems = validSales.reduce((sum, sale) => sum + (sale.itemCount ?? 0), 0);
+    const averageTicket = validSales.length
+      ? validSales.reduce((sum, sale) => sum + sale.amount, 0) / validSales.length
+      : 0;
 
     return {
       totalSales: validSales.length,
       totalAmount: validSales.reduce((sum, sale) => sum + sale.amount, 0),
       paidAmount: paidSales.reduce((sum, sale) => sum + sale.amount, 0),
       pendingAmount: pendingSales.reduce((sum, sale) => sum + sale.amount, 0),
+      totalItems,
+      averageTicket,
     };
   }, [sales]);
 
@@ -110,16 +116,16 @@ export default function VendasPage() {
     <main className="admin-page-stack">
       <PageHeader
         title="Vendas"
-        description="Acompanhe as vendas com itens e o que ainda esta pendente, sem misturar esse fluxo com lancamentos administrativos."
+        description="Registre vendas, acompanhe itens e veja o contas a receber que nasceu de cada operacao."
         primaryAction={{ href: "/admin/vendas/novo", label: "Nova venda" }}
         secondaryActions={[{ href: "/admin/financeiro", label: "Ver financeiro", variant: "secondary" }]}
       />
 
       <section className="admin-card-grid">
         <MetricCard label="Vendas registradas" value={String(summary.totalSales)} description="Operacoes com itens no periodo." />
-        <MetricCard label="Total vendido" value={formatCurrency(summary.totalAmount)} description="Soma das vendas validas." />
-        <MetricCard label="Recebido" value={formatCurrency(summary.paidAmount)} description="Vendas ja baixadas." />
-        <MetricCard label="Pendente" value={formatCurrency(summary.pendingAmount)} description="Valores ainda em aberto." />
+        <MetricCard label="A receber gerado" value={formatCurrency(summary.pendingAmount)} description="Total ainda pendente no financeiro." />
+        <MetricCard label="Ticket medio" value={formatCurrency(summary.averageTicket)} description="Media por venda valida." />
+        <MetricCard label="Itens vendidos" value={String(summary.totalItems)} description="Itens registrados nas vendas validas." />
       </section>
 
       {errorMessage ? (
@@ -130,7 +136,7 @@ export default function VendasPage() {
 
       {successMessage ? <Alert variant="success">{successMessage}</Alert> : null}
 
-      <SectionCard title="Historico recente">
+      <SectionCard title="Vendas recentes" description="Abra a venda ou a conta a receber sem sair do fluxo comercial.">
         {isLoading ? (
           <Skeleton lines={6} />
         ) : sales.length === 0 ? (
@@ -164,11 +170,16 @@ export default function VendasPage() {
 
                 <div className="admin-list-card__footer">
                   <span className="admin-list-card__hint">
-                    Consulte os itens vendidos e acompanhe o reflexo financeiro desta venda.
+                    Consulte os itens vendidos e acompanhe o reflexo financeiro desta venda sem confundir com lancamento manual.
                   </span>
-                  <Link href={`/admin/vendas/${sale.id}`} className="admin-button admin-button--secondary">
-                    Abrir venda
-                  </Link>
+                  <div className="admin-row">
+                    <Link href={`/admin/vendas/${sale.id}`} className="admin-button admin-button--primary">
+                      Abrir venda
+                    </Link>
+                    <Link href={`/admin/financeiro/lancamentos/${sale.id}`} className="admin-button admin-button--secondary">
+                      Abrir conta a receber
+                    </Link>
+                  </div>
                 </div>
               </article>
             ))}

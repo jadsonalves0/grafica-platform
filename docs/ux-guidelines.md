@@ -52,19 +52,22 @@ Os componentes administrativos oficiais ficam em `src/components/admin`.
 - `Drawer`
 - `Tabs`
 
-No `Sidebar`:
+No shell atual:
 
-- a largura expandida deve ficar entre aproximadamente `240px` e `256px`
-- a largura recolhida deve ficar entre aproximadamente `64px` e `72px`
-- o menu recolhido no desktop deve mostrar apenas os modulos principais
-- o controle de recolhimento deve ficar dentro da propria sidebar
-- o item ativo precisa continuar evidente no estado recolhido
-- o `drawer` mobile nao deve herdar o estado recolhido do desktop
-- apenas um grupo principal deve permanecer expandido por vez
+- a navegacao principal diaria deve aparecer no topo em formato de pill
+- `Inicio`, `Comercial`, `Operacao`, `Financeiro`, `Meu site` e `Relatorios` devem ficar como modulos principais
+- `Cadastros` e `Configuracoes` devem ficar fora da fila principal do dia a dia
+- a sidebar de desktop passa a ser contextual: menos grupos, mais foco no modulo ativo
+- a largura expandida da sidebar continua entre aproximadamente `240px` e `256px`
+- a largura recolhida continua entre aproximadamente `64px` e `72px`
+- o controle de recolhimento continua dentro da propria sidebar
+- o menu recolhido nao deve competir com o topo principal
+- o `drawer` mobile continua sendo a navegacao principal em telas pequenas
 
 No `Topbar`:
 
-- mostrar breadcrumb compacto quando a pagina exigir contexto
+- mostrar marca, navegacao principal, breadcrumb e subnavegacao contextual
+- usar pill/badge para o modulo ativo
 - nao repetir o titulo principal da pagina
 - manter o botao de abrir navegacao apenas no mobile
 - concentrar empresa, usuario e saida no menu de perfil
@@ -103,12 +106,14 @@ No fluxo de `vendas`:
 
 - usar tela propria, separada do lancamento manual
 - iniciar por pesquisa, sem carregar o catalogo inteiro ao abrir
+- abrir com cabecalho operacional mostrando cliente, origem e efeito financeiro
 - manter a pesquisa e a inclusao de itens na area principal
 - manter resumo, total e acao principal sempre visiveis
 - deixar o carrinho fixo no desktop
 - tratar preco do item do catalogo como somente leitura
 - esconder custo, margem detalhada e informacoes tecnicas ate quando forem realmente necessarias
 - usar alerta de saida sem salvar quando houver carrinho em andamento
+- depois de concluir, oferecer `Abrir venda` e `Abrir conta a receber`
 
 ### Feedback
 
@@ -129,7 +134,7 @@ Nao criar variantes locais quando existir equivalente oficial.
 
 ## Arquitetura atual do menu
 
-Os grupos principais da sidebar devem seguir a navegacao operacional:
+Os grupos principais da navegacao administrativa devem seguir a ordem operacional:
 
 - `Inicio`
 - `Comercial`
@@ -138,9 +143,10 @@ Os grupos principais da sidebar devem seguir a navegacao operacional:
 - `Meu site`
 - `Relatorios`
 
-No rodape:
+Na area auxiliar:
 
 - `Configuracoes`
+- `Cadastros`
 - recolher menu
 - perfil
 
@@ -152,6 +158,15 @@ No rodape:
 - Orcamentos
 - Pedidos
 - Vendas
+
+No detalhe de `Pedidos`:
+
+- o bloco de `Faturamento` deve existir quando o pedido estiver em revisao, pronto para venda ou ja faturado
+- `Pedido` continua sendo compromisso operacional
+- `Venda` continua sendo o fato comercial e financeiro
+- o usuario nao deve ir para `Financeiro` para faturar manualmente um pedido
+- quando o pedido estiver pronto, a acao principal deve ser `Gerar venda`
+- quando a venda ja existir, os atalhos devem expor `Abrir venda` e `Abrir conta a receber`
 
 `Operacao`
 

@@ -507,12 +507,13 @@ function OrderBillingList({ orders }: Readonly<{ orders: OrderFinancialBridge[] 
 function EntryList({ entries }: Readonly<{ entries: FinancialEntry[] }>) {
   return (
     <div className="admin-list-stack">
-      {entries.map((entry) => (
-        <Link
-          key={entry.id}
-          href={`/admin/financeiro/lancamentos/${entry.id}`}
-          className="admin-list-card"
-        >
+      {entries.map((entry) => {
+        const hasSaleLink =
+          Boolean(entry.itemCount) &&
+          (entry.entryType === "INCOME" || entry.entryType === "RECEIVABLE");
+
+        return (
+          <article key={entry.id} className="admin-list-card">
           <div className="admin-list-card__header">
             <div className="admin-list-card__heading">
               <strong className="admin-list-card__title">{entry.description}</strong>
@@ -529,8 +530,27 @@ function EntryList({ entries }: Readonly<{ entries: FinancialEntry[] }>) {
             <MiniStat label="Valor" value={formatCurrency(entry.amount)} />
             <MiniStat label="Origem" value={entry.originLabel} />
           </div>
-        </Link>
-      ))}
+
+          <div className="admin-list-card__footer">
+            <span className="admin-list-card__hint">
+              {hasSaleLink
+                ? "Esta conta nasceu de uma venda com itens e pode ser acompanhada tanto no comercial quanto no financeiro."
+                : "Acompanhe o detalhamento, a origem e a baixa deste registro pelo financeiro."}
+            </span>
+            <div className="admin-row">
+              <Link href={`/admin/financeiro/lancamentos/${entry.id}`} className="admin-button admin-button--secondary">
+                Abrir conta
+              </Link>
+              {hasSaleLink ? (
+                <Link href={`/admin/vendas/${entry.id}`} className="admin-button admin-button--primary">
+                  Abrir venda
+                </Link>
+              ) : null}
+            </div>
+          </div>
+          </article>
+        );
+      })}
     </div>
   );
 }

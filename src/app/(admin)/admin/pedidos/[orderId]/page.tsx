@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -25,6 +26,7 @@ type OrderDetail = {
   linkedSaleEntryId?: string | null;
   readyForSale?: boolean;
   deliveryDate?: string | null;
+  totalAmount: number;
   notes?: string | null;
   items: Array<{
     id: string;
@@ -108,7 +110,7 @@ export default function EditarPedidoPage() {
     <main className="admin-page-stack">
       <PageHeader
         title={order?.code ? `Pedido ${order.code}` : "Editar pedido"}
-        description="Revise cliente, entrega, itens e andamento operacional a partir de um unico ponto de controle."
+        description="Acompanhe o pedido, a producao e o faturamento sem sair do fluxo comercial."
         primaryAction={
           order?.hasLinkedSale
             ? { href: `/admin/vendas/${order.linkedSaleEntryId}`, label: "Abrir venda" }
@@ -117,6 +119,9 @@ export default function EditarPedidoPage() {
               : undefined
         }
         secondaryActions={[
+          ...(order?.linkedSaleEntryId
+            ? [{ href: `/admin/financeiro/lancamentos/${order.linkedSaleEntryId}`, label: "Abrir conta a receber" }]
+            : []),
           { href: "/admin/pedidos", label: "Voltar para pedidos" },
         ]}
       />
@@ -130,27 +135,91 @@ export default function EditarPedidoPage() {
       {order ? (
         <>
           <section className="admin-card-grid">
-            <MetricCard label="Cliente" value={order.customerName} />
+            <MetricCard label="Cliente" value={order.customerName} description="Responsavel pela operacao." />
             <MetricCard
               label="Entrega"
               value={order.deliveryDate ? formatDate(order.deliveryDate) : "Nao definida"}
+              description="Prazo combinado para concluir o pedido."
             />
-            <MetricCard label="Itens" value={String(order.items.length)} />
-            <div>
-              <SectionCard title="Situacao atual">
-                <div className="admin-row">
-                  <StatusBadge
-                    status={formatCommercialStatus(order.status)}
-                    tone={mapCommercialTone(order.status)}
-                  />
-                  <StatusBadge
-                    status={formatProductionStatus(order.productionStatus)}
-                    tone={mapProductionTone(order.productionStatus)}
-                  />
-                </div>
-              </SectionCard>
-            </div>
+            <MetricCard label="Total do pedido" value={formatCurrency(order.totalAmount)} description="Valor previsto para faturamento." />
+            <MetricCard
+              label="Faturamento"
+              value={
+                order.hasLinkedSale
+                  ? "Venda gerada"
+                  : order.readyForSale
+                    ? "Pronto para faturar"
+                    : "Aguardando etapa anterior"
+              }
+              description={
+                order.hasLinkedSale
+                  ? "A venda e a conta a receber ja estao vinculadas."
+                  : order.readyForSale
+                    ? "Gerar venda e revisar pagamento."
+                    : "Atualize o andamento antes de faturar."
+              }
+            />
           </section>
+
+          <SectionCard
+            title="Faturamento"
+            description="Pedido nao vira receita sozinho. O faturamento nasce pela venda e gera a conta a receber."
+          >
+            {order.hasLinkedSale && order.linkedSaleEntryId ? (
+              <div className="admin-page-stack">
+                <div className="admin-summary-list">
+                  <div className="admin-summary-row">
+                    <span style={{ color: "var(--muted)" }}>Venda gerada</span>
+                    <strong>#{order.linkedSaleEntryId.slice(0, 8).toUpperCase()}</strong>
+                  </div>
+                  <div className="admin-summary-row">
+                    <span style={{ color: "var(--muted)" }}>Conta a receber</span>
+                    <strong>Pendente de acompanhamento no financeiro</strong>
+                  </div>
+                  <div className="admin-summary-row">
+                    <span style={{ color: "var(--muted)" }}>Status operacional</span>
+                    <div className="admin-row">
+                      <StatusBadge
+                        status={formatCommercialStatus(order.status)}
+                        tone={mapCommercialTone(order.status)}
+                      />
+                      <StatusBadge
+                        status={formatProductionStatus(order.productionStatus)}
+                        tone={mapProductionTone(order.productionStatus)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="admin-row">
+                  <Link href={`/admin/vendas/${order.linkedSaleEntryId}`} className="admin-button admin-button--primary">
+                    Abrir venda
+                  </Link>
+                  <Link href={`/admin/financeiro/lancamentos/${order.linkedSaleEntryId}`} className="admin-button admin-button--secondary">
+                    Abrir conta a receber
+                  </Link>
+                </div>
+              </div>
+            ) : order.readyForSale ? (
+              <div className="admin-page-stack">
+                <Alert variant="info" title="Este pedido esta pronto para faturamento.">
+                  Ao gerar a venda, o sistema vai herdar cliente e itens, permitir revisar o pagamento e criar a conta a receber ao concluir.
+                </Alert>
+                <div className="admin-row">
+                  <Link href={`/admin/vendas/novo?orderId=${order.id}`} className="admin-button admin-button--primary">
+                    Gerar venda
+                  </Link>
+                  <Link href="/admin/vendas" className="admin-button admin-button--secondary">
+                    Ver fila de vendas
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <Alert variant="warning" title="O pedido ainda nao pode ser faturado.">
+                Atualize o andamento comercial ou a producao ate que o pedido fique pronto. Quando isso acontecer, a acao de gerar venda aparecera aqui.
+              </Alert>
+            )}
+          </SectionCard>
 
           <OrderForm mode="edit" order={order} onOrderChanged={setOrder} />
         </>
@@ -161,6 +230,13 @@ export default function EditarPedidoPage() {
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("pt-BR").format(new Date(value));
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(value || 0);
 }
 
 function formatCommercialStatus(status: OrderDetail["status"]) {

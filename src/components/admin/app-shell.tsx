@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { PERMISSIONS } from "@/lib/permissions/permission-types";
-import { Drawer, Topbar, type BreadcrumbItem } from "@/components/admin/ui";
+import { Drawer, Topbar, type BreadcrumbItem, type TopNavItem } from "@/components/admin/ui";
 
 type Viewer = {
   companyTradeName: string;
@@ -319,6 +319,39 @@ export function AdminShell({
   );
 
   const breadcrumbs = useMemo(() => buildBreadcrumbs(pathname, visibleSections), [pathname, visibleSections]);
+  const activeSection = useMemo(
+    () => visibleSections.find((section) => section.id === activeSectionId) ?? null,
+    [activeSectionId, visibleSections],
+  );
+  const primaryNav = useMemo<TopNavItem[]>(
+    () =>
+      mainSections.map((section) => ({
+        label: section.label,
+        href: resolveCompactItem(section, pathname).href,
+        isActive: section.id === activeSectionId,
+      })),
+    [activeSectionId, mainSections, pathname],
+  );
+  const utilityNav = useMemo<TopNavItem[]>(
+    () =>
+      footerSections.map((section) => ({
+        label: section.label,
+        href: resolveCompactItem(section, pathname).href,
+        isActive: section.id === activeSectionId,
+      })),
+    [activeSectionId, footerSections, pathname],
+  );
+  const contextualNav = useMemo<TopNavItem[]>(
+    () =>
+      activeSection && activeSection.id !== "home"
+        ? activeSection.items.map((item) => ({
+            label: item.label,
+            href: item.href,
+            isActive: matchesItem(pathname, item),
+          }))
+        : [],
+    [activeSection, pathname],
+  );
 
   useEffect(() => {
     if (!isCollapsed && activeSectionId) {
@@ -345,42 +378,49 @@ export function AdminShell({
     });
   }
 
-  function renderSidebarContent({
+  function renderDesktopSidebarContent({
     collapsed,
-    allowCollapseToggle,
-  }: Readonly<{ collapsed: boolean; allowCollapseToggle: boolean }>) {
+  }: Readonly<{ collapsed: boolean }>) {
+    const contextualSection = activeSection?.id === "home" ? null : activeSection;
+    const compactSections = [
+      ...(contextualSection
+        ? contextualSection.items.map((item) => ({
+            id: item.href,
+            label: item.label,
+            href: item.href,
+            isActive: matchesItem(pathname, item),
+          }))
+        : []),
+      ...footerSections.map((section) => {
+        const shortcut = resolveCompactItem(section, pathname);
+        return {
+          id: section.id,
+          label: section.label,
+          href: shortcut.href,
+          isActive: section.items.some((item) => matchesItem(pathname, item)),
+        };
+      }),
+    ];
+
     return (
       <div className="admin-sidebar__content">
-        <Link href="/dashboard" className="admin-sidebar__brand">
-          <span className="admin-sidebar__brand-mark">GP</span>
-          {!collapsed ? (
-            <span className="admin-sidebar__brand-text">
-              <strong>Grafica Platform</strong>
-              <small>{viewer.companyTradeName}</small>
-            </span>
-          ) : null}
-        </Link>
-
         {collapsed ? (
           <nav className="admin-sidebar__compact-nav" aria-label="Navegacao principal">
-            {[...mainSections, ...footerSections].map((section) => {
-              const shortcut = resolveCompactItem(section, pathname);
-              const isSectionActive = section.items.some((item) => matchesItem(pathname, item));
-
+            {compactSections.map((item) => {
               return (
                 <Link
-                  key={section.id}
-                  href={shortcut.href}
-                  className={`admin-sidebar__compact-item ${isSectionActive ? "is-active" : ""}`}
-                  aria-label={section.label}
-                  aria-current={isSectionActive ? "location" : undefined}
-                  title={section.label}
+                  key={item.id}
+                  href={item.href}
+                  className={`admin-sidebar__compact-item ${item.isActive ? "is-active" : ""}`}
+                  aria-label={item.label}
+                  aria-current={item.isActive ? "location" : undefined}
+                  title={item.label}
                 >
                   <span className="admin-sidebar__compact-mark" aria-hidden="true">
-                    {buildCompactLabel(section.label)}
+                    {buildCompactLabel(item.label)}
                   </span>
                   <span className="admin-sidebar__tooltip" role="tooltip">
-                    {section.label}
+                    {item.label}
                   </span>
                 </Link>
               );
@@ -388,24 +428,161 @@ export function AdminShell({
           </nav>
         ) : (
           <div className="admin-sidebar__nav">
-            <nav className="admin-sidebar__main-nav" aria-label="Navegacao principal">
-              {mainSections.map((section) => {
-                if (section.id === "home") {
-                  const item = section.items[0];
-                  const isActive = matchesItem(pathname, item);
+            <section className="admin-sidebar__panel">
+              <div className="admin-sidebar__panel-header">
+                <span className="admin-sidebar__panel-kicker">Modulo ativo</span>
+                <strong>{contextualSection?.label ?? "Inicio"}</strong>
+                <small>
+                  {contextualSection
+                    ? "Use esta coluna para seguir a proxima tarefa do modulo atual."
+                    : "Os atalhos principais agora ficam no topo da aplicacao."}
+                </small>
+              </div>
 
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`admin-sidebar__item ${isActive ? "is-active" : ""}`}
-                      aria-current={isActive ? "page" : undefined}
-                    >
-                      <span>{item.label}</span>
-                    </Link>
-                  );
-                }
+              {contextualSection ? (
+                <nav className="admin-sidebar__context-nav" aria-label={`Atalhos do modulo ${contextualSection.label}`}>
+                  {contextualSection.items.map((item) => {
+                    const isActive = matchesItem(pathname, item);
 
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={`admin-sidebar__item ${isActive ? "is-active" : ""}`}
+                        aria-current={isActive ? "page" : undefined}
+                      >
+                        <span>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </nav>
+              ) : (
+                <div className="admin-sidebar__welcome">
+                  <Link href="/dashboard" className="admin-sidebar__item is-active" aria-current="page">
+                    <span>Inicio</span>
+                  </Link>
+                </div>
+              )}
+            </section>
+
+            {footerSections.length ? (
+              <div className="admin-sidebar__utility-groups">
+                {footerSections.map((section) => (
+                  <section key={section.id} className="admin-sidebar__panel admin-sidebar__panel--utility">
+                    <div className="admin-sidebar__panel-header admin-sidebar__panel-header--compact">
+                      <span className="admin-sidebar__panel-kicker">{section.label}</span>
+                    </div>
+                    <div className="admin-sidebar__items">
+                      {section.items.map((item) => {
+                        const isActive = matchesItem(pathname, item);
+
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            className={`admin-sidebar__item ${isActive ? "is-active" : ""}`}
+                            aria-current={isActive ? "page" : undefined}
+                          >
+                            <span>{item.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        <div className="admin-sidebar__footer">
+          <button
+            type="button"
+            className="admin-sidebar__toggle"
+            onClick={toggleSidebar}
+            aria-label={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
+            aria-expanded={!collapsed}
+            title={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
+          >
+            {collapsed ? <ChevronDoubleRightIcon /> : <ChevronDoubleLeftIcon />}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderMobileSidebarContent() {
+    return (
+      <div className="admin-sidebar__content">
+        <Link href="/dashboard" className="admin-sidebar__brand">
+          <span className="admin-sidebar__brand-mark">GP</span>
+          <span className="admin-sidebar__brand-text">
+            <strong>Grafica Platform</strong>
+            <small>{viewer.companyTradeName}</small>
+          </span>
+        </Link>
+
+        <div className="admin-sidebar__nav">
+          <nav className="admin-sidebar__main-nav" aria-label="Navegacao principal">
+            {mainSections.map((section) => {
+              if (section.id === "home") {
+                const item = section.items[0];
+                const isActive = matchesItem(pathname, item);
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`admin-sidebar__item ${isActive ? "is-active" : ""}`}
+                    aria-current={isActive ? "page" : undefined}
+                  >
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              }
+
+              const isSectionActive = section.items.some((item) => matchesItem(pathname, item));
+              const isExpanded = expandedSectionId === section.id;
+
+              return (
+                <div key={section.id} className="admin-sidebar__group">
+                  <button
+                    type="button"
+                    className={`admin-sidebar__group-summary ${isSectionActive ? "is-active" : ""}`}
+                    onClick={() =>
+                      setExpandedSectionId((current) => (current === section.id ? null : section.id))
+                    }
+                    aria-expanded={isExpanded}
+                  >
+                    <span>{section.label}</span>
+                    <span aria-hidden="true">{isExpanded ? "-" : "+"}</span>
+                  </button>
+                  {isExpanded ? (
+                    <div className="admin-sidebar__items">
+                      {section.items.map((item) => {
+                        const isActive = matchesItem(pathname, item);
+
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            className={`admin-sidebar__item ${isActive ? "is-active" : ""}`}
+                            aria-current={isActive ? "page" : undefined}
+                          >
+                            <span>{item.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </nav>
+
+          {footerSections.length ? (
+            <div className="admin-sidebar__settings">
+              {footerSections.map((section) => {
                 const isSectionActive = section.items.some((item) => matchesItem(pathname, item));
                 const isExpanded = expandedSectionId === section.id;
 
@@ -443,67 +620,9 @@ export function AdminShell({
                   </div>
                 );
               })}
-            </nav>
-
-            {footerSections.length ? (
-              <div className="admin-sidebar__settings">
-                {footerSections.map((section) => {
-                  const isSectionActive = section.items.some((item) => matchesItem(pathname, item));
-                  const isExpanded = expandedSectionId === section.id;
-
-                  return (
-                    <div key={section.id} className="admin-sidebar__group">
-                      <button
-                        type="button"
-                        className={`admin-sidebar__group-summary ${isSectionActive ? "is-active" : ""}`}
-                        onClick={() =>
-                          setExpandedSectionId((current) => (current === section.id ? null : section.id))
-                        }
-                        aria-expanded={isExpanded}
-                      >
-                        <span>{section.label}</span>
-                        <span aria-hidden="true">{isExpanded ? "-" : "+"}</span>
-                      </button>
-                      {isExpanded ? (
-                        <div className="admin-sidebar__items">
-                          {section.items.map((item) => {
-                            const isActive = matchesItem(pathname, item);
-
-                            return (
-                              <Link
-                                key={item.href}
-                                href={item.href}
-                                className={`admin-sidebar__item ${isActive ? "is-active" : ""}`}
-                                aria-current={isActive ? "page" : undefined}
-                              >
-                                <span>{item.label}</span>
-                              </Link>
-                            );
-                          })}
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
-          </div>
-        )}
-
-        {allowCollapseToggle ? (
-          <div className="admin-sidebar__footer">
-            <button
-              type="button"
-              className="admin-sidebar__toggle"
-              onClick={toggleSidebar}
-              aria-label={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
-              aria-expanded={!collapsed}
-              title={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
-            >
-              {collapsed ? <ChevronDoubleRightIcon /> : <ChevronDoubleLeftIcon />}
-            </button>
-          </div>
-        ) : null}
+            </div>
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -511,20 +630,28 @@ export function AdminShell({
   return (
     <div className={`admin-theme admin-shell ${isCollapsed ? "is-collapsed" : ""}`}>
       <aside className="admin-sidebar">
-        {renderSidebarContent({ collapsed: isCollapsed, allowCollapseToggle: true })}
+        {renderDesktopSidebarContent({ collapsed: isCollapsed })}
       </aside>
       <div className="admin-shell__body">
         <Topbar
+          brand={{
+            label: "Grafica Platform",
+            secondaryLabel: viewer.companyTradeName,
+            href: "/dashboard",
+          }}
           companyName={viewer.companyTradeName}
           userName={viewer.userName}
           breadcrumbs={breadcrumbs}
+          primaryNav={primaryNav}
+          utilityNav={utilityNav}
+          contextNav={contextualNav}
           onOpenMenu={() => setIsMobileOpen(true)}
           onSignOut={handleSignOut}
         />
         <main className="admin-shell__main">{children}</main>
       </div>
       <Drawer isOpen={isMobileOpen} onClose={() => setIsMobileOpen(false)} title="Navegacao">
-        {renderSidebarContent({ collapsed: false, allowCollapseToggle: false })}
+        {renderMobileSidebarContent()}
       </Drawer>
     </div>
   );

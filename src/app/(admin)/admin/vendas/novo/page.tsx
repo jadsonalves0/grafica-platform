@@ -12,8 +12,8 @@ export default function NovaVendaPage() {
   return (
     <main className="admin-page-stack admin-page-shell admin-page-shell--wide">
       <PageHeader
-        title="Nova venda"
-        description="Monte a venda em um fluxo proprio, com itens, descontos e total sempre visiveis."
+        title="Vendas"
+        description="Selecione cliente, monte o carrinho e conclua o faturamento da operacao em um unico fluxo."
         secondaryActions={[{ href: "/admin/vendas", label: "Voltar para vendas", variant: "secondary" }]}
       />
 

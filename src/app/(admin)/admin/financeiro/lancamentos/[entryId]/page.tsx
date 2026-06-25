@@ -105,6 +105,11 @@ export default function EditarLancamentoPage() {
       <PageHeader
         title="Detalhe financeiro"
         description="Revise vencimento, origem, parcelas e situacao financeira sem confundir este registro com o fluxo comercial da venda."
+        primaryAction={
+          entry?.items.length && (entry.entryType === "INCOME" || entry.entryType === "RECEIVABLE")
+            ? { href: `/admin/vendas/${entry.id}`, label: "Abrir venda" }
+            : undefined
+        }
         secondaryActions={[{ href: "/admin/financeiro", label: "Voltar para financeiro", variant: "secondary" }]}
       />
 
@@ -132,6 +137,14 @@ export default function EditarLancamentoPage() {
                   <strong>{entry.originLabel}</strong>
                 )}
               </div>
+              {entry.items.length && (entry.entryType === "INCOME" || entry.entryType === "RECEIVABLE") ? (
+                <div className="admin-summary-row">
+                  <span style={{ color: "var(--muted)" }}>Venda vinculada</span>
+                  <Link href={`/admin/vendas/${entry.id}`} className="admin-link-button">
+                    Venda #{entry.id.slice(0, 8).toUpperCase()}
+                  </Link>
+                </div>
+              ) : null}
               <div className="admin-summary-row">
                 <span style={{ color: "var(--muted)" }}>Natureza</span>
                 <strong>{formatEntryType(entry.entryType)}</strong>

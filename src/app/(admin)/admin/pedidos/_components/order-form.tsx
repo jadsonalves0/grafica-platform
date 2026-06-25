@@ -71,6 +71,7 @@ type OrderDetail = {
   status: "OPEN" | "IN_PROGRESS" | "COMPLETED" | "CANCELED";
   productionStatus: "PENDING" | "IN_PRODUCTION" | "WAITING_APPROVAL" | "READY" | "DELIVERED";
   deliveryDate?: string | null;
+  totalAmount: number;
   notes?: string | null;
   hasLinkedSale?: boolean;
   linkedSaleEntryId?: string | null;

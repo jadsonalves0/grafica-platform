@@ -200,6 +200,7 @@ export class FinancialService extends BaseService {
     }
 
     const normalized = await this.prepareEntryPayload(input.companyId, input);
+    await this.ensureOrderSaleUniqueness(input.companyId, normalized.orderId, normalized.items);
 
     return this.financialRepository.createEntry({
       companyId: input.companyId,
@@ -268,6 +269,7 @@ export class FinancialService extends BaseService {
     }
 
     const normalized = await this.prepareEntryPayload(companyId, input);
+    await this.ensureOrderSaleUniqueness(companyId, normalized.orderId, normalized.items, entryId);
 
     return this.financialRepository.updateEntry(entryId, {
       accountId: normalized.accountId,
@@ -499,6 +501,27 @@ export class FinancialService extends BaseService {
     }
 
     return normalizedItems;
+  }
+
+  private async ensureOrderSaleUniqueness(
+    companyId: string,
+    orderId: string | undefined,
+    items: Array<{ productId?: string; description: string; quantity: number; unitPrice: number; totalPrice: number }>,
+    excludeEntryId?: string,
+  ) {
+    if (!orderId || !items.length) {
+      return;
+    }
+
+    const existingSale = await this.financialRepository.findActiveSaleByOrderId(
+      companyId,
+      orderId,
+      excludeEntryId,
+    );
+
+    if (existingSale) {
+      throw new Error("Este pedido ja possui uma venda ativa vinculada. Abra a venda existente para continuar o faturamento.");
+    }
   }
 }
 

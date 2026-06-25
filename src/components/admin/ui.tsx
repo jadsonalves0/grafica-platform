@@ -8,6 +8,12 @@ export type BreadcrumbItem = {
   href?: string;
 };
 
+export type TopNavItem = {
+  label: string;
+  href: string;
+  isActive?: boolean;
+};
+
 type PageAction = {
   href?: string;
   label: string;
@@ -68,60 +74,132 @@ export function AppBreadcrumb({ items }: Readonly<{ items: BreadcrumbItem[] }>) 
 }
 
 export function Topbar({
+  brand,
   companyName,
   userName,
   breadcrumbs,
+  primaryNav = [],
+  utilityNav = [],
+  contextNav = [],
   onOpenMenu,
   onSignOut,
 }: Readonly<{
+  brand?: {
+    label: string;
+    secondaryLabel?: string;
+    href: string;
+  };
   companyName: string;
   userName: string;
   breadcrumbs: BreadcrumbItem[];
+  primaryNav?: TopNavItem[];
+  utilityNav?: TopNavItem[];
+  contextNav?: TopNavItem[];
   onOpenMenu?: () => void;
   onSignOut?: () => void;
 }>) {
   return (
     <header className="admin-topbar">
-      <div className="admin-topbar__main">
-        {onOpenMenu ? (
-          <button
-            type="button"
-            className="admin-icon-button admin-topbar__menu-button"
-            onClick={onOpenMenu}
-            aria-label="Abrir navegacao"
-          >
-            <MenuIcon />
-          </button>
-        ) : null}
+      <div className="admin-topbar__row admin-topbar__row--main">
+        <div className="admin-topbar__main">
+          <div className="admin-topbar__brand-group">
+            {onOpenMenu ? (
+              <button
+                type="button"
+                className="admin-icon-button admin-topbar__menu-button"
+                onClick={onOpenMenu}
+                aria-label="Abrir navegacao"
+              >
+                <MenuIcon />
+              </button>
+            ) : null}
 
-        <div className="admin-topbar__titles">
-          <AppBreadcrumb items={breadcrumbs} />
+            {brand ? (
+              <Link href={brand.href} className="admin-app-brand" aria-label={brand.label}>
+                <span className="admin-app-brand__mark">GP</span>
+                <span className="admin-app-brand__text">
+                  <strong>{brand.label}</strong>
+                  {brand.secondaryLabel ? <small>{brand.secondaryLabel}</small> : null}
+                </span>
+              </Link>
+            ) : null}
+          </div>
+
+          {primaryNav.length ? (
+            <nav className="admin-top-nav" aria-label="Modulos principais">
+              {primaryNav.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`admin-top-nav__link ${item.isActive ? "is-active" : ""}`}
+                  aria-current={item.isActive ? "page" : undefined}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          ) : null}
+        </div>
+
+        <div className="admin-topbar__meta">
+          {utilityNav.length ? (
+            <nav className="admin-topbar__utility" aria-label="Acessos auxiliares">
+              {utilityNav.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`admin-top-nav__link admin-top-nav__link--subtle ${item.isActive ? "is-active" : ""}`}
+                  aria-current={item.isActive ? "page" : undefined}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          ) : null}
+
+          <details className="admin-profile-menu">
+            <summary className="admin-profile-menu__summary" aria-haspopup="menu">
+              <span className="admin-profile-menu__identity">
+                <strong>{userName}</strong>
+                <small>{companyName}</small>
+              </span>
+              <span className="admin-profile-menu__chevron" aria-hidden="true">
+                v
+              </span>
+            </summary>
+            <div className="admin-profile-menu__panel" role="menu" aria-label="Perfil do usuario">
+              <div className="admin-profile-menu__details">
+                <strong>{userName}</strong>
+                <span>{companyName}</span>
+              </div>
+              {onSignOut ? (
+                <button type="button" className="admin-link-button" onClick={onSignOut} role="menuitem">
+                  Sair
+                </button>
+              ) : null}
+            </div>
+          </details>
         </div>
       </div>
 
-      <div className="admin-topbar__meta">
-        <details className="admin-profile-menu">
-          <summary className="admin-profile-menu__summary" aria-haspopup="menu">
-            <span className="admin-profile-menu__identity">
-              <strong>{userName}</strong>
-              <small>{companyName}</small>
-            </span>
-            <span className="admin-profile-menu__chevron" aria-hidden="true">
-              v
-            </span>
-          </summary>
-          <div className="admin-profile-menu__panel" role="menu" aria-label="Perfil do usuario">
-            <div className="admin-profile-menu__details">
-              <strong>{userName}</strong>
-              <span>{companyName}</span>
-            </div>
-            {onSignOut ? (
-              <button type="button" className="admin-link-button" onClick={onSignOut} role="menuitem">
-                Sair
-              </button>
-            ) : null}
-          </div>
-        </details>
+      <div className="admin-topbar__row admin-topbar__row--context">
+        <div className="admin-topbar__titles">
+          <AppBreadcrumb items={breadcrumbs} />
+        </div>
+        {contextNav.length ? (
+          <nav className="admin-module-tabs" aria-label="Navegacao do modulo">
+            {contextNav.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`admin-module-tabs__link ${item.isActive ? "is-active" : ""}`}
+                aria-current={item.isActive ? "page" : undefined}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        ) : null}
       </div>
     </header>
   );

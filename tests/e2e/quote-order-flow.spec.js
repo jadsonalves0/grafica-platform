@@ -5,6 +5,7 @@ import {
   authenticateAsAdmin,
   expectNoCriticalViolations,
   openAdminRoute,
+  pickFirstSearchableOption,
   pickSearchableOption,
   uniqueName,
 } from "./helpers/session";
@@ -19,7 +20,7 @@ async function createCatalogItem(page, name) {
   await expect(page).toHaveURL(/\/admin\/estoque/);
 }
 
-test("novo orcamento pesquisa cliente e pedido atualiza o cabecalho apos andamento", async ({ page }) => {
+test("orcamento aprovado vira pedido pronto para faturamento e conclui venda vinculada", async ({ page }) => {
   await authenticateAsAdmin(page);
 
   const itemName = uniqueName("Item quote-order");
@@ -61,6 +62,21 @@ test("novo orcamento pesquisa cliente e pedido atualiza o cabecalho apos andamen
   await expect(page.getByText("Andamento atualizado com sucesso.")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("link", { name: "Gerar venda" })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText("Pronto")).toBeVisible();
+
+  await page.getByRole("link", { name: "Gerar venda" }).click();
+  await expect(page).toHaveURL(/\/admin\/vendas\/novo\?orderId=/, { timeout: 30_000 });
+  await expect(page.getByText("Faturamento vindo de pedido")).toBeVisible();
+  await pickFirstSearchableOption(page, "Conta financeira");
+  await pickFirstSearchableOption(page, "Categoria financeira");
+  await page.getByRole("button", { name: "Concluir venda" }).click();
+
+  await expect(page.getByRole("heading", { name: "Venda concluida" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("link", { name: "Abrir conta a receber" })).toBeVisible();
+  await page.getByRole("link", { name: "Voltar para pedido" }).click();
+
+  await expect(page.getByRole("heading", { name: /Pedido/i })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("link", { name: "Abrir venda" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Abrir conta a receber" })).toBeVisible();
 
   await expectNoCriticalViolations(page, AxeBuilder);
 });

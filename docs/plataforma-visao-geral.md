@@ -25,12 +25,12 @@ O produto combina:
 O painel administrativo agora possui identidade propria, separada do website:
 
 - `AppShell` administrativo
-- menu lateral recolhivel no desktop
+- navegacao hibrida com modulos principais no topo e coluna lateral contextual no desktop
 - `drawer` de navegacao no celular
-- topbar simplificada e compacta
+- topbar mais forte, com modulo ativo em pill e utilitarios separados do fluxo diario
 - design system interno compartilhado
 - superficies neutras e densidade operacional maior
-- menu recolhido com atalhos apenas dos modulos principais no desktop, sem afetar a navegacao expandida no mobile
+- menu recolhido sem competir com a navegacao principal do topo
 - controle de recolhimento integrado a propria sidebar
 - titulo principal concentrado no `PageHeader`, sem duplicacao na topbar
 
@@ -89,6 +89,12 @@ No rodape do menu ficam:
 - `Configuracoes`
 - recolher menu
 - perfil e saida
+
+No desktop:
+
+- os modulos principais ficam no topo
+- `Cadastros` e `Configuracoes` ficam em area auxiliar
+- a coluna lateral mostra o contexto do modulo ativo, e nao todos os grupos ao mesmo tempo
 
 Os itens exibidos respeitam o perfil visual do usuario, sem substituir a autorizacao do backend.
 
@@ -161,11 +167,13 @@ Os indicadores devem ser tratados como ponto de partida para o trabalho diario.
 - `orcamentos`, `pedidos`, `vendas`, `entradas`, `producao`, `relatorios`, `leads do site`, `empresa`, `parametros` e `movimentacoes` alinhados ao mesmo shell visual
 - `orcamentos`, `pedidos`, `lancamentos manuais`, `producao` e `ficha tecnica` usando o mesmo padrao compartilhado de campos monetarios, percentuais e quantitativos
 - `vendas` com fluxo proprio de operacao, separado do formulario generico do financeiro
+- `vendas` com cabecalho operacional para cliente, origem e situacao financeira
 - `vendas` com pesquisa sob demanda, sem carregar o catalogo inteiro ao abrir
 - `vendas` com carrinho lateral fixo no desktop e foco inicial na busca
 - `vendas` com preco de item do catalogo somente leitura no carrinho
 - `vendas` usando saldo vendavel por FIFO como fonte de verdade visual e transacional
 - `vendas` com reflexo de estoque para itens fisicos na mesma transacao do registro comercial
+- `vendas` com acesso direto para a conta a receber gerada ao concluir
 - `estoque` com consumo FIFO protegido por lock transacional no produto e nas camadas elegiveis
 - `estoque` com aviso explicito quando saldo registrado e saldo FIFO ainda nao coincidem
 - `estoque` com rotina de regularizacao para bases piloto que possuem movimentos confirmados sem camada FIFO correspondente
@@ -174,6 +182,7 @@ Os indicadores devem ser tratados como ponto de partida para o trabalho diario.
 - `financeiro` com origem clicavel tambem para vendas registradas pela tela propria
 - `financeiro` separado em `visao geral`, `contas a receber`, `contas a pagar`, `caixa e bancos` e `lancamentos manuais`
 - `pedidos` mostrando proxima acao de faturamento com `Gerar venda` ou `Abrir venda`, em vez de virar receita automaticamente
+- `pedidos` com bloco explicito de faturamento, incluindo atalho para `Abrir conta a receber` quando a venda ja existir
 - `lancamento manual` tratado visualmente como excecao e nao como fluxo concorrente a venda
 - `producao` com destaque para impedimento por falta de material no lote atual
 - `ficha tecnica` tratada com linguagem operacional voltada a materiais, consumo padrao e custo estimado

@@ -202,15 +202,18 @@ export default function PedidosPage() {
     const runningProduction = orders.filter(
       (order) => order.productionStatus === "IN_PRODUCTION",
     );
-    const completedOrders = orders.filter(
-      (order) => order.status === "COMPLETED",
+    const readyToBill = orders.filter(
+      (order) => order.readyForSale && !order.hasLinkedSale && order.status !== "CANCELED",
+    );
+    const billedOrders = orders.filter(
+      (order) => order.hasLinkedSale,
     );
 
     return [
       {
         label: "Pedidos em aberto",
         value: String(openOrders.length),
-        description: "Aguardando andamento.",
+        description: "Aguardando proxima definicao comercial.",
       },
       {
         label: "Em producao",
@@ -218,16 +221,14 @@ export default function PedidosPage() {
         description: "Ja em execucao.",
       },
       {
-        label: "Concluidos",
-        value: String(completedOrders.length),
-        description: "Fechados neste ciclo.",
+        label: "Prontos para faturar",
+        value: String(readyToBill.length),
+        description: "Podem virar venda agora.",
       },
       {
-        label: "Carteira atual",
-        value: formatCurrency(
-          orders.reduce((sum, order) => sum + order.totalAmount, 0),
-        ),
-        description: "Total dos pedidos listados.",
+        label: "Faturados",
+        value: String(billedOrders.length),
+        description: "Ja vinculados a uma venda.",
       },
     ];
   }, [orders]);
@@ -250,7 +251,7 @@ export default function PedidosPage() {
     <main className="admin-page-stack">
       <PageHeader
         title="Pedidos"
-        description="Acompanhe prazos, producao e a proxima acao de cada pedido."
+        description="Acompanhe pedidos em aberto, producao e faturamento em um fluxo mais direto."
         primaryAction={{ href: "/admin/pedidos/novo", label: "Novo pedido" }}
       />
 
@@ -378,24 +379,36 @@ export default function PedidosPage() {
                     label="Cadastro"
                     value={formatDate(order.createdAt)}
                   />
+                  <InfoBox
+                    label="Proxima acao"
+                    value={resolveNextActionLabel(order)}
+                  />
                 </div>
 
                 <div className="admin-list-card__footer">
                   <span className="admin-list-card__hint">
                     {order.hasLinkedSale
-                      ? "O pedido ja possui faturamento vinculado. Revise a producao ou abra a venda relacionada."
+                      ? "O pedido ja possui venda e conta a receber vinculadas. Use os atalhos para acompanhar o comercial ou o financeiro."
                       : order.readyForSale
-                        ? "O pedido esta pronto para faturamento. Gere a venda para refletir no financeiro."
+                        ? "O pedido esta pronto para faturamento. Gere a venda para revisar pagamento e refletir no financeiro."
                         : "Atualize o andamento, revise a producao ou siga para a proxima etapa valida."}
                   </span>
                   <div className="admin-row">
                     {order.hasLinkedSale && order.linkedSaleEntryId ? (
-                      <Link
-                        href={`/admin/vendas/${order.linkedSaleEntryId}`}
-                        className="admin-button admin-button--secondary"
-                      >
-                        Abrir venda
-                      </Link>
+                      <>
+                        <Link
+                          href={`/admin/vendas/${order.linkedSaleEntryId}`}
+                          className="admin-button admin-button--primary"
+                        >
+                          Abrir venda
+                        </Link>
+                        <Link
+                          href={`/admin/financeiro/lancamentos/${order.linkedSaleEntryId}`}
+                          className="admin-button admin-button--secondary"
+                        >
+                          Abrir conta
+                        </Link>
+                      </>
                     ) : order.readyForSale ? (
                       <Link
                         href={`/admin/vendas/novo?orderId=${order.id}`}
@@ -442,6 +455,26 @@ function formatCurrency(value: number) {
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("pt-BR").format(new Date(value));
+}
+
+function resolveNextActionLabel(order: OrderListItem) {
+  if (order.hasLinkedSale) {
+    return "Abrir venda";
+  }
+
+  if (order.readyForSale) {
+    return "Gerar venda";
+  }
+
+  if (order.productionStatus === "IN_PRODUCTION") {
+    return "Atualizar producao";
+  }
+
+  if (order.status === "OPEN") {
+    return "Acompanhar pedido";
+  }
+
+  return "Revisar andamento";
 }
 
 function formatCommercialStatus(status: CommercialStatus) {

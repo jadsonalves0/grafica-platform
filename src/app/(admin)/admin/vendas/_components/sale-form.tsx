@@ -610,6 +610,23 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
       })),
     [accounts],
   );
+  const selectedCustomerName = useMemo(
+    () => customers.find((customer) => customer.id === form.customerId)?.name ?? null,
+    [customers, form.customerId],
+  );
+  const selectedOrder = useMemo(
+    () => orders.find((order) => order.id === form.orderId) ?? null,
+    [form.orderId, orders],
+  );
+  const selectedQuote = useMemo(
+    () => quotes.find((quote) => quote.id === form.quoteId) ?? null,
+    [form.quoteId, quotes],
+  );
+  const saleOriginLabel = selectedOrder
+    ? `Pedido ${selectedOrder.code}`
+    : selectedQuote
+      ? `Orcamento ${selectedQuote.code}`
+      : "Venda direta";
 
   const categoryOptions = useMemo<SearchableSelectOption[]>(
     () =>
@@ -927,10 +944,38 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
             <MetricTile label="Itens" value={String(completion.itemCount)} />
           </div>
 
+          <SectionCard
+            title="Financeiro"
+            description="A venda ja ficou ligada ao contas a receber para acompanhamento do vencimento e da baixa."
+          >
+            <div className="admin-summary-list">
+              <div className="admin-summary-row">
+                <span style={{ color: "var(--muted)" }}>Conta a receber criada</span>
+                <strong>{completion.status === "PAID" ? "Recebida" : "Pendente"}</strong>
+              </div>
+              <div className="admin-summary-row">
+                <span style={{ color: "var(--muted)" }}>Vencimento</span>
+                <strong>{new Intl.DateTimeFormat("pt-BR").format(new Date(form.dueDate))}</strong>
+              </div>
+              <div className="admin-summary-row">
+                <span style={{ color: "var(--muted)" }}>Valor</span>
+                <strong>{formatCurrency(completion.total)}</strong>
+              </div>
+            </div>
+          </SectionCard>
+
           <div className="admin-row">
             <Link href={`/admin/vendas/${completion.id}`} className="admin-button admin-button--primary">
               Abrir venda
             </Link>
+            <Link href={`/admin/financeiro/lancamentos/${completion.id}`} className="admin-button admin-button--secondary">
+              Abrir conta a receber
+            </Link>
+            {form.orderId ? (
+              <Link href={`/admin/pedidos/${form.orderId}`} className="admin-button admin-button--secondary">
+                Voltar para pedido
+              </Link>
+            ) : null}
             <button type="button" className="admin-button admin-button--secondary" onClick={startNewSale}>
               Registrar nova venda
             </button>
@@ -958,6 +1003,24 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
           Estamos reaproveitando cliente e itens do pedido selecionado para acelerar esta venda.
         </Alert>
       ) : null}
+
+      <SectionCard
+        title={mode === "create" ? "Cabecalho da venda" : "Resumo da venda"}
+        description="Use este bloco para confirmar cliente, origem e reflexo financeiro antes de concluir."
+      >
+        <div className="admin-list-card__meta">
+          <MetricTile label="Cliente" value={selectedCustomerName ?? "Consumidor nao identificado"} />
+          <MetricTile label="Origem" value={saleOriginLabel} />
+          <MetricTile label="Financeiro" value={form.paymentStatus === "PAID" ? "Recebida agora" : "Conta a receber"} />
+          <MetricTile label="Status" value={mode === "create" ? "Em revisao" : "Venda registrada"} />
+        </div>
+
+        {form.orderId ? (
+          <Alert variant="info" title="Faturamento vindo de pedido.">
+            Esta venda reaproveita os dados do pedido para que voce revise apenas pagamento, observacoes e os ultimos ajustes do carrinho.
+          </Alert>
+        ) : null}
+      </SectionCard>
 
       <div className="admin-layout-grid admin-layout-grid--sale">
         <div className="admin-page-stack">
@@ -1191,7 +1254,7 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
             )}
           </SectionCard>
 
-          <SectionCard title="Cliente e recebimento" description="Defina quem esta comprando e como a venda entrara no financeiro.">
+          <SectionCard title="Cliente e pagamento" description="Defina quem esta comprando e como a venda aparecera no financeiro.">
             <div className="admin-page-stack">
               <div className="admin-form-grid admin-form-grid--2">
                 <Field label="Conta financeira" required>
@@ -1257,7 +1320,7 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
               <div className="admin-row admin-row--between">
                 <span className="admin-list-card__subtitle">
                   {form.customerId
-                    ? `Cliente selecionado: ${customers.find((customer) => customer.id === form.customerId)?.name ?? "Cliente"}`
+                    ? `Cliente selecionado: ${selectedCustomerName ?? "Cliente"}`
                     : "Consumidor nao identificado"}
                 </span>
                 <button
@@ -1317,15 +1380,11 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
             </div>
           </FormSection>
 
-          <SectionCard title="Revisao da venda" description="Confira total, descontos e alertas antes de concluir.">
+          <SectionCard title="Resumo e faturamento" description="Confira total, pagamento e o reflexo que entrara no contas a receber.">
             <div className="admin-summary-list">
               <div className="admin-summary-row">
                 <span style={{ color: "var(--muted)" }}>Cliente</span>
-                <strong>
-                  {form.customerId
-                    ? customers.find((customer) => customer.id === form.customerId)?.name ?? "Cliente"
-                    : "Consumidor nao identificado"}
-                </strong>
+                <strong>{selectedCustomerName ?? "Consumidor nao identificado"}</strong>
               </div>
               <div className="admin-summary-row">
                 <span style={{ color: "var(--muted)" }}>Itens</span>
@@ -1353,6 +1412,14 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
                   status={form.paymentStatus === "PAID" ? "Recebida" : "A receber"}
                   tone={form.paymentStatus === "PAID" ? "success" : "warning"}
                 />
+              </div>
+              <div className="admin-summary-row">
+                <span style={{ color: "var(--muted)" }}>Condicao</span>
+                <strong>{form.paymentStatus === "PAID" ? "Recebimento imediato" : "Conta a receber pendente"}</strong>
+              </div>
+              <div className="admin-summary-row">
+                <span style={{ color: "var(--muted)" }}>Vencimento</span>
+                <strong>{new Intl.DateTimeFormat("pt-BR").format(new Date(form.dueDate))}</strong>
               </div>
             </div>
 
