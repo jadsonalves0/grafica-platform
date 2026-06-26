@@ -25,13 +25,13 @@ O produto combina:
 O painel administrativo agora possui identidade propria, separada do website:
 
 - `AppShell` administrativo
-- navegacao hibrida com modulos principais no topo e coluna lateral contextual no desktop
+- navegacao principal no topo com modulos em pill no desktop
+- `Cadastros` e `Configuracoes` como menus auxiliares no topo
+- abas contextuais por modulo abaixo do breadcrumb
 - `drawer` de navegacao no celular
 - topbar mais forte, com modulo ativo em pill e utilitarios separados do fluxo diario
 - design system interno compartilhado
 - superficies neutras e densidade operacional maior
-- menu recolhido sem competir com a navegacao principal do topo
-- controle de recolhimento integrado a propria sidebar
 - titulo principal concentrado no `PageHeader`, sem duplicacao na topbar
 
 ### Website publico
@@ -55,7 +55,6 @@ O tema do website nao altera a legibilidade do painel administrativo.
 Os componentes base do painel ficam em `src/components/admin` e hoje cobrem:
 
 - `AppShell`
-- `Sidebar`
 - `Topbar`
 - `PageHeader`
 - `Breadcrumb`
@@ -87,18 +86,18 @@ O menu administrativo esta organizado por tarefa:
 - `Meu site`
 - `Relatorios`
 
-No rodape do menu ficam:
+Na area auxiliar da navegacao ficam:
 
 - `Cadastros`
 - `Configuracoes`
-- recolher menu
 - perfil e saida
 
 No desktop:
 
 - os modulos principais ficam no topo
 - `Cadastros` e `Configuracoes` ficam em area auxiliar
-- a coluna lateral mostra o contexto do modulo ativo, e nao todos os grupos ao mesmo tempo
+- a navegacao contextual do modulo aparece em abas abaixo do breadcrumb
+- nao ha coluna lateral fixa competindo com a navegacao principal
 
 Os itens exibidos respeitam o perfil visual do usuario, sem substituir a autorizacao do backend.
 
@@ -167,7 +166,7 @@ Os indicadores devem ser tratados como ponto de partida para o trabalho diario.
 - `clientes` com formulario em secoes, validacao mais clara e confirmacoes acessiveis
 - `orcamentos` e `pedidos` com formularios reorganizados em blocos operacionais, resumo lateral e barra fixa de acao
 - `orcamentos` com busca de cliente no servidor, preservando a selecao durante o preenchimento
-- shell administrativo compactado com sidebar mais estreita, topbar mais baixa e filtros mais densos
+- shell administrativo consolidado com navegacao superior unica no desktop
 - listagens principais com indicadores mais baixos, menos espaco vazio e maior aproveitamento da primeira dobra
 - wrappers de `novo`, `editar` e `detalhe` padronizados com larguras consistentes e sem padding local
 - `orcamentos`, `pedidos`, `vendas`, `entradas`, `producao`, `relatorios`, `leads do site`, `empresa`, `parametros` e `movimentacoes` alinhados ao mesmo shell visual
@@ -329,7 +328,6 @@ Os focos imediatos dessa preparacao sao:
 
 Estas pendencias foram mantidas fora da branch do website:
 
-- o menu administrativo hibrido ainda gera competicao visual entre topo e coluna lateral
 - a tela de `Vendas` ainda possui campos mal distribuidos em alguns estados
 - alguns campos de `Vendas` ainda estouram visualmente em larguras menores
 - formularios longos do painel ainda precisam de acabamento fino final

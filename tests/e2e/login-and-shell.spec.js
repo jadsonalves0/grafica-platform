@@ -21,37 +21,19 @@ test("login administrativo e shell principal", async ({ page }, testInfo) => {
     const topbarMenuButton = page.getByRole("button", { name: "Abrir navegacao" });
     await expect(topbarMenuButton).toBeHidden();
     await expect(page.locator(".admin-top-nav").getByRole("link", { name: "Inicio" })).toHaveAttribute("aria-current", "page");
-    await expect(page.locator(".admin-topbar__utility").getByRole("link", { name: "Cadastros" })).toBeVisible();
-    await expect(page.locator(".admin-topbar__utility").getByRole("link", { name: "Configuracoes" })).toBeVisible();
+    await expect(page.locator(".admin-sidebar")).toHaveCount(0);
 
-    const sidebar = page.locator(".admin-sidebar");
-    const expandedWidth = await sidebar.evaluate((element) => element.getBoundingClientRect().width);
-    expect(expandedWidth).toBeGreaterThanOrEqual(240);
-    expect(expandedWidth).toBeLessThanOrEqual(256);
+    const registriesMenu = page.locator(".admin-utility-menu").filter({ hasText: "Cadastros" });
+    await expect(registriesMenu.locator(".admin-utility-menu__summary")).toBeVisible();
+    await registriesMenu.locator(".admin-utility-menu__summary").click();
+    await expect(registriesMenu.getByRole("menuitem", { name: "Produtos e servicos" })).toBeVisible();
 
-    const collapseButton = page.getByRole("button", { name: "Recolher menu lateral" });
-    await collapseButton.click();
+    const settingsMenu = page.locator(".admin-utility-menu").filter({ hasText: "Configuracoes" });
+    await expect(settingsMenu.locator(".admin-utility-menu__summary")).toBeVisible();
+    await settingsMenu.locator(".admin-utility-menu__summary").click();
+    await expect(settingsMenu.getByRole("menuitem", { name: "Empresa" })).toBeVisible();
 
-    const collapsedWidth = await sidebar.evaluate((element) => element.getBoundingClientRect().width);
-    expect(collapsedWidth).toBeGreaterThanOrEqual(64);
-    expect(collapsedWidth).toBeLessThanOrEqual(72);
-
-    const compactRegistriesLink = page.locator(".admin-sidebar__compact-nav").getByRole("link", { name: "Cadastros" });
-    await expect(compactRegistriesLink).toBeVisible();
-    await compactRegistriesLink.hover();
-    await expect(page.locator(".admin-sidebar__tooltip", { hasText: "Cadastros" }).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "Expandir menu lateral" })).toBeVisible();
-
-    await page.screenshot({ path: testInfo.outputPath("shell-collapsed-desktop.png"), fullPage: false });
-
-    await page.reload();
-    const persistedWidth = await sidebar.evaluate((element) => element.getBoundingClientRect().width);
-    expect(persistedWidth).toBeGreaterThanOrEqual(64);
-    expect(persistedWidth).toBeLessThanOrEqual(72);
-
-    await page.getByRole("button", { name: "Expandir menu lateral" }).click();
-    await expect(page.getByRole("button", { name: "Recolher menu lateral" })).toBeVisible();
-    await page.screenshot({ path: testInfo.outputPath("shell-expanded-desktop.png"), fullPage: false });
+    await page.screenshot({ path: testInfo.outputPath("shell-desktop-topnav.png"), fullPage: false });
   } else {
     const menuButton = page.getByRole("button", { name: "Abrir navegacao" });
     await expect(menuButton).toBeVisible();

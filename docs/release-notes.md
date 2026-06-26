@@ -62,9 +62,27 @@
 
 ### Pendencias reais
 
-- validacao visual final com screenshots reais depende de navegador liberado no ambiente local
-- `build` continua bloqueado neste ambiente por `spawn EPERM`
-- rodada futura do painel ainda precisara revisar menu hibrido, distribuicao de campos em `Vendas` e acabamento fino de formularios longos
+- validacao funcional completa do Playwright ainda depende de ambiente com spawn de navegador liberado
+- rodada futura do painel ainda precisara revisar distribuicao de campos em `Vendas` e acabamento fino de formularios longos
+
+## 2026-06-26 - Navegacao administrativa definitiva
+
+### Corrigido
+
+- shell administrativo deixou de competir entre topo e coluna lateral no desktop
+- `Cadastros` e `Configuracoes` passaram a funcionar como menus auxiliares reais no topo
+- menu mobile permaneceu em `drawer`, sem duplicar a logica do desktop
+
+### Melhorado
+
+- o desktop agora usa uma unica navegacao persistente, com modulos principais em pill
+- a navegacao contextual do modulo ativo ficou concentrada em abas abaixo do breadcrumb
+- os testes de shell, pedidos e navegacao financeira foram ajustados para refletir a estrutura final do menu
+
+### Pendencias reais
+
+- a tela de `Vendas` ainda precisa de ajuste fino de distribuicao de campos
+- alguns formularios do painel ainda pedem acabamento visual final
 
 ## 2026-06-25 - Estabilizacao operacional do painel
 
@@ -91,7 +109,7 @@
 - conclusao de venda com acesso direto para `Abrir conta a receber`
 - `pedidos` com bloco explicito de faturamento e atalhos para `Gerar venda`, `Abrir venda` e `Abrir conta a receber`
 - `financeiro` com contas a receber abrindo a venda vinculada quando a origem for comercial
-- shell administrativo em layout hibrido, com navegacao principal no topo e coluna lateral contextual
+- shell administrativo consolidado com navegacao superior unica no desktop
 - alerta de divergencia entre saldo registrado e saldo vendavel
 - diagnostico operacional de estoque com `npm run inventory:diagnose`
 - regularizacao assistida de base piloto com `npm run inventory:backfill-fifo`
@@ -109,5 +127,4 @@
 ### Pendencias reais
 
 - executar a bateria completa do Playwright no ambiente local de homologacao
-- validar `build` no ambiente do usuario, porque este ambiente continua sujeito a bloqueio de `spawn`
 - acabamento visual final do formulario completo de lancamento manual

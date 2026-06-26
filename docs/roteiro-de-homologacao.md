@@ -59,11 +59,11 @@ Cobertura automatizada atual:
    - `Meu site`
    - `Relatorios`
 5. validar `Cadastros` e `Configuracoes` na area auxiliar
-6. validar coluna lateral contextual do modulo ativo no desktop
-7. recolher e expandir o menu no desktop
-8. abrir e fechar o `drawer` no celular
-9. validar item ativo
-10. validar tooltip no estado recolhido
+6. validar abas contextuais do modulo ativo no desktop
+7. abrir `Cadastros` e navegar por pelo menos um item
+8. abrir `Configuracoes` e navegar por pelo menos um item
+9. abrir e fechar o `drawer` no celular
+10. validar item ativo
 11. validar menu diferente por perfil
 12. validar saida da sessao
 

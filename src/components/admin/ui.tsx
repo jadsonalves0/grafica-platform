@@ -14,6 +14,12 @@ export type TopNavItem = {
   isActive?: boolean;
 };
 
+export type TopNavGroup = {
+  label: string;
+  items: TopNavItem[];
+  isActive?: boolean;
+};
+
 type PageAction = {
   href?: string;
   label: string;
@@ -93,7 +99,7 @@ export function Topbar({
   userName: string;
   breadcrumbs: BreadcrumbItem[];
   primaryNav?: TopNavItem[];
-  utilityNav?: TopNavItem[];
+  utilityNav?: TopNavGroup[];
   contextNav?: TopNavItem[];
   onOpenMenu?: () => void;
   onSignOut?: () => void;
@@ -144,15 +150,31 @@ export function Topbar({
         <div className="admin-topbar__meta">
           {utilityNav.length ? (
             <nav className="admin-topbar__utility" aria-label="Acessos auxiliares">
-              {utilityNav.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`admin-top-nav__link admin-top-nav__link--subtle ${item.isActive ? "is-active" : ""}`}
-                  aria-current={item.isActive ? "page" : undefined}
+              {utilityNav.map((group) => (
+                <details
+                  key={group.label}
+                  className={`admin-utility-menu ${group.isActive ? "is-active" : ""}`}
                 >
-                  {item.label}
-                </Link>
+                  <summary className="admin-utility-menu__summary" aria-haspopup="menu">
+                    <span>{group.label}</span>
+                    <span className="admin-utility-menu__chevron" aria-hidden="true">
+                      v
+                    </span>
+                  </summary>
+                  <div className="admin-utility-menu__panel" role="menu" aria-label={group.label}>
+                    {group.items.map((item) => (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={`admin-utility-menu__item ${item.isActive ? "is-active" : ""}`}
+                        aria-current={item.isActive ? "page" : undefined}
+                        role="menuitem"
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                  </div>
+                </details>
               ))}
             </nav>
           ) : null}

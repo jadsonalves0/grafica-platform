@@ -28,11 +28,9 @@ test("pedidos usa layout compacto sem redundancia de titulo", async ({ page }, t
   expect(hasHorizontalScroll).toBeFalsy();
 
   if (viewportWidth > 1024) {
-    await page.screenshot({ path: testInfo.outputPath("pedidos-expanded.png"), fullPage: false });
-
-    await page.getByRole("button", { name: "Recolher menu lateral" }).click();
-    await expect(page.getByRole("button", { name: "Expandir menu lateral" })).toBeVisible();
-    await page.screenshot({ path: testInfo.outputPath("pedidos-collapsed.png"), fullPage: false });
+    await expect(page.locator(".admin-sidebar")).toHaveCount(0);
+    await expect(page.locator(".admin-module-tabs").getByRole("link", { name: "Pedidos" })).toHaveAttribute("aria-current", "page");
+    await page.screenshot({ path: testInfo.outputPath("pedidos-desktop-topnav.png"), fullPage: false });
   } else {
     await page.screenshot({ path: testInfo.outputPath("pedidos-mobile-360.png"), fullPage: true });
   }

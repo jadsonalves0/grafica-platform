@@ -64,7 +64,6 @@ Os componentes administrativos oficiais ficam em `src/components/admin`.
 ### Layout e navegacao
 
 - `AppShell`
-- `Sidebar`
 - `Topbar`
 - `PageHeader`
 - `Breadcrumb`
@@ -76,16 +75,13 @@ No shell atual:
 - a navegacao principal diaria deve aparecer no topo em formato de pill
 - `Inicio`, `Comercial`, `Operacao`, `Financeiro`, `Meu site` e `Relatorios` devem ficar como modulos principais
 - `Cadastros` e `Configuracoes` devem ficar fora da fila principal do dia a dia
-- a sidebar de desktop passa a ser contextual: menos grupos, mais foco no modulo ativo
-- a largura expandida da sidebar continua entre aproximadamente `240px` e `256px`
-- a largura recolhida continua entre aproximadamente `64px` e `72px`
-- o controle de recolhimento continua dentro da propria sidebar
-- o menu recolhido nao deve competir com o topo principal
+- no desktop, a navegacao persistente passa a ser somente superior
+- as abas contextuais do modulo ativo devem aparecer abaixo do breadcrumb
+- `Cadastros` e `Configuracoes` devem abrir como menus auxiliares no topo
 - o `drawer` mobile continua sendo a navegacao principal em telas pequenas
 
 Pendencias conhecidas do painel, registradas mas fora desta rodada:
 
-- o shell hibrido ainda precisa de decisao final entre topo, sidebar ou outra simplificacao
 - a tela de `Vendas` ainda precisa de ajuste fino de distribuicao de campos
 - alguns formularios do painel ainda pedem acabamento visual final
 
@@ -172,7 +168,6 @@ Na area auxiliar:
 
 - `Configuracoes`
 - `Cadastros`
-- recolher menu
 - perfil
 
 ### Estrutura recomendada
@@ -479,6 +474,6 @@ Sempre validar:
 - mensagens de erro anunciaveis
 - texto junto com status visual
 - `aria-current` no item ativo
-- `aria-expanded` no controle da sidebar
+- `aria-expanded` nos controles de `drawer`, menus auxiliares e grupos mobile
 
 Nao remover `outline` sem substituicao visivel.

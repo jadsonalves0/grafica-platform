@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { PERMISSIONS } from "@/lib/permissions/permission-types";
-import { Drawer, Topbar, type BreadcrumbItem, type TopNavItem } from "@/components/admin/ui";
+import { Drawer, Topbar, type BreadcrumbItem, type TopNavGroup, type TopNavItem } from "@/components/admin/ui";
 
 type Viewer = {
   companyTradeName: string;
@@ -279,13 +279,7 @@ export function AdminShell({
   const pathname = usePathname();
   const router = useRouter();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedSectionId, setExpandedSectionId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const storedState = window.localStorage.getItem("grafica-platform:sidebar-collapsed");
-    setIsCollapsed(storedState === "true");
-  }, []);
 
   useEffect(() => {
     setIsMobileOpen(false);
@@ -332,12 +326,16 @@ export function AdminShell({
       })),
     [activeSectionId, mainSections, pathname],
   );
-  const utilityNav = useMemo<TopNavItem[]>(
+  const utilityNav = useMemo<TopNavGroup[]>(
     () =>
       footerSections.map((section) => ({
         label: section.label,
-        href: resolveCompactItem(section, pathname).href,
         isActive: section.id === activeSectionId,
+        items: section.items.map((item) => ({
+          label: item.label,
+          href: item.href,
+          isActive: matchesItem(pathname, item),
+        })),
       })),
     [activeSectionId, footerSections, pathname],
   );
@@ -354,10 +352,10 @@ export function AdminShell({
   );
 
   useEffect(() => {
-    if (!isCollapsed && activeSectionId) {
+    if (activeSectionId) {
       setExpandedSectionId(activeSectionId);
     }
-  }, [activeSectionId, isCollapsed]);
+  }, [activeSectionId]);
 
   async function handleSignOut() {
     try {
@@ -368,147 +366,6 @@ export function AdminShell({
       router.push("/login");
       router.refresh();
     }
-  }
-
-  function toggleSidebar() {
-    setIsCollapsed((current) => {
-      const next = !current;
-      window.localStorage.setItem("grafica-platform:sidebar-collapsed", String(next));
-      return next;
-    });
-  }
-
-  function renderDesktopSidebarContent({
-    collapsed,
-  }: Readonly<{ collapsed: boolean }>) {
-    const contextualSection = activeSection?.id === "home" ? null : activeSection;
-    const compactSections = [
-      ...(contextualSection
-        ? contextualSection.items.map((item) => ({
-            id: item.href,
-            label: item.label,
-            href: item.href,
-            isActive: matchesItem(pathname, item),
-          }))
-        : []),
-      ...footerSections.map((section) => {
-        const shortcut = resolveCompactItem(section, pathname);
-        return {
-          id: section.id,
-          label: section.label,
-          href: shortcut.href,
-          isActive: section.items.some((item) => matchesItem(pathname, item)),
-        };
-      }),
-    ];
-
-    return (
-      <div className="admin-sidebar__content">
-        {collapsed ? (
-          <nav className="admin-sidebar__compact-nav" aria-label="Navegacao principal">
-            {compactSections.map((item) => {
-              return (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  className={`admin-sidebar__compact-item ${item.isActive ? "is-active" : ""}`}
-                  aria-label={item.label}
-                  aria-current={item.isActive ? "location" : undefined}
-                  title={item.label}
-                >
-                  <span className="admin-sidebar__compact-mark" aria-hidden="true">
-                    {buildCompactLabel(item.label)}
-                  </span>
-                  <span className="admin-sidebar__tooltip" role="tooltip">
-                    {item.label}
-                  </span>
-                </Link>
-              );
-            })}
-          </nav>
-        ) : (
-          <div className="admin-sidebar__nav">
-            <section className="admin-sidebar__panel">
-              <div className="admin-sidebar__panel-header">
-                <span className="admin-sidebar__panel-kicker">Modulo ativo</span>
-                <strong>{contextualSection?.label ?? "Inicio"}</strong>
-                <small>
-                  {contextualSection
-                    ? "Use esta coluna para seguir a proxima tarefa do modulo atual."
-                    : "Os atalhos principais agora ficam no topo da aplicacao."}
-                </small>
-              </div>
-
-              {contextualSection ? (
-                <nav className="admin-sidebar__context-nav" aria-label={`Atalhos do modulo ${contextualSection.label}`}>
-                  {contextualSection.items.map((item) => {
-                    const isActive = matchesItem(pathname, item);
-
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={`admin-sidebar__item ${isActive ? "is-active" : ""}`}
-                        aria-current={isActive ? "page" : undefined}
-                      >
-                        <span>{item.label}</span>
-                      </Link>
-                    );
-                  })}
-                </nav>
-              ) : (
-                <div className="admin-sidebar__welcome">
-                  <Link href="/dashboard" className="admin-sidebar__item is-active" aria-current="page">
-                    <span>Inicio</span>
-                  </Link>
-                </div>
-              )}
-            </section>
-
-            {footerSections.length ? (
-              <div className="admin-sidebar__utility-groups">
-                {footerSections.map((section) => (
-                  <section key={section.id} className="admin-sidebar__panel admin-sidebar__panel--utility">
-                    <div className="admin-sidebar__panel-header admin-sidebar__panel-header--compact">
-                      <span className="admin-sidebar__panel-kicker">{section.label}</span>
-                    </div>
-                    <div className="admin-sidebar__items">
-                      {section.items.map((item) => {
-                        const isActive = matchesItem(pathname, item);
-
-                        return (
-                          <Link
-                            key={item.href}
-                            href={item.href}
-                            className={`admin-sidebar__item ${isActive ? "is-active" : ""}`}
-                            aria-current={isActive ? "page" : undefined}
-                          >
-                            <span>{item.label}</span>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </section>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        )}
-
-        <div className="admin-sidebar__footer">
-          <button
-            type="button"
-            className="admin-sidebar__toggle"
-            onClick={toggleSidebar}
-            aria-label={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
-            aria-expanded={!collapsed}
-            title={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
-          >
-            {collapsed ? <ChevronDoubleRightIcon /> : <ChevronDoubleLeftIcon />}
-          </button>
-        </div>
-      </div>
-    );
   }
 
   function renderMobileSidebarContent() {
@@ -628,10 +485,7 @@ export function AdminShell({
   }
 
   return (
-    <div className={`admin-theme admin-shell ${isCollapsed ? "is-collapsed" : ""}`}>
-      <aside className="admin-sidebar">
-        {renderDesktopSidebarContent({ collapsed: isCollapsed })}
-      </aside>
+    <div className="admin-theme admin-shell">
       <div className="admin-shell__body">
         <Topbar
           brand={{
@@ -712,40 +566,4 @@ function buildBreadcrumbs(pathname: string, sections: NavSection[]) {
     { label: "Inicio", href: "/dashboard" },
     { label: "Painel interno" },
   ] satisfies BreadcrumbItem[];
-}
-
-function buildCompactLabel(label: string) {
-  const compactWords = label
-    .split(/\s+/)
-    .map((word) => word.trim())
-    .filter((word) => word.length > 2);
-
-  const sourceWords = compactWords.length ? compactWords : label.split(/\s+/);
-
-  if (sourceWords.length === 1) {
-    return sourceWords[0].slice(0, 2).toUpperCase();
-  }
-
-  return sourceWords
-    .slice(0, 2)
-    .map((word) => word[0]?.toUpperCase() ?? "")
-    .join("");
-}
-
-function ChevronDoubleLeftIcon() {
-  return (
-    <svg viewBox="0 0 20 20" width="18" height="18" fill="none" aria-hidden="true">
-      <path d="M12 5L7 10L12 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M16 5L11 10L16 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ChevronDoubleRightIcon() {
-  return (
-    <svg viewBox="0 0 20 20" width="18" height="18" fill="none" aria-hidden="true">
-      <path d="M8 5L13 10L8 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M4 5L9 10L4 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
 }

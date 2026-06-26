@@ -23,6 +23,16 @@ async function expandSidebarGroup(page, name) {
   }
 }
 
+async function openDesktopUtilityMenu(page, name) {
+  const menu = page.locator(".admin-utility-menu").filter({ hasText: name }).first();
+  await expect(menu.locator(".admin-utility-menu__summary")).toBeVisible();
+  const isOpen = await menu.evaluate((element) => element.hasAttribute("open"));
+  if (!isOpen) {
+    await menu.locator(".admin-utility-menu__summary").click();
+  }
+  return menu;
+}
+
 test("financeiro muda o conteudo por opcao e o menu reposiciona cadastros", async ({ page }) => {
   await authenticateAsAdmin(page);
 
@@ -75,7 +85,8 @@ test("financeiro muda o conteudo por opcao e o menu reposiciona cadastros", asyn
     await expandSidebarGroup(page, "Cadastros");
     await page.getByRole("link", { name: "Produtos e servicos" }).click();
   } else {
-    await page.locator(".admin-topbar__utility").getByRole("link", { name: "Cadastros" }).click();
+    const menu = await openDesktopUtilityMenu(page, "Cadastros");
+    await menu.getByRole("menuitem", { name: "Produtos e servicos" }).click();
   }
   await expect(page).toHaveURL(/\/admin\/estoque/);
   if (!isMobile) {
@@ -89,7 +100,8 @@ test("financeiro muda o conteudo por opcao e o menu reposiciona cadastros", asyn
     await page.getByRole("link", { name: "Empresa" }).click();
     await expect(page).toHaveURL(/\/admin\/empresa/);
   } else {
-    await page.locator(".admin-topbar__utility").getByRole("link", { name: "Configuracoes" }).click();
+    const menu = await openDesktopUtilityMenu(page, "Configuracoes");
+    await menu.getByRole("menuitem", { name: "Empresa" }).click();
     await expect(page.locator(".admin-module-tabs").getByRole("link", { name: "Empresa" })).toBeVisible();
     await expect(page.locator(".admin-module-tabs").getByRole("link", { name: "Produtos e servicos" })).toHaveCount(0);
     await expect(page.locator(".admin-module-tabs").getByRole("link", { name: "Grupos de itens" })).toHaveCount(0);
