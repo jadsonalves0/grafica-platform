@@ -50,6 +50,8 @@ Para a versao atual da home publica:
 - usar imagens reais dos servicos sempre que possivel
 - preferir uma prova visual honesta a depoimentos ou numeros inventados
 - destacar `WhatsApp` quando configurado
+- esconder CTAs dependentes de `WhatsApp` quando o canal nao estiver configurado
+- nao mostrar mensagens internas de administrador para o visitante final
 - manter o mesmo componente visual na pre-visualizacao administrativa e no website publicado
 - manter `Salvar rascunho` separado de `Publicar alteracoes`
 

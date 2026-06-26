@@ -244,7 +244,16 @@ O website publico agora prioriza captacao comercial:
 - servico escolhido na home chega preenchido ao formulario
 - CTA de WhatsApp com mensagem pre-preenchida quando o canal estiver configurado
 - origem `website` preservada no lead salvo
+- URL da pagina, caminho e parametros UTM registrados no lead
+- referencia curta do contato exibida ao concluir o envio
 - contato visivel tambem no rodape e no painel lateral da secao de contato
+
+### Evolucoes adicionais desta rodada
+
+- mapa incorporado exibido na home publicada quando configurado
+- secao `Trabalhos` escondida do site publico quando nao houver conteudo suficiente
+- rodape com links sociais quando configurados
+- CTA de WhatsApp oculto no site publicado quando o canal nao estiver configurado
 
 ## Modulos ainda com consolidacao visual parcial
 

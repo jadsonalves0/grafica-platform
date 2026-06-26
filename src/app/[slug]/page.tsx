@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { SiteHomeView } from "@/components/site/site-home-view";
-import { SiteLeadForm } from "@/components/site/site-lead-form";
 import { SiteController } from "@/controllers/site/site-controller";
 import { prisma } from "@/lib/db/prisma";
 import { getSiteMetaDescription, getSiteMetaTitle } from "@/lib/site/site-home";
@@ -19,6 +18,10 @@ type CompanySitePageProps = {
   }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
+
+export const dynamic = "force-dynamic";
+
+const publicBaseUrl = new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
 
 function buildController() {
   return new SiteController(
@@ -66,16 +69,17 @@ export async function generateMetadata({
     undefined;
 
   return {
+    metadataBase: publicBaseUrl,
     title,
     description,
     alternates: {
-      canonical: `/${slug}`,
+      canonical: new URL(`/${slug}`, publicBaseUrl).toString(),
     },
     openGraph: {
       title,
       description,
       type: "website",
-      url: `/${slug}`,
+      url: new URL(`/${slug}`, publicBaseUrl).toString(),
       images: image ? [{ url: image, alt: data.company.tradeName }] : undefined,
     },
     icons: data.settings?.faviconUrl ? { icon: data.settings.faviconUrl } : undefined,
@@ -100,7 +104,7 @@ export default async function CompanySitePage({
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
     name: site.company.tradeName,
-    url: `/${site.company.slug}`,
+    url: new URL(`/${site.company.slug}`, publicBaseUrl).toString(),
     email: site.settings?.contactEmail || undefined,
     telephone: site.settings?.contactWhatsapp || site.settings?.contactPhone || undefined,
     address: site.settings?.addressFull || undefined,
@@ -114,18 +118,15 @@ export default async function CompanySitePage({
       />
       <SiteHomeView
         data={site}
-        leadSection={
-          <SiteLeadForm
-            companyId={site.company.id}
-            companyName={site.company.tradeName}
-            initialRequestedService={
-              typeof resolvedSearchParams.servico === "string"
-                ? resolvedSearchParams.servico
-                : ""
-            }
-            whatsapp={site.settings?.contactWhatsapp}
-          />
-        }
+        leadForm={{
+          companyId: site.company.id,
+          companyName: site.company.tradeName,
+          initialRequestedService:
+            typeof resolvedSearchParams.servico === "string"
+              ? resolvedSearchParams.servico
+              : "",
+          whatsapp: site.settings?.contactWhatsapp,
+        }}
       />
     </>
   );

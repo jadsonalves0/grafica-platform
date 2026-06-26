@@ -21,14 +21,37 @@
 - preview real da home em desktop e mobile dentro do painel
 - CTA de servico preenchendo o formulario publico com contexto
 - formulario de lead mais comercial, preservando dados em erro
+- formulario de lead agora registra origem `website`, URL da pagina, referrer e parametros UTM
+- formulario de lead agora devolve uma referencia curta de atendimento apos o envio
 - CTA de WhatsApp com mensagem pre-preenchida quando o canal estiver configurado
+- CTA de WhatsApp dependente do canal agora some da publicacao quando o canal nao estiver configurado
+- mapa incorporado exibido na home publicada quando configurado
+- secao `Trabalhos` escondida na versao publica quando nao houver conteudo suficiente
 - `next/image`, `robots`, `sitemap` e metadados basicos por empresa
 - `Open Graph`, `canonical` e `LocalBusiness` no website publicado
 
-### Sem migration
+### Base reutilizada
 
 - a rodada reaproveita `SiteSetting`, `SiteService`, `SiteBanner`, `SiteLead` e `SitePage`
 - o snapshot publicado da home e o rascunho passaram a usar `SitePage` com chaves separadas para evitar expor alteracoes nao publicadas
+
+## 2026-06-26 - Website Experience 1.0 - consolidacao de lead e publicacao
+
+### Corrigido
+
+- lead publico agora registra contexto de origem com `origin`, `pageUrl`, `pagePath`, `referrerUrl` e parametros UTM
+- `SiteLead` recebeu migration pequena e auditavel para preservar esse contexto na base local
+- feedback de sucesso do formulario agora mostra referencia curta do contato
+- secao `Trabalhos` nao exibe texto interno de administrador para visitantes finais
+- mapa configurado passou a renderizar no site publicado
+
+### Melhorado
+
+- rodape do website com links sociais quando configurados
+- hero principal usa texto alternativo configuravel para a imagem
+- metadados publicos usam URL absoluta para `canonical`, `Open Graph` e `LocalBusiness`
+- cobertura unitaria ampliada para contexto de lead
+- Playwright do website ampliado para validar UTM, origem e mapa
 
 ### Documentado
 

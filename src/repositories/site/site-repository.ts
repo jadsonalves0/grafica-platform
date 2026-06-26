@@ -286,6 +286,15 @@ export class SiteRepository {
     email?: string;
     phone?: string;
     whatsapp?: string;
+    origin?: string;
+    pageUrl?: string;
+    pagePath?: string;
+    referrerUrl?: string;
+    utmSource?: string;
+    utmMedium?: string;
+    utmCampaign?: string;
+    utmContent?: string;
+    utmTerm?: string;
     subject?: string;
     message?: string;
     requestedService?: string;
@@ -297,6 +306,15 @@ export class SiteRepository {
         email: normalizeEmpty(input.email)?.toLowerCase(),
         phone: normalizeEmpty(input.phone),
         whatsapp: normalizeEmpty(input.whatsapp),
+        origin: normalizeEmpty(input.origin) || "website",
+        pageUrl: normalizeEmpty(input.pageUrl),
+        pagePath: normalizeEmpty(input.pagePath),
+        referrerUrl: normalizeEmpty(input.referrerUrl),
+        utmSource: normalizeEmpty(input.utmSource),
+        utmMedium: normalizeEmpty(input.utmMedium),
+        utmCampaign: normalizeEmpty(input.utmCampaign),
+        utmContent: normalizeEmpty(input.utmContent),
+        utmTerm: normalizeEmpty(input.utmTerm),
         subject: normalizeEmpty(input.subject),
         message: normalizeEmpty(input.message),
         requestedService: normalizeEmpty(input.requestedService),

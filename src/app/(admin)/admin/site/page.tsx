@@ -910,6 +910,15 @@ export default function SiteAdminPage() {
                         </Field>
                       </div>
 
+                      <Field label="Texto alternativo da imagem principal" optional helpText="Descreva o que aparece na imagem para acessibilidade e compartilhamento.">
+                        <input
+                          className="admin-input"
+                          value={homeContent.heroImageAlt}
+                          onChange={(event) => updateHomeField("heroImageAlt", event.target.value)}
+                          placeholder="Mockup de materiais graficos em destaque"
+                        />
+                      </Field>
+
                       <Field label="Texto institucional" optional>
                         <textarea
                           className="admin-textarea"
@@ -1461,6 +1470,11 @@ export default function SiteAdminPage() {
                               : "O site publico ja reflete a configuracao revisada."
                             : "O site ainda nao foi publicado. Use a previa ao lado para revisar antes de colocar no ar."}
                         </p>
+                        {settings.isSitePublished ? (
+                          <p style={{ margin: "8px 0 0", color: "var(--muted)", lineHeight: 1.6 }}>
+                            URL publicada: <strong>/{site.slug}</strong>
+                          </p>
+                        ) : null}
                       </div>
                     </>
                   ) : null}
@@ -1537,12 +1551,12 @@ export default function SiteAdminPage() {
                       boxShadow: "0 20px 60px rgba(15, 23, 42, 0.08)",
                     }}
                   >
-                    <SiteHomeView
-                      data={draftPreview}
-                      previewMode
-                      previewLabel={previewViewport === "desktop" ? "Previa desktop" : "Previa mobile"}
-                      leadSection={<PreviewLeadSection selectedService={draftPreview.services[0]?.title || ""} />}
-                    />
+                      <SiteHomeView
+                        data={draftPreview}
+                        previewMode
+                        previewLabel={previewViewport === "desktop" ? "Previa desktop" : "Previa mobile"}
+                        leadPreviewService={draftPreview.services[0]?.title || ""}
+                      />
                   </div>
                 </div>
               </SectionCard>
@@ -1656,36 +1670,4 @@ function mapSettings(
 function getNeighborStep(current: StepId, offset: -1 | 1) {
   const index = guidedSteps.findIndex((step) => step.id === current);
   return guidedSteps[index + offset]?.id;
-}
-
-function PreviewLeadSection({ selectedService }: Readonly<{ selectedService: string }>) {
-  return (
-    <div
-      style={{
-        display: "grid",
-        gap: 12,
-        padding: 20,
-        borderRadius: 24,
-        background: "rgba(255,255,255,0.92)",
-        border: "1px solid rgba(17,24,39,0.08)",
-      }}
-    >
-      <strong>Formulario de contato</strong>
-      <div className="admin-form-grid admin-form-grid--2">
-        <input className="admin-input" value="Nome do cliente" readOnly />
-        <input className="admin-input" value="(11) 99999-9999" readOnly />
-      </div>
-      <input className="admin-input" value="cliente@empresa.com.br" readOnly />
-      <input className="admin-input" value={selectedService || "Servico desejado"} readOnly />
-      <textarea
-        className="admin-textarea"
-        value="Conte o que voce precisa para receber a proposta."
-        readOnly
-      />
-      <div className="admin-row">
-        <span className="admin-button admin-button--primary">Solicitar orcamento</span>
-        <span className="admin-button admin-button--secondary">Falar pelo WhatsApp</span>
-      </div>
-    </div>
-  );
 }

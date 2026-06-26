@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 
 import { formatPhone, isValidEmail, isValidPhone, normalizeEmailInput } from "@/lib/forms/br-utils";
+import {
+  extractSiteLeadTrackingContext,
+  formatSiteLeadReference,
+} from "@/lib/site/site-lead-context";
 import styles from "./site-lead-form.module.css";
 
 type SiteLeadFormProps = {
@@ -47,6 +51,9 @@ export function SiteLeadForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [trackingContext, setTrackingContext] = useState(() =>
+    extractSiteLeadTrackingContext({}),
+  );
 
   useEffect(() => {
     setForm((current) => ({
@@ -54,6 +61,17 @@ export function SiteLeadForm({
       requestedService: initialRequestedService || current.requestedService,
     }));
   }, [initialRequestedService]);
+
+  useEffect(() => {
+    setTrackingContext(
+      extractSiteLeadTrackingContext({
+        href: window.location.href,
+        pathname: window.location.pathname,
+        search: window.location.search,
+        referrer: document.referrer,
+      }),
+    );
+  }, []);
 
   function updateField<K extends keyof LeadFormState>(field: K, value: LeadFormState[K]) {
     setForm((current) => ({
@@ -112,20 +130,30 @@ export function SiteLeadForm({
           name: form.name.trim(),
           whatsapp: form.whatsapp,
           email: form.email ? normalizeEmailInput(form.email) : "",
+          ...trackingContext,
           requestedService: form.requestedService,
           subject: form.requestedService || "Contato pelo website",
           message: form.message.trim(),
         }),
       });
 
-      const result = (await response.json()) as ApiResult<{ created: true }>;
+      const result = (await response.json()) as ApiResult<{
+        created: true;
+        leadId: string;
+        origin: string;
+      }>;
 
       if (!response.ok || !result.success) {
         setErrorMessage(result.message ?? "Nao foi possivel enviar sua solicitacao agora.");
         return;
       }
 
-      setSuccessMessage("Solicitacao enviada com sucesso. Nossa equipe retornara em breve.");
+      const reference = formatSiteLeadReference(result.data?.leadId);
+      setSuccessMessage(
+        reference
+          ? `Solicitacao enviada com sucesso. Recebemos seu contato e a equipe retornara em breve. Referencia ${reference}.`
+          : "Solicitacao enviada com sucesso. Recebemos seu contato e a equipe retornara em breve.",
+      );
       setForm({
         ...defaultState,
         requestedService: form.requestedService,

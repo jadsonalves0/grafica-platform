@@ -165,8 +165,11 @@ Regras:
 
 - o servico clicado na home deve chegar preenchido ao formulario
 - o lead deve ser salvo com origem `website`
+- o lead deve registrar a URL da pagina e o caminho visitado
+- o lead deve registrar `utm_source`, `utm_medium`, `utm_campaign`, `utm_content` e `utm_term` quando presentes
 - o WhatsApp deve aparecer apenas quando configurado
 - a mensagem de sucesso deve orientar o retorno da equipe
+- a mensagem de sucesso deve exibir uma referencia curta quando possivel
 - os dados nao devem ser apagados em caso de erro
 
 ## Regras de imagem
@@ -181,7 +184,7 @@ Regras:
 Quando nao houver imagens suficientes:
 
 - reaproveitar banners e servicos
-- exibir mensagem orientando o administrador a adicionar imagens reais
+- exibir mensagem orientando o administrador apenas na pre-visualizacao, nao no site publicado
 
 ## SEO
 

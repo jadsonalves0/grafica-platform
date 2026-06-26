@@ -7,6 +7,10 @@ const suites = [
     name: "site-home",
     modulePath: "../tests/unit/site-home.test.mjs",
   },
+  {
+    name: "site-lead-context",
+    modulePath: "../tests/unit/site-lead-context.test.mjs",
+  },
 ];
 
 let failureCount = 0;

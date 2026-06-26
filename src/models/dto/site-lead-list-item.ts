@@ -4,6 +4,15 @@ export type SiteLeadListItemDto = {
   email?: string | null;
   phone?: string | null;
   whatsapp?: string | null;
+  origin?: string | null;
+  pageUrl?: string | null;
+  pagePath?: string | null;
+  referrerUrl?: string | null;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  utmContent?: string | null;
+  utmTerm?: string | null;
   subject?: string | null;
   requestedService?: string | null;
   status: string;

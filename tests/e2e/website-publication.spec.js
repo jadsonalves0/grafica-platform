@@ -34,6 +34,7 @@ test("configura home comercial, revisa previa e publica o website", async ({ pag
   await page.getByRole("tab", { name: "4. Contato" }).click();
   await page.getByLabel("WhatsApp").fill("(11) 99999-1111");
   await page.getByLabel("E-mail comercial").fill("website@pontoprint.local");
+  await page.getByLabel("Mapa incorporado").fill("https://www.google.com/maps/embed?pb=teste");
   await page.getByRole("button", { name: "Salvar rascunho" }).click();
   await expect(page.getByText(/Existem alteracoes salvas que ainda nao foram publicadas/i)).toBeVisible();
 
@@ -46,9 +47,11 @@ test("configura home comercial, revisa previa e publica o website", async ({ pag
   await page.getByRole("button", { name: "Publicar alteracoes" }).click();
   await expect(page.getByText(/website publicado com sucesso/i)).toBeVisible();
 
-  await page.goto(`/${credentials.company}`);
+  await page.goto(`/${credentials.company}?utm_source=google&utm_medium=cpc&utm_campaign=inverno`);
   await expect(page.getByRole("heading", { name: new RegExp(heroTitle, "i") })).toBeVisible();
   await expect(page.getByRole("link", { name: /Falar pelo WhatsApp/i }).first()).toBeVisible();
+  await expect(page.locator('iframe[title*="Mapa da"]')).toBeVisible();
+  await expectNoCriticalViolations(page, AxeBuilder);
   await page.screenshot({ path: testInfo.outputPath("website-home-desktop.png"), fullPage: true });
 
   await page
@@ -67,6 +70,9 @@ test("configura home comercial, revisa previa e publica o website", async ({ pag
   await openAdminRoute(page, "/admin/site/leads", "Leads do site");
   await expect(page.getByText("Lead teste website")).toBeVisible();
   await expect(page.getByText(serviceName)).toBeVisible();
+  await expect(page.getByText("Website")).toBeVisible();
+  await expect(page.getByText("/ponto-print?utm_source=google&utm_medium=cpc&utm_campaign=inverno")).toBeVisible();
+  await expect(page.getByText("google / cpc / inverno")).toBeVisible();
   await expectNoCriticalViolations(page, AxeBuilder);
 });
 

@@ -167,11 +167,11 @@ export class SiteController extends BaseController {
 
   async createLead(
     input: SiteLeadCreateInputDto,
-  ): Promise<ControllerResult<{ created: true }>> {
+  ): Promise<ControllerResult<{ created: true; leadId: string; origin: string }>> {
     try {
       const payload = createLeadSchema.parse(input);
-      await this.siteService.createLead(payload);
-      return this.ok({ created: true });
+      const lead = await this.siteService.createLead(payload);
+      return this.ok({ created: true, leadId: lead.id, origin: lead.origin });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unexpected error.";
       return this.fail(message);
@@ -192,6 +192,15 @@ export class SiteController extends BaseController {
           email: lead.email,
           phone: lead.phone,
           whatsapp: lead.whatsapp,
+          origin: lead.origin,
+          pageUrl: lead.pageUrl,
+          pagePath: lead.pagePath,
+          referrerUrl: lead.referrerUrl,
+          utmSource: lead.utmSource,
+          utmMedium: lead.utmMedium,
+          utmCampaign: lead.utmCampaign,
+          utmContent: lead.utmContent,
+          utmTerm: lead.utmTerm,
           subject: lead.subject,
           requestedService: lead.requestedService,
           status: lead.status,

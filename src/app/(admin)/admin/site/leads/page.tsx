@@ -22,6 +22,15 @@ type SiteLead = {
   email?: string | null;
   phone?: string | null;
   whatsapp?: string | null;
+  origin?: string | null;
+  pageUrl?: string | null;
+  pagePath?: string | null;
+  referrerUrl?: string | null;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  utmContent?: string | null;
+  utmTerm?: string | null;
   subject?: string | null;
   requestedService?: string | null;
   status: LeadStatus;
@@ -246,6 +255,9 @@ export default function SiteLeadsPage() {
                     <InfoBox label="E-mail" value={lead.email || "Nao informado"} />
                     <InfoBox label="Telefone" value={lead.phone ? formatPhone(lead.phone) : "Nao informado"} />
                     <InfoBox label="WhatsApp" value={lead.whatsapp ? formatPhone(lead.whatsapp) : "Nao informado"} />
+                    <InfoBox label="Origem" value={formatOrigin(lead.origin)} />
+                    <InfoBox label="Pagina" value={lead.pagePath || "Nao informada"} />
+                    <InfoBox label="UTM" value={formatUtm(lead)} />
                     <InfoBox label="Recebido em" value={formatDateTime(lead.createdAt)} />
                   </div>
 
@@ -253,6 +265,15 @@ export default function SiteLeadsPage() {
                     <span className="admin-list-card__hint">
                       Avance o atendimento, converta o contato em cliente ou gere um orcamento sem sair do contexto.
                     </span>
+                    {lead.pageUrl || lead.referrerUrl ? (
+                      <div className="admin-surface-muted">
+                        <span className="admin-list-card__subtitle">Contexto do lead</span>
+                        <div style={{ display: "grid", gap: 4, wordBreak: "break-word" }}>
+                          {lead.pageUrl ? <strong>URL: {lead.pageUrl}</strong> : null}
+                          {lead.referrerUrl ? <span>Referrer: {lead.referrerUrl}</span> : null}
+                        </div>
+                      </div>
+                    ) : null}
                     <div className="admin-row">
                       <button
                         type="button"
@@ -316,6 +337,24 @@ function formatLeadStatus(status: LeadStatus) {
   };
 
   return labels[status];
+}
+
+function formatOrigin(origin?: string | null) {
+  if (!origin) {
+    return "Nao informada";
+  }
+
+  return origin === "website" ? "Website" : origin;
+}
+
+function formatUtm(lead: SiteLead) {
+  const parts = [
+    lead.utmSource,
+    lead.utmMedium,
+    lead.utmCampaign,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" / ") : "Nao informada";
 }
 
 function formatDateTime(value: string) {

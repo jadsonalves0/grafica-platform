@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { normalizeEmailInput, normalizeSlugInput } from "@/lib/forms/br-utils";
 
+export const dynamic = "force-dynamic";
+
 type LoginFormState = {
   companySlug: string;
   email: string;

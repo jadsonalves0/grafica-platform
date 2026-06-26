@@ -9,20 +9,30 @@ import type {
   SitePublicData,
 } from "@/lib/site/site-home";
 import { formatPhone } from "@/lib/forms/br-utils";
+import { SiteLeadForm } from "@/components/site/site-lead-form";
 import styles from "./site-home-view.module.css";
+
+type SiteLeadFormConfig = {
+  companyId: string;
+  companyName: string;
+  initialRequestedService?: string;
+  whatsapp?: string | null;
+};
 
 type SiteHomeViewProps = {
   data: SitePublicData;
-  leadSection: React.ReactNode;
+  leadForm?: SiteLeadFormConfig | null;
   previewMode?: boolean;
   previewLabel?: string;
+  leadPreviewService?: string;
 };
 
 export function SiteHomeView({
   data,
-  leadSection,
+  leadForm,
   previewMode = false,
   previewLabel,
+  leadPreviewService,
 }: Readonly<SiteHomeViewProps>) {
   const palette = {
     primary: data.settings?.primaryColor || "#b5421f",
@@ -31,7 +41,10 @@ export function SiteHomeView({
   };
   const activeDifferentials = data.home.differentials.filter((item) => item.isActive).slice(0, 4);
   const activeSteps = data.home.howItWorks.filter((item) => item.isActive).slice(0, 3);
-  const showcaseItems = [...data.banners, ...data.services].filter((item) => item.imageUrl);
+  const showcaseItems = [...data.banners, ...data.services]
+    .filter((item) => Boolean(item.imageUrl) || ("title" in item && item.title))
+    .slice(0, 6);
+  const hasShowcaseSection = previewMode || showcaseItems.length > 0;
   const heroMedia = data.home.heroImageUrl || data.banners[0]?.imageUrl || data.services[0]?.imageUrl || "";
   const heroTitle =
     data.settings?.heroTitle ||
@@ -77,7 +90,7 @@ export function SiteHomeView({
         <nav className={styles.navDesktop} aria-label="Navegacao principal do site">
           <a href="#servicos">Servicos</a>
           <a href="#como-funciona">Como funciona</a>
-          <a href="#trabalhos">Trabalhos</a>
+          {hasShowcaseSection ? <a href="#trabalhos">Trabalhos</a> : null}
           <a href="#contato">Contato</a>
         </nav>
 
@@ -104,7 +117,7 @@ export function SiteHomeView({
           <div className={styles.mobileMenuPanel}>
             <a href="#servicos">Servicos</a>
             <a href="#como-funciona">Como funciona</a>
-            <a href="#trabalhos">Trabalhos</a>
+            {hasShowcaseSection ? <a href="#trabalhos">Trabalhos</a> : null}
             <a href="#contato">Contato</a>
             <ActionLink
               label={data.home.heroPrimaryCta.label}
@@ -141,7 +154,7 @@ export function SiteHomeView({
             </div>
 
             <div className={styles.heroMetrics}>
-              <Metric label="Servicos ativos" value={String(Math.max(data.services.length, 1))} />
+              <Metric label="Servicos ativos" value={String(data.services.length)} />
               <Metric label="Canal principal" value={data.settings?.contactWhatsapp ? "WhatsApp" : "Contato"} />
               <Metric label="Atendimento" value="Personalizado" />
             </div>
@@ -156,6 +169,11 @@ export function SiteHomeView({
                   "Cartoes, adesivos, convites, banners e impressos com apresentacao mais profissional."
                 }
                 imageUrl={heroMedia}
+                imageAlt={
+                  data.home.heroImageAlt ||
+                  data.banners[0]?.title ||
+                  "Materiais graficos em destaque"
+                }
               />
             </div>
 
@@ -268,27 +286,28 @@ export function SiteHomeView({
           </div>
         </section>
 
+        {hasShowcaseSection ? (
         <section className={styles.section} id="trabalhos" aria-labelledby="site-showcase-title">
           <div className={styles.sectionHeader}>
             <span className={styles.sectionKicker}>Prova visual</span>
             <h2 id="site-showcase-title">{data.home.showcaseTitle}</h2>
           </div>
 
-          {showcaseItems.length === 0 ? (
+          {showcaseItems.length === 0 && previewMode ? (
             <div className={styles.emptyCallout}>
               <strong>Adicione imagens reais para valorizar a vitrine.</strong>
               <p>{data.home.showcaseEmptyMessage}</p>
             </div>
           ) : (
             <div className={styles.showcaseGrid}>
-              {showcaseItems.slice(0, 6).map((item, index) => (
+              {showcaseItems.map((item, index) => (
                 <article
                   key={`${item.id}-${index}`}
                   className={`${styles.showcaseCard} ${index === 0 ? styles.showcaseCardLarge : ""}`}
                 >
                   <CardImage
                     src={item.imageUrl || ""}
-                    alt={item.title || "Imagem de servico"}
+                    alt={item.title || data.home.heroImageAlt || "Imagem de servico"}
                     fallbackLabel={item.title || "Imagem"}
                   />
                   <div className={styles.showcaseOverlay}>
@@ -300,6 +319,7 @@ export function SiteHomeView({
             </div>
           )}
         </section>
+        ) : null}
 
         <section className={styles.ctaBand} aria-labelledby="site-cta-title">
           <div>
@@ -331,7 +351,19 @@ export function SiteHomeView({
               <h2 id="site-lead-title">{data.home.contactTitle}</h2>
               <p>Explique o que voce precisa e nossa equipe retorna com a proposta.</p>
             </div>
-            {leadSection}
+            {previewMode ? (
+              <PreviewLeadPanel
+                selectedService={leadPreviewService || data.services[0]?.title || ""}
+                showWhatsapp={Boolean(data.settings?.contactWhatsapp)}
+              />
+            ) : leadForm ? (
+              <SiteLeadForm
+                companyId={leadForm.companyId}
+                companyName={leadForm.companyName}
+                initialRequestedService={leadForm.initialRequestedService}
+                whatsapp={leadForm.whatsapp}
+              />
+            ) : null}
           </div>
 
           <aside className={styles.contactPanel} id="contato" aria-labelledby="site-contact-title">
@@ -367,10 +399,22 @@ export function SiteHomeView({
               ) : null}
             </div>
             {data.home.mapEmbedUrl ? (
-              <div className={styles.mapPlaceholder}>
-                <strong>Mapa configurado</strong>
-                <p>O link de mapa esta pronto para exibicao nesta versao.</p>
-              </div>
+              previewMode ? (
+                <div className={styles.mapPlaceholder}>
+                  <strong>Mapa incorporado</strong>
+                  <p>Na versao publicada, este bloco exibira o mapa configurado.</p>
+                </div>
+              ) : (
+                <div className={styles.mapFrameWrap}>
+                  <iframe
+                    className={styles.mapFrame}
+                    src={data.home.mapEmbedUrl}
+                    title={`Mapa da ${data.company.tradeName}`}
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                </div>
+              )
             ) : null}
           </aside>
         </section>
@@ -393,6 +437,7 @@ export function SiteHomeView({
             <strong>Links</strong>
             <a href="#servicos">Servicos</a>
             <a href="#como-funciona">Como funciona</a>
+            {hasShowcaseSection ? <a href="#trabalhos">Trabalhos</a> : null}
             <a href="#contato">Contato</a>
           </div>
           <div>
@@ -406,9 +451,69 @@ export function SiteHomeView({
             <span>{formatContactPhone(data.settings?.contactWhatsapp)}</span>
             <span>{data.settings?.contactEmail || "Nao informado"}</span>
             <span>{data.settings?.addressFull || "Nao informado"}</span>
+            {data.settings?.instagramUrl ? (
+              <a href={data.settings.instagramUrl} target="_blank" rel="noreferrer">
+                Instagram
+              </a>
+            ) : null}
+            {data.settings?.facebookUrl ? (
+              <a href={data.settings.facebookUrl} target="_blank" rel="noreferrer">
+                Facebook
+              </a>
+            ) : null}
           </div>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function PreviewLeadPanel({
+  selectedService,
+  showWhatsapp,
+}: Readonly<{
+  selectedService: string;
+  showWhatsapp: boolean;
+}>) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gap: 12,
+        padding: 20,
+        borderRadius: 24,
+        background: "rgba(255,255,255,0.92)",
+        border: "1px solid rgba(17,24,39,0.08)",
+      }}
+    >
+      <strong>Formulario de contato</strong>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: 12,
+        }}
+      >
+        <input value="Nome do cliente" readOnly />
+        <input value="(11) 99999-9999" readOnly />
+      </div>
+      <input value="cliente@empresa.com.br" readOnly />
+      <input value={selectedService || "Servico desejado"} readOnly />
+      <textarea value="Conte o que voce precisa para receber a proposta." rows={5} readOnly />
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <span className={`${styles.actionLink} ${styles.actionLinkPrimary}`}>Solicitar orcamento</span>
+        {showWhatsapp ? (
+          <span className={`${styles.actionLink} ${styles.actionLinkSecondary}`}>
+            Falar pelo WhatsApp
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -435,7 +540,11 @@ function ActionLink({
         : styles.actionLinkGhost,
   ].join(" ");
 
-  if (!href || previewMode) {
+  if (!href && !previewMode) {
+    return null;
+  }
+
+  if (previewMode) {
     return (
       <span className={className} aria-disabled="true">
         {label}
@@ -447,7 +556,7 @@ function ActionLink({
 
   if (external) {
     return (
-      <a className={className} href={href} target={target}>
+      <a className={className} href={href} target={target} rel={target === "_blank" ? "noreferrer" : undefined}>
         {label}
       </a>
     );
@@ -462,7 +571,7 @@ function ActionLink({
   }
 
   return (
-    <a className={className} href={href} target={target}>
+    <a className={className} href={href} target={target} rel={target === "_blank" ? "noreferrer" : undefined}>
       {label}
     </a>
   );
@@ -507,14 +616,16 @@ function MediaCard({
   title,
   subtitle,
   imageUrl,
+  imageAlt,
 }: Readonly<{
   title: string;
   subtitle: string;
   imageUrl: string | null;
+  imageAlt: string;
 }>) {
   return (
     <div className={styles.mediaCard}>
-      <CardImage src={imageUrl || ""} alt={title} fallbackLabel={title} />
+      <CardImage src={imageUrl || ""} alt={imageAlt} fallbackLabel={title} />
       <div className={styles.mediaCardText}>
         <strong>{title}</strong>
         <p>{subtitle}</p>

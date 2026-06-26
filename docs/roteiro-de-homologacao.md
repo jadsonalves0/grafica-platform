@@ -214,11 +214,13 @@ Cobertura automatizada atual:
 10. validar hero, CTA principal e CTA de WhatsApp quando configurado
 11. abrir um servico e confirmar o formulario com servico pre-preenchido
 12. enviar lead
-13. validar mensagem de sucesso
+13. validar mensagem de sucesso com referencia curta do contato
 14. abrir `Meu site > Leads do site`
 15. validar o servico selecionado no lead salvo
-16. limpar o WhatsApp, publicar e confirmar que o CTA nao aparece no site publico
-17. validar responsividade em `360px` sem rolagem horizontal
+16. validar origem `Website`, caminho da pagina e UTM no lead salvo
+17. validar mapa quando configurado
+18. limpar o WhatsApp, publicar e confirmar que o CTA nao aparece no site publico
+19. validar responsividade em `360px` sem rolagem horizontal
 
 ## Bloco 13. Relatorios
 

@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 const highlights = [
   "Multiempresa com isolamento de dados por grafica",
   "Usuarios, perfis e permissoes por modulo",
