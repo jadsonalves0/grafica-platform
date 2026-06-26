@@ -1,5 +1,13 @@
 import { AuthorizationError } from "@/lib/auth/auth-errors";
 import { PERMISSIONS } from "@/lib/permissions/permission-types";
+import {
+  composeDraftSitePublicData,
+  getSiteMetaDescription,
+  getSiteMetaTitle,
+  normalizeSiteHomeContent,
+  parsePublishedSiteSnapshot,
+  stringifySiteHomeContent,
+} from "@/lib/site/site-home";
 import type { TenantContext } from "@/lib/tenant/tenant-context";
 import type { SiteLeadStatus } from "@prisma/client";
 import type { SiteBannerCreateInputDto } from "@/models/dto/site-banner-create-input";
@@ -47,7 +55,74 @@ export class SiteService extends BaseService {
       throw new Error("Company not found.");
     }
 
-    return this.siteRepository.upsertSettings(input);
+    const savedSettings = await this.siteRepository.upsertSettings({
+      ...input,
+      isSitePublished:
+        input.publicationAction === "publish"
+          ? true
+          : input.publicationAction === "saveDraft"
+            ? undefined
+            : input.isSitePublished,
+    });
+
+    const homeContent = normalizeSiteHomeContent(input.homeContent);
+
+    await this.siteRepository.upsertDraftHomePage({
+      companyId: input.companyId,
+      title: savedSettings.heroTitle?.trim() || company.tradeName,
+      metaTitle: homeContent.metaTitle,
+      metaDescription: homeContent.metaDescription,
+      contentJson: stringifySiteHomeContent(homeContent),
+    });
+
+    if (input.publicationAction === "publish") {
+      const draftSite = await this.siteRepository.getAdminSiteData(input.companyId);
+
+      if (!draftSite) {
+        throw new Error("Company not found.");
+      }
+
+      const hasActiveService = draftSite.siteServices.some((service) => service.isActive);
+      const hasContact =
+        Boolean(savedSettings.contactEmail) ||
+        Boolean(savedSettings.contactPhone) ||
+        Boolean(savedSettings.contactWhatsapp);
+
+      if (!savedSettings.heroTitle?.trim()) {
+        throw new Error("Preencha o titulo principal antes de publicar.");
+      }
+
+      if (!hasContact) {
+        throw new Error("Configure pelo menos um canal de contato antes de publicar.");
+      }
+
+      if (!hasActiveService) {
+        throw new Error("Ative pelo menos um servico antes de publicar o site.");
+      }
+
+      const snapshot = composeDraftSitePublicData({
+        company: {
+          id: company.id,
+          tradeName: company.tradeName,
+          slug: company.slug,
+        },
+        settings: savedSettings,
+        services: draftSite.siteServices,
+        banners: draftSite.siteBanners,
+        homeContent,
+        isPublished: true,
+      });
+
+      await this.siteRepository.upsertPublishedHomePage({
+        companyId: input.companyId,
+        title: savedSettings.heroTitle?.trim() || company.tradeName,
+        metaTitle: getSiteMetaTitle(snapshot),
+        metaDescription: getSiteMetaDescription(snapshot),
+        contentJson: JSON.stringify(snapshot),
+      });
+    }
+
+    return savedSettings;
   }
 
   async createService(
@@ -173,49 +248,27 @@ export class SiteService extends BaseService {
   async getPublicSite(slug: string): Promise<SitePublicDataDto> {
     const company = await this.siteRepository.getPublicSiteBySlug(slug);
 
-    if (!company) {
+    if (!company || !company.siteSettings?.isSitePublished) {
       throw new Error("Public site not found.");
     }
 
-    return {
+    const publishedSnapshot = parsePublishedSiteSnapshot(company.sitePages[0]?.contentJson);
+
+    if (publishedSnapshot) {
+      return publishedSnapshot;
+    }
+
+    return composeDraftSitePublicData({
       company: {
         id: company.id,
         tradeName: company.tradeName,
         slug: company.slug,
       },
-      settings: company.siteSettings
-        ? {
-            primaryColor: company.siteSettings.primaryColor,
-            secondaryColor: company.siteSettings.secondaryColor,
-            accentColor: company.siteSettings.accentColor,
-            logoUrl: company.siteSettings.logoUrl,
-            heroTitle: company.siteSettings.heroTitle,
-            heroSubtitle: company.siteSettings.heroSubtitle,
-            aboutText: company.siteSettings.aboutText,
-            contactEmail: company.siteSettings.contactEmail,
-            contactPhone: company.siteSettings.contactPhone,
-            contactWhatsapp: company.siteSettings.contactWhatsapp,
-            instagramUrl: company.siteSettings.instagramUrl,
-            facebookUrl: company.siteSettings.facebookUrl,
-            addressFull: company.siteSettings.addressFull,
-            isSitePublished: company.siteSettings.isSitePublished,
-          }
-        : null,
-      services: company.siteServices.map((service) => ({
-        id: service.id,
-        title: service.title,
-        shortDescription: service.shortDescription,
-        imageUrl: service.imageUrl,
-      })),
-      banners: company.siteBanners.map((banner) => ({
-        id: banner.id,
-        title: banner.title,
-        subtitle: banner.subtitle,
-        imageUrl: banner.imageUrl,
-        ctaLabel: banner.ctaLabel,
-        ctaLink: banner.ctaLink,
-      })),
-    };
+      settings: company.siteSettings,
+      services: company.siteServices,
+      banners: company.siteBanners,
+      isPublished: true,
+    });
   }
 
   async getAdminSiteData(

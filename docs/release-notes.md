@@ -1,5 +1,48 @@
 # Release Notes
 
+## 2026-06-25 - Website Experience 1.0
+
+### Entregue
+
+- home publica comercial com hero mais forte, CTA principal e CTA secundario
+- cabecalho publico com navegacao curta, CTA de orcamento e destaque de WhatsApp
+- faixa de diferenciais configuraveis
+- servicos em destaque com imagem e acao de `Solicitar orcamento`
+- secao `Como funciona`
+- secao de prova visual reaproveitando servicos e banners ativos
+- chamada final de conversao
+- secao de contato mais evidente
+- rodape completo com links e canais da grafica
+
+### Melhorado
+
+- website publico agora renderizado no servidor, com SEO melhor e menos dependencia de `fetch` no cliente
+- separacao mais clara entre `Salvar rascunho` e `Publicar alteracoes`
+- preview real da home em desktop e mobile dentro do painel
+- CTA de servico preenchendo o formulario publico com contexto
+- formulario de lead mais comercial, preservando dados em erro
+- CTA de WhatsApp com mensagem pre-preenchida quando o canal estiver configurado
+- `next/image`, `robots`, `sitemap` e metadados basicos por empresa
+- `Open Graph`, `canonical` e `LocalBusiness` no website publicado
+
+### Sem migration
+
+- a rodada reaproveita `SiteSetting`, `SiteService`, `SiteBanner`, `SiteLead` e `SitePage`
+- o snapshot publicado da home e o rascunho passaram a usar `SitePage` com chaves separadas para evitar expor alteracoes nao publicadas
+
+### Documentado
+
+- diretrizes do website em `docs/website-guidelines.md`
+- visao geral da home e publicacao em `docs/plataforma-visao-geral.md`
+- homologacao do website em `docs/roteiro-de-homologacao.md`
+- principios visuais do website em `docs/ux-guidelines.md`
+
+### Pendencias reais
+
+- validacao visual final com screenshots reais depende de navegador liberado no ambiente local
+- `build` continua bloqueado neste ambiente por `spawn EPERM`
+- rodada futura do painel ainda precisara revisar menu hibrido, distribuicao de campos em `Vendas` e acabamento fino de formularios longos
+
 ## 2026-06-25 - Estabilizacao operacional do painel
 
 ### Corrigido

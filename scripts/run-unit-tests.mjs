@@ -3,6 +3,10 @@ const suites = [
     name: "br-utils",
     modulePath: "../tests/unit/br-utils.test.mjs",
   },
+  {
+    name: "site-home",
+    modulePath: "../tests/unit/site-home.test.mjs",
+  },
 ];
 
 let failureCount = 0;

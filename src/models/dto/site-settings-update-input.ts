@@ -1,3 +1,5 @@
+import type { SiteHomeContent } from "@/lib/site/site-home";
+
 export type SiteSettingsUpdateInputDto = {
   companyId: string;
   primaryColor?: string;
@@ -15,4 +17,6 @@ export type SiteSettingsUpdateInputDto = {
   facebookUrl?: string;
   addressFull?: string;
   isSitePublished?: boolean;
+  publicationAction?: "saveDraft" | "publish";
+  homeContent?: Partial<SiteHomeContent>;
 };

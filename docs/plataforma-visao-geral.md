@@ -39,10 +39,14 @@ O painel administrativo agora possui identidade propria, separada do website:
 O website continua com identidade configuravel por empresa:
 
 - cores da empresa
-- banners
-- servicos
-- textos institucionais
-- formulario de contato e leads
+- logotipo e favicon
+- home publica com hero comercial, servicos, diferenciais, como funciona, prova visual, CTA final, contato e rodape
+- banners e servicos reutilizados como prova visual da grafica
+- formulario de contato e leads com servico pre-selecionado
+- CTA de WhatsApp em pontos principais da home quando o canal estiver configurado
+- preview real em desktop e mobile dentro do painel
+- separacao entre rascunho e publicado, sem expor alteracoes nao publicadas no `slug`
+- SEO basico por empresa com metadados, `Open Graph`, `robots`, `sitemap` e `LocalBusiness`
 
 O tema do website nao altera a legibilidade do painel administrativo.
 
@@ -149,6 +153,8 @@ Os indicadores devem ser tratados como ponto de partida para o trabalho diario.
 - servicos
 - leads do site
 - visualizacao publica por `slug`
+- preview de website em desktop e mobile
+- publicacao com snapshot dedicado do conteudo publicado
 
 ## Fluxos consolidados nesta revisao visual
 
@@ -189,7 +195,56 @@ Os indicadores devem ser tratados como ponto de partida para o trabalho diario.
 - `relatorios` com aba preservada na URL e exportacao com feedback visual
 - `entradas` em etapas
 - configuracao do website em fluxo guiado
+- website publico server-side, sem depender de `fetch` client-side para montar a home
 - financeiro organizado em `a receber`, `a pagar` e `caixa e bancos`
+
+## Website Experience 1.0
+
+O website publico entrou em uma rodada propria de evolucao comercial, separada do painel administrativo.
+
+### Estrutura atual da home
+
+- cabecalho publico com navegação curta, CTA principal e WhatsApp
+- hero comercial com titulo forte, subtitulo, CTA principal e CTA secundario
+- faixa de diferenciais
+- servicos em destaque com imagem e CTA para orcamento
+- secao `Como funciona`
+- secao de prova visual reaproveitando servicos e banners
+- chamada final de conversao
+- formulario de lead com servico pre-selecionado
+- painel de contato
+- rodape mais completo
+
+### Modelo de configuracao e publicacao
+
+O fluxo administrativo de `Meu site` continua guiado, mas agora separa com mais clareza:
+
+- identidade
+- pagina inicial
+- servicos
+- contato
+- revisao e publicacao
+
+O conteudo da home usa duas referencias internas:
+
+- `HOME_DRAFT` para o rascunho editado no painel
+- `HOME` para o snapshot publicado consumido pelo `slug` publico
+
+Isso garante que:
+
+- salvar rascunho nao altera imediatamente o website publicado
+- a pre-visualizacao administrativa usa o mesmo componente visual da home publica
+- o website publico mostra apenas o snapshot publicado
+
+### Leads e conversao
+
+O website publico agora prioriza captacao comercial:
+
+- formulario com `nome`, `WhatsApp`, `e-mail opcional`, `servico desejado` e `mensagem`
+- servico escolhido na home chega preenchido ao formulario
+- CTA de WhatsApp com mensagem pre-preenchida quando o canal estiver configurado
+- origem `website` preservada no lead salvo
+- contato visivel tambem no rodape e no painel lateral da secao de contato
 
 ## Modulos ainda com consolidacao visual parcial
 
@@ -260,6 +315,15 @@ Os focos imediatos dessa preparacao sao:
 - sincronizar a documentacao com a interface atual
 - adicionar cobertura inicial automatizada de interface
 - validar desktop, mobile, acessibilidade e permissoes por perfil
+
+## Pendencias administrativas registradas para rodada futura
+
+Estas pendencias foram mantidas fora da branch do website:
+
+- o menu administrativo hibrido ainda gera competicao visual entre topo e coluna lateral
+- a tela de `Vendas` ainda possui campos mal distribuidos em alguns estados
+- alguns campos de `Vendas` ainda estouram visualmente em larguras menores
+- formularios longos do painel ainda precisam de acabamento fino final
 
 ## Validacao automatizada atual
 

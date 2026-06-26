@@ -1,0 +1,101 @@
+.panel {
+  display: grid;
+  gap: 16px;
+}
+
+.form {
+  display: grid;
+  gap: 16px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.field span {
+  color: #344054;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 18px;
+  background: #fff;
+  color: #171821;
+  padding: 14px 16px;
+  min-height: 52px;
+}
+
+.field textarea {
+  min-height: 140px;
+  resize: vertical;
+}
+
+.alertDanger,
+.alertSuccess {
+  padding: 14px 16px;
+  border-radius: 18px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.alertDanger {
+  background: rgba(194, 53, 68, 0.08);
+  color: #a42d3e;
+}
+
+.alertSuccess {
+  background: rgba(29, 122, 74, 0.1);
+  color: #146a3c;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.actions button,
+.actions a {
+  min-height: 50px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.actions button {
+  border: 0;
+  background: var(--site-primary, #b5421f);
+  color: #fff;
+  cursor: pointer;
+}
+
+.actions button:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.actions a {
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  color: #171821;
+  background: rgba(255, 255, 255, 0.92);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

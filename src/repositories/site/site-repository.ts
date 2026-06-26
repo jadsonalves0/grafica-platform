@@ -1,4 +1,10 @@
 import type { PrismaClient, SiteLeadStatus } from "@prisma/client";
+import {
+  SITE_HOME_DRAFT_PAGE_KEY,
+  SITE_HOME_DRAFT_PAGE_SLUG,
+  SITE_HOME_PAGE_KEY,
+  SITE_HOME_PAGE_SLUG,
+} from "@/lib/site/site-home";
 
 export class SiteRepository {
   constructor(private readonly db: PrismaClient) {}
@@ -164,6 +170,17 @@ export class SiteRepository {
           where: { isActive: true },
           orderBy: { sortOrder: "asc" },
         },
+        sitePages: {
+          where: {
+            pageKey: SITE_HOME_PAGE_KEY,
+            slug: SITE_HOME_PAGE_SLUG,
+            isPublished: true,
+          },
+          orderBy: {
+            updatedAt: "desc",
+          },
+          take: 1,
+        },
       },
     });
   }
@@ -179,6 +196,86 @@ export class SiteRepository {
         siteBanners: {
           orderBy: { sortOrder: "asc" },
         },
+        sitePages: {
+          where: {
+            pageKey: {
+              in: [SITE_HOME_PAGE_KEY, SITE_HOME_DRAFT_PAGE_KEY],
+            },
+          },
+          orderBy: {
+            updatedAt: "desc",
+          },
+        },
+      },
+    });
+  }
+
+  async upsertDraftHomePage(input: {
+    companyId: string;
+    title: string;
+    metaTitle?: string;
+    metaDescription?: string;
+    contentJson?: string;
+  }) {
+    return this.db.sitePage.upsert({
+      where: {
+        companyId_slug: {
+          companyId: input.companyId,
+          slug: SITE_HOME_DRAFT_PAGE_SLUG,
+        },
+      },
+      update: {
+        pageKey: SITE_HOME_DRAFT_PAGE_KEY,
+        title: input.title,
+        metaTitle: normalizeEmpty(input.metaTitle),
+        metaDescription: normalizeEmpty(input.metaDescription),
+        contentJson: normalizeEmpty(input.contentJson),
+        isPublished: false,
+      },
+      create: {
+        companyId: input.companyId,
+        pageKey: SITE_HOME_DRAFT_PAGE_KEY,
+        title: input.title,
+        slug: SITE_HOME_DRAFT_PAGE_SLUG,
+        metaTitle: normalizeEmpty(input.metaTitle),
+        metaDescription: normalizeEmpty(input.metaDescription),
+        contentJson: normalizeEmpty(input.contentJson),
+        isPublished: false,
+      },
+    });
+  }
+
+  async upsertPublishedHomePage(input: {
+    companyId: string;
+    title: string;
+    metaTitle?: string;
+    metaDescription?: string;
+    contentJson: string;
+  }) {
+    return this.db.sitePage.upsert({
+      where: {
+        companyId_slug: {
+          companyId: input.companyId,
+          slug: SITE_HOME_PAGE_SLUG,
+        },
+      },
+      update: {
+        pageKey: SITE_HOME_PAGE_KEY,
+        title: input.title,
+        metaTitle: normalizeEmpty(input.metaTitle),
+        metaDescription: normalizeEmpty(input.metaDescription),
+        contentJson: input.contentJson,
+        isPublished: true,
+      },
+      create: {
+        companyId: input.companyId,
+        pageKey: SITE_HOME_PAGE_KEY,
+        title: input.title,
+        slug: SITE_HOME_PAGE_SLUG,
+        metaTitle: normalizeEmpty(input.metaTitle),
+        metaDescription: normalizeEmpty(input.metaDescription),
+        contentJson: input.contentJson,
+        isPublished: true,
       },
     });
   }

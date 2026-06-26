@@ -35,8 +35,25 @@ O website pode manter:
 - banners
 - identidade promocional
 - tipografia mais expressiva
+- imagens reais ou mockups de materiais graficos
+- CTA de conversao mais evidente que no painel
+- secoes amplas e mais respiradas
+- detalhes inspirados em papel, impressao, camadas e CMYK de forma controlada
 
 O tema do website nao deve afetar o painel administrativo.
+
+Para a versao atual da home publica:
+
+- usar hero comercial com titulo forte, subtitulo curto e CTA principal
+- usar cards e secoes com superficies brancas sobre fundo neutro claro
+- evitar pagina com cara de cadastro publicado ou tabela exposta
+- usar imagens reais dos servicos sempre que possivel
+- preferir uma prova visual honesta a depoimentos ou numeros inventados
+- destacar `WhatsApp` quando configurado
+- manter o mesmo componente visual na pre-visualizacao administrativa e no website publicado
+- manter `Salvar rascunho` separado de `Publicar alteracoes`
+
+As regras completas do website ficam em `docs/website-guidelines.md`.
 
 ## Componentes oficiais
 
@@ -63,6 +80,12 @@ No shell atual:
 - o controle de recolhimento continua dentro da propria sidebar
 - o menu recolhido nao deve competir com o topo principal
 - o `drawer` mobile continua sendo a navegacao principal em telas pequenas
+
+Pendencias conhecidas do painel, registradas mas fora desta rodada:
+
+- o shell hibrido ainda precisa de decisao final entre topo, sidebar ou outra simplificacao
+- a tela de `Vendas` ainda precisa de ajuste fino de distribuicao de campos
+- alguns formularios do painel ainda pedem acabamento visual final
 
 No `Topbar`:
 

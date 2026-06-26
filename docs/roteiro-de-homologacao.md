@@ -42,7 +42,10 @@ Cobertura automatizada atual:
 8. movimentacao com troca de item
 9. navegacao financeira segmentada
 10. configuracao e publicacao do website
-11. integracao de entrada, camada FIFO, bloqueio acima do saldo e isolamento por empresa
+11. preview desktop e mobile do website
+12. CTA de servico preenchendo o formulario publico
+13. CTA de WhatsApp oculto quando o canal nao estiver configurado
+14. integracao de entrada, camada FIFO, bloqueio acima do saldo e isolamento por empresa
 
 ## Bloco 1. Shell e navegacao
 
@@ -200,12 +203,22 @@ Cobertura automatizada atual:
 ## Bloco 12. Meu site
 
 1. abrir `Meu site`
-2. salvar rascunho
-3. validar aviso de alteracoes nao publicadas
-4. publicar
-5. abrir o site publico pelo `slug`
-6. enviar lead
-7. abrir `Meu site > Leads do site`
+2. revisar as etapas `Identidade`, `Pagina inicial`, `Servicos`, `Contato` e `Revisar e publicar`
+3. alterar titulo e subtitulo do hero
+4. salvar rascunho
+5. validar aviso de alteracoes nao publicadas
+6. abrir a pre-visualizacao em desktop
+7. abrir a pre-visualizacao em mobile
+8. publicar
+9. abrir o site publico pelo `slug`
+10. validar hero, CTA principal e CTA de WhatsApp quando configurado
+11. abrir um servico e confirmar o formulario com servico pre-preenchido
+12. enviar lead
+13. validar mensagem de sucesso
+14. abrir `Meu site > Leads do site`
+15. validar o servico selecionado no lead salvo
+16. limpar o WhatsApp, publicar e confirmar que o CTA nao aparece no site publico
+17. validar responsividade em `360px` sem rolagem horizontal
 
 ## Bloco 13. Relatorios
 
