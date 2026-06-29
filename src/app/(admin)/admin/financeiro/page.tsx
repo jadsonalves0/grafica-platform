@@ -56,24 +56,6 @@ type FinancialEntry = {
   installmentCount?: number | null;
 };
 
-type OrderFinancialBridge = {
-  id: string;
-  code: string;
-  status: "OPEN" | "IN_PROGRESS" | "COMPLETED" | "CANCELED";
-  productionStatus:
-    | "PENDING"
-    | "IN_PRODUCTION"
-    | "WAITING_APPROVAL"
-    | "READY"
-    | "DELIVERED";
-  customerName: string;
-  totalAmount: number;
-  deliveryDate?: string | null;
-  hasLinkedSale?: boolean;
-  linkedSaleEntryId?: string | null;
-  readyForSale?: boolean;
-};
-
 type CashFlowSummary = {
   pendingIncome: number;
   pendingExpense: number;
@@ -99,7 +81,6 @@ export default function FinanceiroPage() {
   const [accounts, setAccounts] = useState<FinancialAccount[]>([]);
   const [categories, setCategories] = useState<FinancialCategory[]>([]);
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
-  const [orders, setOrders] = useState<OrderFinancialBridge[]>([]);
   const [summary, setSummary] = useState<CashFlowSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -129,20 +110,18 @@ export default function FinanceiroPage() {
       setErrorMessage(null);
 
       try {
-        const [accountsResponse, categoriesResponse, entriesResponse, summaryResponse, ordersResponse] =
+        const [accountsResponse, categoriesResponse, entriesResponse, summaryResponse] =
           await Promise.all([
             fetch("/api/financial/accounts", { signal: controller.signal, cache: "no-store" }),
             fetch("/api/financial/categories", { signal: controller.signal, cache: "no-store" }),
             fetch("/api/financial/entries", { signal: controller.signal, cache: "no-store" }),
             fetch("/api/financial/summary", { signal: controller.signal, cache: "no-store" }),
-            fetch("/api/orders", { signal: controller.signal, cache: "no-store" }),
           ]);
 
         const accountsResult = (await accountsResponse.json()) as ApiResult<FinancialAccount[]>;
         const categoriesResult = (await categoriesResponse.json()) as ApiResult<FinancialCategory[]>;
         const entriesResult = (await entriesResponse.json()) as ApiResult<FinancialEntry[]>;
         const summaryResult = (await summaryResponse.json()) as ApiResult<CashFlowSummary>;
-        const ordersResult = (await ordersResponse.json()) as ApiResult<OrderFinancialBridge[]>;
 
         if (!accountsResponse.ok || !accountsResult.success || !accountsResult.data) {
           setErrorMessage(accountsResult.message ?? "Nao foi possivel carregar as contas.");
@@ -164,16 +143,10 @@ export default function FinanceiroPage() {
           return;
         }
 
-        if (!ordersResponse.ok || !ordersResult.success || !ordersResult.data) {
-          setErrorMessage(ordersResult.message ?? "Nao foi possivel carregar os pedidos para faturamento.");
-          return;
-        }
-
         setAccounts(accountsResult.data);
         setCategories(categoriesResult.data);
         setEntries(entriesResult.data);
         setSummary(summaryResult.data);
-        setOrders(ordersResult.data);
       } catch (error) {
         if ((error as Error).name === "AbortError") {
           return;
@@ -191,7 +164,10 @@ export default function FinanceiroPage() {
   }, []);
 
   const receivableEntries = useMemo(
-    () => entries.filter((entry) => isReceivable(entry) && matchesStatus(entry, statusFilter)),
+    () =>
+      entries.filter(
+        (entry) => isReceivable(entry) && isOpenReceivable(entry) && matchesStatus(entry, statusFilter),
+      ),
     [entries, statusFilter],
   );
   const payableEntries = useMemo(
@@ -212,14 +188,6 @@ export default function FinanceiroPage() {
     [entries],
   );
   const recentEntries = useMemo(() => entries.slice(0, 8), [entries]);
-  const pendingOrdersForBilling = useMemo(
-    () =>
-      orders.filter(
-        (order) => order.readyForSale && !order.hasLinkedSale && order.status !== "CANCELED",
-      ),
-    [orders],
-  );
-
   const categoryStats = useMemo(
     () => ({
       income: categories.filter((category) => category.type === "INCOME" && category.isActive).length,
@@ -261,15 +229,6 @@ export default function FinanceiroPage() {
                 <MetricCard label="Recebido" value={formatCurrency(summary?.paidIncome ?? 0)} description="Receitas ja baixadas." />
                 <MetricCard label="Saldo projetado" value={formatCurrency(summary?.projectedBalance ?? 0)} description="Fluxo esperado atual." href="/admin/financeiro?view=cash" />
               </section>
-
-              {pendingOrdersForBilling.length ? (
-                <SectionCard
-                  title="Pedidos prontos para faturamento"
-                  description="Pedidos atendidos ou prontos nao viram receita sozinhos. Gere a venda para refletir no financeiro."
-                >
-                  <OrderBillingList orders={pendingOrdersForBilling} />
-                </SectionCard>
-              ) : null}
 
               <section className="admin-card-grid">
                 <SectionCard
@@ -343,8 +302,8 @@ export default function FinanceiroPage() {
               <section className="admin-panel-grid">
                 <MetricCard label="Vencidas" value={formatCurrency(sumAmounts(receivableEntries.filter((entry) => entry.status === "OVERDUE")))} description="Precisam de acao imediata." />
                 <MetricCard label="Pendentes" value={formatCurrency(sumAmounts(receivableEntries.filter((entry) => entry.status === "PENDING")))} description="Ainda em aberto." />
-                <MetricCard label="Recebidas" value={formatCurrency(sumAmounts(receivableEntries.filter((entry) => entry.status === "PAID")))} description="Ja baixadas." />
-                <MetricCard label="Titulos" value={String(receivableEntries.length)} description="Registros nesta visao." />
+                <MetricCard label="Em aberto" value={formatCurrency(sumAmounts(receivableEntries))} description="Titulos que ainda aguardam baixa." />
+                <MetricCard label="Titulos" value={String(receivableEntries.length)} description="Registros pendentes nesta visao." />
               </section>
 
               <SectionCard title="Contas a receber">
@@ -463,47 +422,6 @@ export default function FinanceiroPage() {
   );
 }
 
-function OrderBillingList({ orders }: Readonly<{ orders: OrderFinancialBridge[] }>) {
-  return (
-    <div className="admin-list-stack">
-      {orders.map((order) => (
-        <article key={order.id} className="admin-list-card">
-          <div className="admin-list-card__header">
-            <div className="admin-list-card__heading">
-              <strong className="admin-list-card__title">{order.code}</strong>
-              <span className="admin-list-card__subtitle">{order.customerName}</span>
-            </div>
-            <div className="admin-row">
-              <StatusBadge status={formatCommercialStatus(order.status)} tone={mapCommercialTone(order.status)} />
-              <StatusBadge status={formatProductionStatus(order.productionStatus)} tone={mapProductionTone(order.productionStatus)} />
-            </div>
-          </div>
-
-          <div className="admin-list-card__meta">
-            <MiniStat label="Entrega" value={order.deliveryDate ? formatDate(order.deliveryDate) : "Sem prazo"} />
-            <MiniStat label="Total" value={formatCurrency(order.totalAmount)} />
-            <MiniStat label="Proxima acao" value="Gerar venda" />
-          </div>
-
-          <div className="admin-list-card__footer">
-            <span className="admin-list-card__hint">
-              Este pedido ja esta operacionalmente pronto, mas ainda nao entrou no financeiro.
-            </span>
-            <div className="admin-row">
-              <Link href={`/admin/pedidos/${order.id}`} className="admin-button admin-button--secondary">
-                Abrir pedido
-              </Link>
-              <Link href={`/admin/vendas/novo?orderId=${order.id}`} className="admin-button admin-button--primary">
-                Gerar venda
-              </Link>
-            </div>
-          </div>
-        </article>
-      ))}
-    </div>
-  );
-}
-
 function EntryList({ entries }: Readonly<{ entries: FinancialEntry[] }>) {
   return (
     <div className="admin-list-stack">
@@ -539,7 +457,7 @@ function EntryList({ entries }: Readonly<{ entries: FinancialEntry[] }>) {
             </span>
             <div className="admin-row">
               <Link href={`/admin/financeiro/lancamentos/${entry.id}`} className="admin-button admin-button--secondary">
-                Abrir conta
+                {hasSaleLink && entry.status === "PAID" ? "Abrir financeiro" : "Abrir conta"}
               </Link>
               {hasSaleLink ? (
                 <Link href={`/admin/vendas/${entry.id}`} className="admin-button admin-button--primary">
@@ -602,6 +520,10 @@ function isReceivable(entry: FinancialEntry) {
   return entry.entryType === "INCOME" || entry.entryType === "RECEIVABLE";
 }
 
+function isOpenReceivable(entry: FinancialEntry) {
+  return entry.status === "PENDING" || entry.status === "OVERDUE";
+}
+
 function isPayable(entry: FinancialEntry) {
   return entry.entryType === "EXPENSE" || entry.entryType === "PAYABLE";
 }
@@ -624,7 +546,7 @@ function getHeaderConfig(view: FinancialView) {
   if (view === "receivable") {
     return {
       title: "Contas a receber",
-      description: "Veja apenas receitas, parcelas e recebimentos que realmente pertencem ao contas a receber.",
+      description: "Veja apenas titulos que continuam em aberto. Registros recebidos no ato nao ficam nesta visao.",
       primaryAction: undefined,
       secondaryActions: [
         { href: "/admin/financeiro", label: "Voltar para visao geral", variant: "secondary" as const },
@@ -667,7 +589,7 @@ function getHeaderConfig(view: FinancialView) {
 
   return {
     title: "Visao financeira",
-    description: "Acompanhe o que entra, o que sai e o saldo das contas. Pedidos prontos aparecem como pendencia de faturamento, e o financeiro so considera fatos ja vendidos ou registrados.",
+    description: "Acompanhe o que entra, o que sai e o saldo das contas. O financeiro mostra apenas fatos ja faturados ou lancados.",
     primaryAction: { href: "/admin/financeiro/lancamentos/novo", label: "Novo lancamento manual" },
     secondaryActions: [
       { href: "/admin/financeiro/categorias", label: "Categorias financeiras", variant: "secondary" as const },
@@ -711,33 +633,5 @@ function mapFinancialTone(status: FinancialEntry["status"]) {
   if (status === "PAID") return "success" as const;
   if (status === "OVERDUE") return "danger" as const;
   if (status === "CANCELED") return "neutral" as const;
-  return "warning" as const;
-}
-
-function formatCommercialStatus(status: OrderFinancialBridge["status"]) {
-  if (status === "IN_PROGRESS") return "Em andamento";
-  if (status === "COMPLETED") return "Concluido";
-  if (status === "CANCELED") return "Cancelado";
-  return "Aberto";
-}
-
-function mapCommercialTone(status: OrderFinancialBridge["status"]) {
-  if (status === "IN_PROGRESS") return "info" as const;
-  if (status === "COMPLETED") return "success" as const;
-  if (status === "CANCELED") return "danger" as const;
-  return "warning" as const;
-}
-
-function formatProductionStatus(status: OrderFinancialBridge["productionStatus"]) {
-  if (status === "IN_PRODUCTION") return "Em producao";
-  if (status === "WAITING_APPROVAL") return "Aguardando aprovacao";
-  if (status === "READY") return "Pronto";
-  if (status === "DELIVERED") return "Entregue";
-  return "Pendente";
-}
-
-function mapProductionTone(status: OrderFinancialBridge["productionStatus"]) {
-  if (status === "IN_PRODUCTION") return "info" as const;
-  if (status === "READY" || status === "DELIVERED") return "success" as const;
   return "warning" as const;
 }

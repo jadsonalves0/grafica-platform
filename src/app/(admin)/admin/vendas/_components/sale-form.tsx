@@ -933,8 +933,12 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
         <div className="admin-page-stack">
           <Alert variant="success" title="Venda concluida com sucesso.">
             {completion.stockUpdated
-              ? "O financeiro foi atualizado e o estoque dos itens fisicos ja foi refletido nesta venda."
-              : "O financeiro foi atualizado e os itens desta venda ficaram registrados no historico comercial."}
+              ? completion.status === "PAID"
+                ? "O financeiro foi registrado como recebido no ato e o estoque dos itens fisicos ja foi refletido nesta venda."
+                : "O financeiro foi atualizado, a conta a receber ficou pendente e o estoque dos itens fisicos ja foi refletido nesta venda."
+              : completion.status === "PAID"
+                ? "O financeiro foi registrado como recebido no ato e os itens desta venda ficaram gravados no historico comercial."
+                : "O financeiro foi atualizado e os itens desta venda ficaram registrados no historico comercial."}
           </Alert>
 
           <div className="admin-card-grid">
@@ -946,11 +950,17 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
 
           <SectionCard
             title="Financeiro"
-            description="A venda ja ficou ligada ao contas a receber para acompanhamento do vencimento e da baixa."
+            description={
+              completion.status === "PAID"
+                ? "O registro financeiro ficou baixado no mesmo momento da venda."
+                : "A venda ja ficou ligada ao contas a receber para acompanhamento do vencimento e da baixa."
+            }
           >
             <div className="admin-summary-list">
               <div className="admin-summary-row">
-                <span style={{ color: "var(--muted)" }}>Conta a receber criada</span>
+                <span style={{ color: "var(--muted)" }}>
+                  {completion.status === "PAID" ? "Registro financeiro" : "Conta a receber criada"}
+                </span>
                 <strong>{completion.status === "PAID" ? "Recebida" : "Pendente"}</strong>
               </div>
               <div className="admin-summary-row">
@@ -969,7 +979,7 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
               Abrir venda
             </Link>
             <Link href={`/admin/financeiro/lancamentos/${completion.id}`} className="admin-button admin-button--secondary">
-              Abrir conta a receber
+              {completion.status === "PAID" ? "Abrir financeiro" : "Abrir conta a receber"}
             </Link>
             {form.orderId ? (
               <Link href={`/admin/pedidos/${form.orderId}`} className="admin-button admin-button--secondary">
@@ -1005,27 +1015,93 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
       ) : null}
 
       <SectionCard
-        title={mode === "create" ? "Cabecalho da venda" : "Resumo da venda"}
-        description="Use este bloco para confirmar cliente, origem e reflexo financeiro antes de concluir."
+        title="Cliente e contexto"
+        description="Defina quem esta comprando, confirme a origem da operacao e siga para os itens."
       >
-        <div className="admin-list-card__meta">
-          <MetricTile label="Cliente" value={selectedCustomerName ?? "Consumidor nao identificado"} />
-          <MetricTile label="Origem" value={saleOriginLabel} />
-          <MetricTile label="Financeiro" value={form.paymentStatus === "PAID" ? "Recebida agora" : "Conta a receber"} />
-          <MetricTile label="Status" value={mode === "create" ? "Em revisao" : "Venda registrada"} />
-        </div>
+        <div className="admin-layout-grid admin-layout-grid--split">
+          <div className="admin-page-stack">
+            <Field
+              label="Cliente"
+              optional
+              helpText="Deixe em branco para usar consumidor nao identificado."
+            >
+              <SearchableSelect
+                value={form.customerId}
+                onChange={(value) => updateField("customerId", value)}
+                options={customerOptions}
+                placeholder="Pesquisar cliente"
+                disabled={isLoadingOptions || Boolean(form.orderId)}
+                clearable
+                inputName="saleCustomerSearch"
+              />
+            </Field>
 
-        {form.orderId ? (
-          <Alert variant="info" title="Faturamento vindo de pedido.">
-            Esta venda reaproveita os dados do pedido para que voce revise apenas pagamento, observacoes e os ultimos ajustes do carrinho.
-          </Alert>
-        ) : null}
+            <div className="admin-row admin-row--between">
+              <span className="admin-list-card__subtitle">
+                {form.customerId
+                  ? `Cliente selecionado: ${selectedCustomerName ?? "Cliente"}`
+                  : "Consumidor nao identificado"}
+              </span>
+              <div className="admin-row">
+                {form.customerId ? (
+                  <button
+                    type="button"
+                    className="admin-link-button"
+                    onClick={() => updateField("customerId", "")}
+                  >
+                    Usar consumidor nao identificado
+                  </button>
+                ) : null}
+                {!form.orderId ? (
+                  <button
+                    type="button"
+                    className="admin-link-button"
+                    onClick={() => setShowQuickCustomer((current) => !current)}
+                  >
+                    {showQuickCustomer ? "Fechar cadastro rapido" : "Cadastrar cliente rapido"}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            {showQuickCustomer ? (
+              <QuickCustomerPanel
+                onCreated={handleCustomerCreated}
+                onCancel={() => setShowQuickCustomer(false)}
+              />
+            ) : null}
+          </div>
+
+          <div className="admin-page-stack">
+            <div className="admin-card-grid admin-card-grid--compact">
+              <MetricTile label="Origem" value={saleOriginLabel} />
+              <MetricTile
+                label="Financeiro"
+                value={form.paymentStatus === "PAID" ? "Recebida agora" : "Conta a receber"}
+              />
+              <MetricTile
+                label="Status"
+                value={mode === "create" ? "Em revisao" : "Venda registrada"}
+              />
+            </div>
+
+            {form.orderId ? (
+              <Alert variant="info" title="Venda ligada a um pedido entregue.">
+                Este fluxo segue disponivel para revisao, mas o faturamento direto do pedido agora pode ser feito sem abrir esta tela.
+              </Alert>
+            ) : (
+              <Alert variant="info" title="Fluxo da venda">
+                Selecione cliente, pesquise itens, revise o carrinho e conclua o pagamento em um unico bloco lateral.
+              </Alert>
+            )}
+          </div>
+        </div>
       </SectionCard>
 
       <div className="admin-layout-grid admin-layout-grid--sale">
         <div className="admin-page-stack">
           <SectionCard
-            title="Pesquisar e adicionar itens"
+            title="Buscar e adicionar itens"
             description="Busque por nome, SKU ou EAN/GTIN. O catalogo so aparece quando voce pesquisa ou escolhe um grupo."
           >
             <div className="admin-page-stack">
@@ -1101,7 +1177,8 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
                           <div className="admin-list-card__heading">
                             <strong className="admin-list-card__title">{product.name}</strong>
                             <span className="admin-list-card__subtitle">
-                              {[product.categoryName, product.sku, product.barcode].filter(Boolean).join(" | ") || "Item sem identificadores adicionais"}
+                              {[product.categoryName, product.sku, product.barcode].filter(Boolean).join(" | ") ||
+                                "Item sem identificadores adicionais"}
                             </span>
                           </div>
                           <button
@@ -1114,9 +1191,9 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
                         </div>
 
                         <div className="admin-list-card__meta">
-                          <MetricTile compact label="Tipo" value={formatProductType(product.type)} />
                           <MetricTile compact label="Preco" value={formatCurrency(product.salePrice)} />
-                          <MetricTile compact label="Saldo" value={stockStatus} />
+                          <MetricTile compact label="Saldo vendavel" value={stockStatus} />
+                          <MetricTile compact label="Tipo" value={formatProductType(product.type)} />
                         </div>
 
                         {product.hasStockMismatch ? (
@@ -1136,7 +1213,7 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
         <div className="admin-page-stack admin-sticky-panel">
           <SectionCard
             title="Carrinho"
-            description="Quantidade, desconto e subtotal ficam sempre visiveis durante a venda."
+            description="Quantidade, desconto e subtotal ficam visiveis durante toda a venda."
             actions={
               <button type="button" className="admin-link-button" onClick={addManualItem}>
                 Adicionar item livre
@@ -1183,8 +1260,8 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
                         />
                       </Field>
 
-                        <Field label={item.productId ? "Preco de tabela" : "Preco unitario"} required>
-                          {item.productId ? (
+                      <Field label={item.productId ? "Preco de tabela" : "Preco unitario"} required>
+                        {item.productId ? (
                           <div className="admin-readonly-box">{formatCurrency(item.parsedUnitPrice)}</div>
                         ) : (
                           <MoneyInput
@@ -1232,7 +1309,7 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
                     {item.hasStockAlert || item.hasMarginAlert || item.hasStockMismatch ? (
                       <div className="admin-page-stack">
                         {item.hasStockAlert ? (
-                          <Alert variant="warning" title="Saldo FIFO insuficiente para esta quantidade.">
+                          <Alert variant="warning" title="Saldo insuficiente para esta quantidade.">
                             O item possui {formatNumber(item.availableStock)} {item.product?.unit ?? ""} disponivel(is) para venda, mas esta linha solicita {formatNumber(item.parsedQuantity)}.
                           </Alert>
                         ) : null}
@@ -1254,8 +1331,25 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
             )}
           </SectionCard>
 
-          <SectionCard title="Cliente e pagamento" description="Defina quem esta comprando e como a venda aparecera no financeiro.">
+          <SectionCard title="Pagamento e fechamento" description="Escolha como esta venda entra no financeiro e conclua sem sair da lateral.">
             <div className="admin-page-stack">
+              <div className="admin-tabs" role="tablist" aria-label="Condicao de pagamento">
+                <button
+                  type="button"
+                  className={`admin-tabs__tab ${form.paymentStatus === "PAID" ? "is-active" : ""}`}
+                  onClick={() => updateField("paymentStatus", "PAID")}
+                >
+                  Receber agora
+                </button>
+                <button
+                  type="button"
+                  className={`admin-tabs__tab ${form.paymentStatus === "PENDING" ? "is-active" : ""}`}
+                  onClick={() => updateField("paymentStatus", "PENDING")}
+                >
+                  Receber depois
+                </button>
+              </div>
+
               <div className="admin-form-grid admin-form-grid--2">
                 <Field label="Conta financeira" required>
                   <SearchableSelect
@@ -1279,31 +1373,6 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
                   />
                 </Field>
 
-                <Field label="Cliente" optional helpText="Deixe em branco para usar consumidor nao identificado.">
-                  <SearchableSelect
-                    value={form.customerId}
-                    onChange={(value) => updateField("customerId", value)}
-                    options={customerOptions}
-                    placeholder="Pesquisar cliente"
-                    disabled={isLoadingOptions}
-                    clearable
-                    inputName="saleCustomerSearch"
-                  />
-                </Field>
-
-                <Field label="Situacao financeira">
-                  <select
-                    className="admin-select"
-                    value={form.paymentStatus}
-                    onChange={(event) =>
-                      updateField("paymentStatus", event.target.value as SaleFormState["paymentStatus"])
-                    }
-                  >
-                    <option value="PAID">Recebida agora</option>
-                    <option value="PENDING">Receber depois</option>
-                  </select>
-                </Field>
-
                 <Field
                   label={form.paymentStatus === "PAID" ? "Data do recebimento" : "Primeiro vencimento"}
                   required
@@ -1317,31 +1386,70 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
                 </Field>
               </div>
 
-              <div className="admin-row admin-row--between">
-                <span className="admin-list-card__subtitle">
-                  {form.customerId
-                    ? `Cliente selecionado: ${selectedCustomerName ?? "Cliente"}`
-                    : "Consumidor nao identificado"}
-                </span>
-                <button
-                  type="button"
-                  className="admin-link-button"
-                  onClick={() => setShowQuickCustomer((current) => !current)}
-                >
-                  {showQuickCustomer ? "Fechar cadastro rapido" : "Cadastrar cliente rapido"}
-                </button>
+              <div className="admin-summary-list">
+                <div className="admin-summary-row">
+                  <span style={{ color: "var(--muted)" }}>Cliente</span>
+                  <strong>{selectedCustomerName ?? "Consumidor nao identificado"}</strong>
+                </div>
+                <div className="admin-summary-row">
+                  <span style={{ color: "var(--muted)" }}>Itens</span>
+                  <strong>{computedItems.length}</strong>
+                </div>
+                <div className="admin-summary-row">
+                  <span style={{ color: "var(--muted)" }}>Quantidade total</span>
+                  <strong>{formatNumber(totals.quantity)}</strong>
+                </div>
+                <div className="admin-summary-row">
+                  <span style={{ color: "var(--muted)" }}>Valor bruto</span>
+                  <strong>{formatCurrency(totals.gross)}</strong>
+                </div>
+                <div className="admin-summary-row">
+                  <span style={{ color: "var(--muted)" }}>Desconto</span>
+                  <strong>{formatCurrency(totals.discount)}</strong>
+                </div>
+                <div className="admin-summary-row">
+                  <span style={{ color: "var(--muted)", fontWeight: 700 }}>Total</span>
+                  <strong style={{ fontSize: 24 }}>{formatCurrency(totals.net)}</strong>
+                </div>
+                <div className="admin-summary-row">
+                  <span style={{ color: "var(--muted)" }}>Condicao</span>
+                  <StatusBadge
+                    status={form.paymentStatus === "PAID" ? "Recebida" : "A receber"}
+                    tone={form.paymentStatus === "PAID" ? "success" : "warning"}
+                  />
+                </div>
               </div>
 
-              {showQuickCustomer ? (
-                <QuickCustomerPanel
-                  onCreated={handleCustomerCreated}
-                  onCancel={() => setShowQuickCustomer(false)}
-                />
-              ) : null}
+              {totals.stockAlerts || totals.marginAlerts ? (
+                <div className="admin-page-stack">
+                  {totals.stockAlerts ? (
+                    <Alert variant="warning" title={`${totals.stockAlerts} item(ns) com alerta de estoque.`}>
+                      Revise as quantidades antes de concluir. O sistema nao deve seguir com saldo insuficiente quando o estoque negativo estiver bloqueado.
+                    </Alert>
+                  ) : null}
+                  {totals.marginAlerts ? (
+                    <Alert variant="warning" title={`${totals.marginAlerts} item(ns) com alerta de margem.`}>
+                      O valor liquido de uma ou mais linhas ficou abaixo da margem minima configurada.
+                    </Alert>
+                  ) : null}
+                </div>
+              ) : form.paymentStatus === "PAID" ? (
+                <Alert variant="success" title="Pronto para receber no ato">
+                  Ao concluir, a venda sera registrada como recebida e nao ficara pendente no contas a receber.
+                </Alert>
+              ) : (
+                <Alert variant="info" title="Pronto para concluir">
+                  Ao concluir, a venda gerara uma conta a receber pendente para acompanhamento no financeiro.
+                </Alert>
+              )}
             </div>
           </SectionCard>
 
-          <FormSection title="Vinculos e observacoes" description="Use apenas quando esta venda nascer de um pedido, orcamento ou precisar de uma observacao operacional." defaultOpen={mode === "edit"}>
+          <FormSection
+            title="Detalhes adicionais"
+            description="Use apenas quando esta venda nascer de um pedido, orcamento ou precisar de uma observacao operacional."
+            defaultOpen={mode === "edit"}
+          >
             <div className="admin-page-stack">
               <div className="admin-form-grid admin-form-grid--2">
                 <Field label="Pedido relacionado" optional>
@@ -1379,69 +1487,6 @@ export function SaleForm({ mode, entryId, initialData, prefillOrderId }: Readonl
               </Field>
             </div>
           </FormSection>
-
-          <SectionCard title="Resumo e faturamento" description="Confira total, pagamento e o reflexo que entrara no contas a receber.">
-            <div className="admin-summary-list">
-              <div className="admin-summary-row">
-                <span style={{ color: "var(--muted)" }}>Cliente</span>
-                <strong>{selectedCustomerName ?? "Consumidor nao identificado"}</strong>
-              </div>
-              <div className="admin-summary-row">
-                <span style={{ color: "var(--muted)" }}>Itens</span>
-                <strong>{computedItems.length}</strong>
-              </div>
-              <div className="admin-summary-row">
-                <span style={{ color: "var(--muted)" }}>Quantidade total</span>
-                <strong>{formatNumber(totals.quantity)}</strong>
-              </div>
-              <div className="admin-summary-row">
-                <span style={{ color: "var(--muted)" }}>Valor bruto</span>
-                <strong>{formatCurrency(totals.gross)}</strong>
-              </div>
-              <div className="admin-summary-row">
-                <span style={{ color: "var(--muted)" }}>Desconto</span>
-                <strong>{formatCurrency(totals.discount)}</strong>
-              </div>
-              <div className="admin-summary-row">
-                <span style={{ color: "var(--muted)", fontWeight: 700 }}>Total</span>
-                <strong style={{ fontSize: 24 }}>{formatCurrency(totals.net)}</strong>
-              </div>
-              <div className="admin-summary-row">
-                <span style={{ color: "var(--muted)" }}>Situacao</span>
-                <StatusBadge
-                  status={form.paymentStatus === "PAID" ? "Recebida" : "A receber"}
-                  tone={form.paymentStatus === "PAID" ? "success" : "warning"}
-                />
-              </div>
-              <div className="admin-summary-row">
-                <span style={{ color: "var(--muted)" }}>Condicao</span>
-                <strong>{form.paymentStatus === "PAID" ? "Recebimento imediato" : "Conta a receber pendente"}</strong>
-              </div>
-              <div className="admin-summary-row">
-                <span style={{ color: "var(--muted)" }}>Vencimento</span>
-                <strong>{new Intl.DateTimeFormat("pt-BR").format(new Date(form.dueDate))}</strong>
-              </div>
-            </div>
-
-            {totals.stockAlerts || totals.marginAlerts ? (
-              <div className="admin-page-stack" style={{ marginTop: 12 }}>
-                {totals.stockAlerts ? (
-                  <Alert variant="warning" title={`${totals.stockAlerts} item(ns) com alerta de estoque.`}>
-                    Revise as quantidades antes de concluir. O sistema nao deve seguir com saldo insuficiente quando o estoque negativo estiver bloqueado.
-                  </Alert>
-                ) : null}
-                {totals.marginAlerts ? (
-                  <Alert variant="warning" title={`${totals.marginAlerts} item(ns) com alerta de margem.`}>
-                    O valor liquido de uma ou mais linhas ficou abaixo da margem minima configurada.
-                  </Alert>
-                ) : null}
-              </div>
-            ) : (
-              <Alert variant="info" title="Pronto para concluir">
-                O resumo da venda esta consistente. Revise apenas se precisar ajustar cliente, observacao ou vencimento.
-              </Alert>
-            )}
-          </SectionCard>
         </div>
       </div>
 

@@ -106,16 +106,17 @@
 - carrinho lateral fixo no desktop
 - preco do item do catalogo como somente leitura no carrinho
 - `vendas` com cabecalho operacional mais claro para cliente, origem e reflexo financeiro
-- conclusao de venda com acesso direto para `Abrir conta a receber`
-- `pedidos` com bloco explicito de faturamento e atalhos para `Gerar venda`, `Abrir venda` e `Abrir conta a receber`
-- `financeiro` com contas a receber abrindo a venda vinculada quando a origem for comercial
+- conclusao de venda com acesso direto para `Abrir conta a receber` quando a venda ficar pendente e `Abrir financeiro` quando recebida no ato
+- `pedidos` com bloco explicito de faturamento direto, sem obrigar passagem pela tela de vendas para concluir pedido entregue
+- `pedidos` com acoes `Faturar pedido` e `Receber agora`, alem de atalhos para `Abrir venda` e `Abrir conta a receber` quando a venda ja existir
+- `financeiro` com `Contas a receber` exibindo apenas titulos em aberto e abrindo a venda vinculada quando a origem for comercial
 - shell administrativo consolidado com navegacao superior unica no desktop
 - alerta de divergencia entre saldo registrado e saldo vendavel
 - diagnostico operacional de estoque com `npm run inventory:diagnose`
 - regularizacao assistida de base piloto com `npm run inventory:backfill-fifo`
 - cobertura automatizada inicial para numericos, venda, movimentacao e shell
-- suite de integracao para entrada, camada FIFO, bloqueio acima do saldo e isolamento por empresa
-- jornadas Playwright para orcamento com cliente pesquisado, pedido pronto para faturamento, venda vinculada ao pedido e navegacao financeira segmentada
+- suite de integracao para entrada, camada FIFO, bloqueio acima do saldo, faturamento direto de pedido e baixa financeira
+- jornadas Playwright para orcamento com cliente pesquisado, pedido entregue faturado na propria tela e navegacao financeira segmentada
 
 ### Documentado
 

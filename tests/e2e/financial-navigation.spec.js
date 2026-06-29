@@ -37,7 +37,7 @@ test("financeiro muda o conteudo por opcao e o menu reposiciona cadastros", asyn
   await authenticateAsAdmin(page);
 
   await openAdminRoute(page, "/admin/financeiro", "Visao financeira");
-  await expect(page.getByText("Pedidos prontos para faturamento")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Visao financeira" })).toBeVisible();
 
   const isMobile = (page.viewportSize()?.width ?? 0) <= 1024;
   if (isMobile) {

@@ -9,6 +9,7 @@ export type OrderDetailDto = {
   productionStatus: string;
   hasLinkedSale?: boolean;
   linkedSaleEntryId?: string | null;
+  linkedSaleStatus?: "PENDING" | "PAID" | "OVERDUE" | "CANCELED" | null;
   readyForSale?: boolean;
   deliveryDate?: string | null;
   totalAmount: number;

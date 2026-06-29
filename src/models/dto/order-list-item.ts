@@ -5,6 +5,7 @@ export type OrderListItemDto = {
   productionStatus: string;
   hasLinkedSale?: boolean;
   linkedSaleEntryId?: string | null;
+  linkedSaleStatus?: "PENDING" | "PAID" | "OVERDUE" | "CANCELED" | null;
   readyForSale?: boolean;
   customerId: string;
   customerName: string;

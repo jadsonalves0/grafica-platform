@@ -1311,7 +1311,7 @@ summary:focus-visible {
 }
 
 .admin-layout-grid--sale {
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 400px);
+  grid-template-columns: minmax(0, 1fr) minmax(400px, 460px);
 }
 
 .admin-layout-grid--split {
@@ -1322,6 +1322,10 @@ summary:focus-visible {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.admin-card-grid--compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .admin-form-grid {
@@ -1511,6 +1515,10 @@ summary:focus-visible {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .admin-card-grid--compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .admin-layout-grid--sale,
   .admin-layout-grid--sidebar,
   .admin-layout-grid--split,
@@ -1587,6 +1595,10 @@ summary:focus-visible {
   }
 
   .admin-card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-card-grid--compact {
     grid-template-columns: minmax(0, 1fr);
   }
 

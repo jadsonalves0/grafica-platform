@@ -326,7 +326,10 @@ export class FinancialRepository {
 
       const updatedEntry = await tx.financialEntry.update({
         where: { id: entryId },
-        data: input,
+        data: {
+          status: input.status,
+          paidAt: input.paidAt,
+        },
         include: financialEntryInclude,
       });
 

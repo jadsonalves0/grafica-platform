@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { billOrder, type OrderBillingMode } from "@/app/(admin)/admin/pedidos/_components/order-billing-client";
 import { OrderForm } from "@/app/(admin)/admin/pedidos/_components/order-form";
 import {
   Alert,
+  LoadingButton,
   MetricCard,
   PageHeader,
   SectionCard,
@@ -24,6 +26,7 @@ type OrderDetail = {
   productionStatus: "PENDING" | "IN_PRODUCTION" | "WAITING_APPROVAL" | "READY" | "DELIVERED";
   hasLinkedSale?: boolean;
   linkedSaleEntryId?: string | null;
+  linkedSaleStatus?: "PENDING" | "PAID" | "OVERDUE" | "CANCELED" | null;
   readyForSale?: boolean;
   deliveryDate?: string | null;
   totalAmount: number;
@@ -52,6 +55,8 @@ export default function EditarPedidoPage() {
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [billingState, setBillingState] = useState<OrderBillingMode | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -89,6 +94,37 @@ export default function EditarPedidoPage() {
     return () => controller.abort();
   }, [orderId]);
 
+  async function handleBill(mode: OrderBillingMode) {
+    if (!order) {
+      return;
+    }
+
+    setBillingState(mode);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const { response, result } = await billOrder<OrderDetail>(order.id, mode);
+
+      if (!response.ok || !result.success || !result.data) {
+        setErrorMessage(result.message ?? "Nao foi possivel faturar o pedido.");
+        return;
+      }
+
+      setOrder(result.data);
+      setSuccessMessage(
+        result.message ??
+          (mode === "PAID"
+            ? "Pedido faturado e recebido no ato com sucesso."
+            : "Pedido faturado com sucesso."),
+      );
+    } catch {
+      setErrorMessage("Nao foi possivel faturar o pedido. Tente novamente.");
+    } finally {
+      setBillingState(null);
+    }
+  }
+
   if (isLoading) {
     return (
       <main className="admin-page-stack">
@@ -106,6 +142,29 @@ export default function EditarPedidoPage() {
     );
   }
 
+  const secondaryActions: Array<{
+    href?: string;
+    label: string;
+    variant?: "secondary";
+    onClick?: () => void;
+    disabled?: boolean;
+  }> = [{ href: "/admin/pedidos", label: "Voltar para pedidos", variant: "secondary" }];
+
+  if (order?.hasLinkedSale && order.linkedSaleEntryId) {
+    secondaryActions.unshift({
+      href: `/admin/financeiro/lancamentos/${order.linkedSaleEntryId}`,
+      label: order.linkedSaleStatus === "PAID" ? "Abrir financeiro" : "Abrir conta a receber",
+      variant: "secondary" as const,
+    });
+  } else if (order?.readyForSale) {
+    secondaryActions.unshift({
+      label: "Receber agora",
+      variant: "secondary" as const,
+      onClick: () => void handleBill("PAID"),
+      disabled: billingState !== null,
+    });
+  }
+
   return (
     <main className="admin-page-stack">
       <PageHeader
@@ -115,15 +174,14 @@ export default function EditarPedidoPage() {
           order?.hasLinkedSale
             ? { href: `/admin/vendas/${order.linkedSaleEntryId}`, label: "Abrir venda" }
             : order?.readyForSale
-              ? { href: `/admin/vendas/novo?orderId=${order.id}`, label: "Gerar venda" }
+              ? {
+                  label: "Faturar pedido",
+                  onClick: () => void handleBill("PENDING"),
+                  disabled: billingState !== null,
+                }
               : undefined
         }
-        secondaryActions={[
-          ...(order?.linkedSaleEntryId
-            ? [{ href: `/admin/financeiro/lancamentos/${order.linkedSaleEntryId}`, label: "Abrir conta a receber" }]
-            : []),
-          { href: "/admin/pedidos", label: "Voltar para pedidos" },
-        ]}
+        secondaryActions={secondaryActions}
       />
 
       {errorMessage ? (
@@ -131,6 +189,8 @@ export default function EditarPedidoPage() {
           {errorMessage}
         </Alert>
       ) : null}
+
+      {successMessage ? <Alert variant="success">{successMessage}</Alert> : null}
 
       {order ? (
         <>
@@ -144,26 +204,14 @@ export default function EditarPedidoPage() {
             <MetricCard label="Total do pedido" value={formatCurrency(order.totalAmount)} description="Valor previsto para faturamento." />
             <MetricCard
               label="Faturamento"
-              value={
-                order.hasLinkedSale
-                  ? "Venda gerada"
-                  : order.readyForSale
-                    ? "Pronto para faturar"
-                    : "Aguardando etapa anterior"
-              }
-              description={
-                order.hasLinkedSale
-                  ? "A venda e a conta a receber ja estao vinculadas."
-                  : order.readyForSale
-                    ? "Gerar venda e revisar pagamento."
-                    : "Atualize o andamento antes de faturar."
-              }
+              value={resolveBillingState(order)}
+              description={describeBillingState(order)}
             />
           </section>
 
           <SectionCard
             title="Faturamento"
-            description="Pedido nao vira receita sozinho. O faturamento nasce pela venda e gera a conta a receber."
+            description="Pedido entregue pode ser faturado aqui mesmo. Se receber no ato, nada fica pendente em contas a receber."
           >
             {order.hasLinkedSale && order.linkedSaleEntryId ? (
               <div className="admin-page-stack">
@@ -173,21 +221,19 @@ export default function EditarPedidoPage() {
                     <strong>#{order.linkedSaleEntryId.slice(0, 8).toUpperCase()}</strong>
                   </div>
                   <div className="admin-summary-row">
-                    <span style={{ color: "var(--muted)" }}>Conta a receber</span>
-                    <strong>Pendente de acompanhamento no financeiro</strong>
+                    <span style={{ color: "var(--muted)" }}>Situacao financeira</span>
+                    <StatusBadge
+                      status={resolveFinancialStatusLabel(order.linkedSaleStatus)}
+                      tone={resolveFinancialStatusTone(order.linkedSaleStatus)}
+                    />
                   </div>
                   <div className="admin-summary-row">
-                    <span style={{ color: "var(--muted)" }}>Status operacional</span>
-                    <div className="admin-row">
-                      <StatusBadge
-                        status={formatCommercialStatus(order.status)}
-                        tone={mapCommercialTone(order.status)}
-                      />
-                      <StatusBadge
-                        status={formatProductionStatus(order.productionStatus)}
-                        tone={mapProductionTone(order.productionStatus)}
-                      />
-                    </div>
+                    <span style={{ color: "var(--muted)" }}>Fluxo atual</span>
+                    <strong>
+                      {order.linkedSaleStatus === "PAID"
+                        ? "Pagamento recebido no ato."
+                        : "Acompanhe a baixa no contas a receber."}
+                    </strong>
                   </div>
                 </div>
 
@@ -196,27 +242,41 @@ export default function EditarPedidoPage() {
                     Abrir venda
                   </Link>
                   <Link href={`/admin/financeiro/lancamentos/${order.linkedSaleEntryId}`} className="admin-button admin-button--secondary">
-                    Abrir conta a receber
+                    {order.linkedSaleStatus === "PAID"
+                      ? "Abrir financeiro"
+                      : "Abrir conta a receber"}
                   </Link>
                 </div>
               </div>
             ) : order.readyForSale ? (
               <div className="admin-page-stack">
-                <Alert variant="info" title="Este pedido esta pronto para faturamento.">
-                  Ao gerar a venda, o sistema vai herdar cliente e itens, permitir revisar o pagamento e criar a conta a receber ao concluir.
+                <Alert variant="info" title="Pedido pronto para faturamento.">
+                  Ao faturar, o sistema registra a venda, baixa o estoque quando houver item fisico e gera o reflexo financeiro automaticamente.
                 </Alert>
                 <div className="admin-row">
-                  <Link href={`/admin/vendas/novo?orderId=${order.id}`} className="admin-button admin-button--primary">
-                    Gerar venda
-                  </Link>
-                  <Link href="/admin/vendas" className="admin-button admin-button--secondary">
-                    Ver fila de vendas
-                  </Link>
+                  <LoadingButton
+                    type="button"
+                    isLoading={billingState === "PENDING"}
+                    loadingLabel="Faturando..."
+                    className="admin-button admin-button--primary"
+                    onClick={() => void handleBill("PENDING")}
+                  >
+                    Faturar pedido
+                  </LoadingButton>
+                  <LoadingButton
+                    type="button"
+                    isLoading={billingState === "PAID"}
+                    loadingLabel="Recebendo..."
+                    className="admin-button admin-button--secondary"
+                    onClick={() => void handleBill("PAID")}
+                  >
+                    Receber agora
+                  </LoadingButton>
                 </div>
               </div>
             ) : (
               <Alert variant="warning" title="O pedido ainda nao pode ser faturado.">
-                Atualize o andamento comercial ou a producao ate que o pedido fique pronto. Quando isso acontecer, a acao de gerar venda aparecera aqui.
+                Conclua a entrega primeiro. Quando o pedido ficar entregue, o faturamento direto aparece aqui.
               </Alert>
             )}
           </SectionCard>
@@ -239,54 +299,36 @@ function formatCurrency(value: number) {
   }).format(value || 0);
 }
 
-function formatCommercialStatus(status: OrderDetail["status"]) {
-  const labels: Record<OrderDetail["status"], string> = {
-    OPEN: "Aberto",
-    IN_PROGRESS: "Em andamento",
-    COMPLETED: "Concluido",
-    CANCELED: "Cancelado",
-  };
+function resolveBillingState(order: OrderDetail) {
+  if (order.hasLinkedSale) {
+    return order.linkedSaleStatus === "PAID" ? "Recebido" : "Faturado";
+  }
 
-  return labels[status];
+  return order.readyForSale ? "Aguardando faturamento" : "Aguardando entrega";
 }
 
-function formatProductionStatus(status: OrderDetail["productionStatus"]) {
-  const labels: Record<OrderDetail["productionStatus"], string> = {
-    PENDING: "Pendente",
-    IN_PRODUCTION: "Em producao",
-    WAITING_APPROVAL: "Aguardando aprovacao",
-    READY: "Pronto",
-    DELIVERED: "Entregue",
-  };
+function describeBillingState(order: OrderDetail) {
+  if (order.hasLinkedSale) {
+    return order.linkedSaleStatus === "PAID"
+      ? "Venda registrada com pagamento no ato."
+      : "Venda registrada e pendente no contas a receber.";
+  }
 
-  return labels[status];
+  return order.readyForSale
+    ? "Ja pode faturar aqui mesmo."
+    : "Finalize a entrega antes de faturar.";
 }
 
-function mapCommercialTone(status: OrderDetail["status"]) {
-  const tones: Record<
-    OrderDetail["status"],
-    "warning" | "info" | "success" | "danger"
-  > = {
-    OPEN: "warning",
-    IN_PROGRESS: "info",
-    COMPLETED: "success",
-    CANCELED: "danger",
-  };
-
-  return tones[status];
+function resolveFinancialStatusLabel(status: OrderDetail["linkedSaleStatus"]) {
+  if (status === "PAID") return "Recebido";
+  if (status === "OVERDUE") return "Vencido";
+  if (status === "CANCELED") return "Cancelado";
+  return "Pendente";
 }
 
-function mapProductionTone(status: OrderDetail["productionStatus"]) {
-  const tones: Record<
-    OrderDetail["productionStatus"],
-    "warning" | "info" | "success"
-  > = {
-    PENDING: "warning",
-    IN_PRODUCTION: "info",
-    WAITING_APPROVAL: "warning",
-    READY: "success",
-    DELIVERED: "success",
-  };
-
-  return tones[status];
+function resolveFinancialStatusTone(status: OrderDetail["linkedSaleStatus"]) {
+  if (status === "PAID") return "success" as const;
+  if (status === "OVERDUE") return "danger" as const;
+  if (status === "CANCELED") return "neutral" as const;
+  return "warning" as const;
 }

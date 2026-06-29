@@ -3,20 +3,25 @@ import { OrderStatus, QuoteStatus } from "@prisma/client";
 import { AuthorizationError } from "@/lib/auth/auth-errors";
 import { PERMISSIONS } from "@/lib/permissions/permission-types";
 import type { TenantContext } from "@/lib/tenant/tenant-context";
+import type { OrderBillingInputDto } from "@/models/dto/order-billing-input";
 import type { OrderCreateInputDto } from "@/models/dto/order-create-input";
 import type { OrderStatusUpdateInputDto } from "@/models/dto/order-status-update-input";
 import type { OrderUpdateInputDto } from "@/models/dto/order-update-input";
 import { CustomerRepository } from "@/repositories/customers/customer-repository";
+import { FinancialRepository } from "@/repositories/financial/financial-repository";
 import { OrderRepository } from "@/repositories/orders/order-repository";
 import { QuoteRepository } from "@/repositories/quotes/quote-repository";
 import { AuthorizationService } from "@/services/auth/authorization-service";
 import { BaseService } from "@/services/base/base-service";
+import { FinancialService } from "@/services/financial/financial-service";
 
 export class OrderService extends BaseService {
   constructor(
     private readonly orderRepository: OrderRepository,
     private readonly quoteRepository: QuoteRepository,
     private readonly customerRepository: CustomerRepository,
+    private readonly financialRepository: FinancialRepository,
+    private readonly financialService: FinancialService,
     private readonly authorizationService: AuthorizationService,
   ) {
     super();
@@ -187,6 +192,145 @@ export class OrderService extends BaseService {
 
     return this.orderRepository.updateStatuses(orderId, input);
   }
+
+  async billOrder(
+    context: TenantContext & { permissions: string[] },
+    companyId: string,
+    orderId: string,
+    input: OrderBillingInputDto,
+  ) {
+    const tenantContext = this.requireContext(context);
+    this.authorizationService.ensurePermission(
+      context.permissions,
+      PERMISSIONS.ordersManageStatus,
+    );
+    this.authorizationService.ensurePermission(
+      context.permissions,
+      PERMISSIONS.financialManage,
+    );
+
+    if (!tenantContext.isPlatformAdmin && tenantContext.companyId !== companyId) {
+      throw new AuthorizationError("You can only bill orders inside your company.");
+    }
+
+    const order = await this.orderRepository.findById(companyId, orderId);
+
+    if (!order) {
+      throw new Error("Order not found.");
+    }
+
+    if (order.status === OrderStatus.CANCELED) {
+      throw new Error("Canceled orders cannot be billed.");
+    }
+
+    if (!isReadyForBilling(order)) {
+      throw new Error("Only delivered or completed orders can be billed.");
+    }
+
+    const existingSale = await this.financialRepository.findActiveSaleByOrderId(
+      companyId,
+      orderId,
+    );
+
+    if (existingSale) {
+      const updatedOrder = await this.orderRepository.findById(companyId, orderId);
+
+      if (!updatedOrder) {
+        throw new Error("Order not found after checking billing.");
+      }
+
+      return {
+        order: updatedOrder,
+        message:
+          existingSale.status === "PAID"
+            ? "Este pedido ja estava faturado e recebido."
+            : "Este pedido ja estava faturado e segue no financeiro para recebimento.",
+      };
+    }
+
+    if (!order.items.length) {
+      throw new Error("Orders without items cannot be billed.");
+    }
+
+    const accountId = input.accountId ?? (await this.resolveDefaultAccountId(companyId));
+    const financialCategoryId =
+      input.financialCategoryId ?? (await this.resolveDefaultIncomeCategoryId(companyId));
+    const dueDate = resolveBillingDate(order.deliveryDate, input.dueDate);
+    const paymentStatus = input.paymentStatus ?? "PENDING";
+
+    await this.financialService.createEntry(context, {
+      companyId,
+      accountId,
+      financialCategoryId,
+      customerId: order.customerId,
+      orderId: order.id,
+      quoteId: order.quoteId ?? undefined,
+      entryType: "INCOME",
+      category: "Venda",
+      description: input.description?.trim() || `Faturamento do pedido ${order.code}`,
+      amount: toNumber(order.totalAmount),
+      dueDate,
+      status: paymentStatus,
+      paidAt: paymentStatus === "PAID" ? dueDate : undefined,
+      items: order.items.map((item) => ({
+        productId: item.productId ?? undefined,
+        description: item.description,
+        quantity: toNumber(item.quantity),
+        unitPrice: toNumber(item.unitPrice),
+      })),
+    });
+
+    if (order.status !== OrderStatus.COMPLETED) {
+      await this.orderRepository.updateStatuses(order.id, {
+        status: "COMPLETED",
+      });
+    }
+
+    const updatedOrder = await this.orderRepository.findById(companyId, orderId);
+
+    if (!updatedOrder) {
+      throw new Error("Order not found after billing.");
+    }
+
+    return {
+      order: updatedOrder,
+      message:
+        paymentStatus === "PAID"
+          ? "Pedido faturado e recebido no ato com sucesso."
+          : "Pedido faturado com sucesso. A venda ficou pendente no contas a receber.",
+    };
+  }
+
+  private async resolveDefaultAccountId(companyId: string) {
+    const accounts = await this.financialRepository.listAccounts(companyId);
+    const activeAccounts = accounts.filter((account) => account.isActive);
+    const preferredAccount =
+      activeAccounts.find((account) => account.type === "CASH") ??
+      activeAccounts[0] ??
+      accounts.find((account) => account.type === "CASH") ??
+      accounts[0];
+
+    if (!preferredAccount) {
+      throw new Error(
+        "Cadastre uma conta financeira antes de faturar pedidos.",
+      );
+    }
+
+    return preferredAccount.id;
+  }
+
+  private async resolveDefaultIncomeCategoryId(companyId: string) {
+    const categories = await this.financialRepository.listCategories(companyId, "INCOME");
+    const preferredCategory = categories.find((category) => category.isActive) ?? categories[0];
+
+    if (!preferredCategory) {
+      throw new Error(
+        "Cadastre uma categoria financeira de receita antes de faturar pedidos.",
+      );
+    }
+
+    return preferredCategory.id;
+  }
 }
 
 function calculateOrderPricing(
@@ -243,4 +387,31 @@ function parseOptionalDate(value?: string) {
 
 function toNumber(value: { toNumber(): number } | number) {
   return typeof value === "number" ? value : value.toNumber();
+}
+
+function resolveBillingDate(orderDeliveryDate: Date | null, inputDueDate?: string) {
+  if (inputDueDate) {
+    return inputDueDate;
+  }
+
+  if (orderDeliveryDate) {
+    return orderDeliveryDate.toISOString().slice(0, 10);
+  }
+
+  return new Date().toISOString().slice(0, 10);
+}
+
+function isReadyForBilling(order: {
+  status: OrderStatus;
+  productionStatus:
+    | "PENDING"
+    | "IN_PRODUCTION"
+    | "WAITING_APPROVAL"
+    | "READY"
+    | "DELIVERED";
+}) {
+  return (
+    order.status !== OrderStatus.CANCELED &&
+    (order.productionStatus === "DELIVERED" || order.status === OrderStatus.COMPLETED)
+  );
 }

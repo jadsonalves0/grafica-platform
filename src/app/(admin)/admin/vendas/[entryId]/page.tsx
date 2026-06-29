@@ -91,7 +91,14 @@ export default function EditarVendaPage() {
       <PageHeader
         title={entry ? `Venda #${entry.id.slice(0, 8).toUpperCase()}` : "Detalhes da venda"}
         description="Revise os itens vendidos e acompanhe o reflexo financeiro sem sair do fluxo comercial."
-        primaryAction={entry ? { href: `/admin/financeiro/lancamentos/${entry.id}`, label: "Abrir conta a receber" } : undefined}
+        primaryAction={
+          entry
+            ? {
+                href: `/admin/financeiro/lancamentos/${entry.id}`,
+                label: entry.status === "PAID" ? "Abrir financeiro" : "Abrir conta a receber",
+              }
+            : undefined
+        }
         secondaryActions={[{ href: "/admin/vendas", label: "Voltar para vendas", variant: "secondary" }]}
       />
 

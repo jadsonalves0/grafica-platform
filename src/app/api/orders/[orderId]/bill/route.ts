@@ -4,27 +4,20 @@ import { orderController } from "@/app/api/orders/_controller";
 import { resolveRequestContext } from "@/lib/auth/request-context";
 import { apiErrorResponse } from "@/lib/http/api-error-response";
 
-export async function GET(request: Request) {
+type RouteContext = {
+  params: Promise<{
+    orderId: string;
+  }>;
+};
+
+export async function POST(request: Request, routeContext: RouteContext) {
   try {
     const context = await resolveRequestContext();
     const { searchParams } = new URL(request.url);
     const companyId = searchParams.get("companyId") ?? context.companyId;
-    const search = searchParams.get("search") ?? undefined;
-    const result = await orderController.list(context, companyId, search);
-    return NextResponse.json(result, { status: result.success ? 200 : 400 });
-  } catch (error) {
-    return apiErrorResponse(error);
-  }
-}
-
-export async function POST(request: Request) {
-  try {
-    const context = await resolveRequestContext();
+    const { orderId } = await routeContext.params;
     const body = await request.json();
-    const result = await orderController.create(context, {
-      ...body,
-      companyId: body.companyId ?? context.companyId,
-    });
+    const result = await orderController.bill(context, companyId, orderId, body);
     return NextResponse.json(result, { status: result.success ? 200 : 400 });
   } catch (error) {
     return apiErrorResponse(error);

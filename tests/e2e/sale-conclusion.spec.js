@@ -65,6 +65,7 @@ test("venda concluida a partir da tela propria de vendas", async ({ page }) => {
 
   await pickFirstSearchableOption(page, "Conta financeira");
   await pickFirstSearchableOption(page, "Categoria financeira");
+  await page.getByRole("button", { name: "Receber depois" }).click();
   await page.getByLabel("Buscar item").fill(itemName);
   await page.getByRole("button", { name: "Adicionar" }).first().click();
   await page.getByLabel("Quantidade").first().fill("1");

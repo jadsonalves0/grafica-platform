@@ -123,9 +123,10 @@ Cobertura automatizada atual:
 8. alterar status de producao
 9. validar cabecalho atualizado sem sair e voltar
 10. validar bloco de `Faturamento` no detalhe do pedido
-11. validar acao `Gerar venda` quando o pedido ficar pronto para faturamento
-12. depois da venda gerada, validar `Abrir venda`
-13. depois da venda concluida, validar `Abrir conta a receber`
+11. marcar o pedido como entregue e validar as acoes `Faturar pedido` e `Receber agora`
+12. faturar sem receber e validar `Abrir venda`
+13. validar `Abrir conta a receber` apenas quando o titulo ficar pendente
+14. repetir com `Receber agora` e validar que o pedido nao fica em `Contas a receber`
 
 ## Bloco 7. Vendas
 
@@ -143,12 +144,13 @@ Cobertura automatizada atual:
 12. testar cadastro rapido de cliente sem perder carrinho
 13. concluir venda
 14. validar bloco final de sucesso
-15. validar `Abrir conta a receber`
-16. validar `Voltar para pedido` quando a venda nascer de pedido
-17. repetir com item fisico
-18. validar que o saldo mostrado na venda coincide com o saldo aceito no backend
-19. validar bloqueio ao vender acima do saldo disponivel
-20. validar mensagem operacional sem expor regra interna de FIFO
+15. validar `Abrir conta a receber` quando a venda ficar pendente
+16. repetir com recebimento no ato e validar `Abrir financeiro`
+17. validar `Voltar para pedido` quando a venda nascer de pedido
+18. repetir com item fisico
+19. validar que o saldo mostrado na venda coincide com o saldo aceito no backend
+20. validar bloqueio ao vender acima do saldo disponivel
+21. validar mensagem operacional sem expor regra interna de FIFO
 
 ## Bloco 8. Estoque e entradas
 

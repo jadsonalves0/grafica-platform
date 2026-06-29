@@ -28,3 +28,11 @@ export const updateOrderStatusSchema = z.object({
     .enum(["PENDING", "IN_PRODUCTION", "WAITING_APPROVAL", "READY", "DELIVERED"])
     .optional(),
 });
+
+export const billOrderSchema = z.object({
+  accountId: z.string().uuid().optional(),
+  financialCategoryId: z.string().uuid().optional(),
+  dueDate: z.string().optional(),
+  paymentStatus: z.enum(["PENDING", "PAID"]).optional(),
+  description: z.string().max(255).optional().or(z.literal("")),
+});

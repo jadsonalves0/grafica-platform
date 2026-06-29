@@ -1,17 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import {
-  usePathname,
-  useRouter,
-  useSearchParams,
-} from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { billOrder, type OrderBillingMode } from "@/app/(admin)/admin/pedidos/_components/order-billing-client";
 import {
   Alert,
   EmptyState,
   FilterBar,
+  LoadingButton,
   MetricCard,
   PageHeader,
   SearchField,
@@ -35,6 +33,7 @@ type OrderListItem = {
   productionStatus: ProductionStatus;
   hasLinkedSale?: boolean;
   linkedSaleEntryId?: string | null;
+  linkedSaleStatus?: "PENDING" | "PAID" | "OVERDUE" | "CANCELED" | null;
   readyForSale?: boolean;
   customerName: string;
   totalAmount: number;
@@ -85,6 +84,10 @@ export default function PedidosPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [billingState, setBillingState] = useState<{
+    orderId: string;
+    mode: OrderBillingMode;
+  } | null>(null);
 
   useEffect(() => {
     const feedback = searchParams.get("feedback");
@@ -205,9 +208,7 @@ export default function PedidosPage() {
     const readyToBill = orders.filter(
       (order) => order.readyForSale && !order.hasLinkedSale && order.status !== "CANCELED",
     );
-    const billedOrders = orders.filter(
-      (order) => order.hasLinkedSale,
-    );
+    const billedOrders = orders.filter((order) => order.hasLinkedSale);
 
     return [
       {
@@ -221,14 +222,14 @@ export default function PedidosPage() {
         description: "Ja em execucao.",
       },
       {
-        label: "Prontos para faturar",
+        label: "Entregues para faturar",
         value: String(readyToBill.length),
-        description: "Podem virar venda agora.",
+        description: "Ja podem gerar venda ou recebimento no ato.",
       },
       {
         label: "Faturados",
         value: String(billedOrders.length),
-        description: "Ja vinculados a uma venda.",
+        description: "Ja vinculados a venda e financeiro.",
       },
     ];
   }, [orders]);
@@ -247,11 +248,40 @@ export default function PedidosPage() {
     return filters;
   }, [productionFilter, statusFilter]);
 
+  async function handleBill(orderId: string, mode: OrderBillingMode) {
+    setBillingState({ orderId, mode });
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const { response, result } = await billOrder<OrderListItem>(orderId, mode);
+
+      if (!response.ok || !result.success || !result.data) {
+        setErrorMessage(result.message ?? "Nao foi possivel faturar o pedido.");
+        return;
+      }
+
+      setOrders((current) =>
+        current.map((order) => (order.id === orderId ? result.data! : order)),
+      );
+      setSuccessMessage(
+        result.message ??
+          (mode === "PAID"
+            ? "Pedido faturado e recebido com sucesso."
+            : "Pedido faturado com sucesso."),
+      );
+    } catch {
+      setErrorMessage("Nao foi possivel faturar o pedido. Tente novamente.");
+    } finally {
+      setBillingState(null);
+    }
+  }
+
   return (
     <main className="admin-page-stack">
       <PageHeader
         title="Pedidos"
-        description="Acompanhe pedidos em aberto, producao e faturamento em um fluxo mais direto."
+        description="Acompanhe pedidos em aberto, producao, entrega e faturamento sem sair do modulo comercial."
         primaryAction={{ href: "/admin/pedidos/novo", label: "Novo pedido" }}
       />
 
@@ -273,9 +303,7 @@ export default function PedidosPage() {
         </Alert>
       ) : null}
 
-      <SectionCard
-        title="Pedidos cadastrados"
-      >
+      <SectionCard title="Pedidos cadastrados">
         <FilterBar
           resultsCount={filteredOrders.length}
           activeFilters={activeFilters}
@@ -325,7 +353,7 @@ export default function PedidosPage() {
               <option value="PENDING">Pendente</option>
               <option value="IN_PRODUCTION">Em producao</option>
               <option value="WAITING_APPROVAL">Aguardando aprovacao</option>
-              <option value="READY">Pronto</option>
+              <option value="READY">Pronto para entrega</option>
               <option value="DELIVERED">Entregue</option>
             </select>
           </label>
@@ -387,11 +415,7 @@ export default function PedidosPage() {
 
                 <div className="admin-list-card__footer">
                   <span className="admin-list-card__hint">
-                    {order.hasLinkedSale
-                      ? "O pedido ja possui venda e conta a receber vinculadas. Use os atalhos para acompanhar o comercial ou o financeiro."
-                      : order.readyForSale
-                        ? "O pedido esta pronto para faturamento. Gere a venda para revisar pagamento e refletir no financeiro."
-                        : "Atualize o andamento, revise a producao ou siga para a proxima etapa valida."}
+                    {describeNextStep(order)}
                   </span>
                   <div className="admin-row">
                     {order.hasLinkedSale && order.linkedSaleEntryId ? (
@@ -406,16 +430,38 @@ export default function PedidosPage() {
                           href={`/admin/financeiro/lancamentos/${order.linkedSaleEntryId}`}
                           className="admin-button admin-button--secondary"
                         >
-                          Abrir conta
+                          {order.linkedSaleStatus === "PAID"
+                            ? "Abrir financeiro"
+                            : "Abrir conta"}
                         </Link>
                       </>
                     ) : order.readyForSale ? (
-                      <Link
-                        href={`/admin/vendas/novo?orderId=${order.id}`}
-                        className="admin-button admin-button--primary"
-                      >
-                        Gerar venda
-                      </Link>
+                      <>
+                        <LoadingButton
+                          type="button"
+                          isLoading={
+                            billingState?.orderId === order.id &&
+                            billingState.mode === "PENDING"
+                          }
+                          loadingLabel="Faturando..."
+                          className="admin-button admin-button--primary"
+                          onClick={() => void handleBill(order.id, "PENDING")}
+                        >
+                          Faturar pedido
+                        </LoadingButton>
+                        <LoadingButton
+                          type="button"
+                          isLoading={
+                            billingState?.orderId === order.id &&
+                            billingState.mode === "PAID"
+                          }
+                          loadingLabel="Recebendo..."
+                          className="admin-button admin-button--secondary"
+                          onClick={() => void handleBill(order.id, "PAID")}
+                        >
+                          Receber agora
+                        </LoadingButton>
+                      </>
                     ) : null}
                     <Link
                       href={`/admin/pedidos/${order.id}`}
@@ -459,11 +505,15 @@ function formatDate(value: string) {
 
 function resolveNextActionLabel(order: OrderListItem) {
   if (order.hasLinkedSale) {
-    return "Abrir venda";
+    return order.linkedSaleStatus === "PAID" ? "Abrir financeiro" : "Abrir conta";
   }
 
   if (order.readyForSale) {
-    return "Gerar venda";
+    return "Faturar pedido";
+  }
+
+  if (order.productionStatus === "READY") {
+    return "Marcar entrega";
   }
 
   if (order.productionStatus === "IN_PRODUCTION") {
@@ -475,6 +525,20 @@ function resolveNextActionLabel(order: OrderListItem) {
   }
 
   return "Revisar andamento";
+}
+
+function describeNextStep(order: OrderListItem) {
+  if (order.hasLinkedSale) {
+    return order.linkedSaleStatus === "PAID"
+      ? "O pedido ja foi faturado e o recebimento foi registrado no ato."
+      : "O pedido ja foi faturado e segue no financeiro ate a baixa do recebimento.";
+  }
+
+  if (order.readyForSale) {
+    return "O pedido ja foi entregue. Fature para deixar no contas a receber ou receba no ato sem passar pela tela de vendas.";
+  }
+
+  return "Atualize o andamento, revise a producao ou siga para a proxima etapa valida.";
 }
 
 function formatCommercialStatus(status: CommercialStatus) {
@@ -493,7 +557,7 @@ function formatProductionStatus(status: ProductionStatus) {
     PENDING: "Pendente",
     IN_PRODUCTION: "Em producao",
     WAITING_APPROVAL: "Aguardando aprovacao",
-    READY: "Pronto",
+    READY: "Pronto para entrega",
     DELIVERED: "Entregue",
   };
 
@@ -522,7 +586,7 @@ function mapProductionTone(status: ProductionStatus) {
     PENDING: "warning",
     IN_PRODUCTION: "info",
     WAITING_APPROVAL: "warning",
-    READY: "success",
+    READY: "warning",
     DELIVERED: "success",
   };
 

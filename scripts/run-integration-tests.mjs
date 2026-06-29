@@ -3,6 +3,10 @@ const suites = [
     name: "inventory-fifo",
     modulePath: "../tests/integration/inventory-fifo.test.mjs",
   },
+  {
+    name: "order-billing",
+    modulePath: "../tests/integration/order-billing.test.mjs",
+  },
 ];
 
 let failureCount = 0;

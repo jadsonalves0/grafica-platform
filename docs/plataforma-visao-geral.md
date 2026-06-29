@@ -178,7 +178,7 @@ Os indicadores devem ser tratados como ponto de partida para o trabalho diario.
 - `vendas` com preco de item do catalogo somente leitura no carrinho
 - `vendas` usando saldo vendavel por FIFO como fonte de verdade visual e transacional
 - `vendas` com reflexo de estoque para itens fisicos na mesma transacao do registro comercial
-- `vendas` com acesso direto para a conta a receber gerada ao concluir
+- `vendas` com acesso direto para a conta a receber gerada ao concluir ou para o detalhe financeiro quando recebidas no ato
 - `estoque` com consumo FIFO protegido por lock transacional no produto e nas camadas elegiveis
 - `estoque` com aviso explicito quando saldo registrado e saldo FIFO ainda nao coincidem
 - `estoque` com rotina de regularizacao para bases piloto que possuem movimentos confirmados sem camada FIFO correspondente
@@ -186,8 +186,8 @@ Os indicadores devem ser tratados como ponto de partida para o trabalho diario.
 - `financeiro` com leitura de origem operacional, incluindo entrada, pedido, orcamento e lancamento manual
 - `financeiro` com origem clicavel tambem para vendas registradas pela tela propria
 - `financeiro` separado em `visao geral`, `contas a receber`, `contas a pagar`, `caixa e bancos` e `lancamentos manuais`
-- `pedidos` mostrando proxima acao de faturamento com `Gerar venda` ou `Abrir venda`, em vez de virar receita automaticamente
-- `pedidos` com bloco explicito de faturamento, incluindo atalho para `Abrir conta a receber` quando a venda ja existir
+- `pedidos` mostrando faturamento direto na propria tela, com `Faturar pedido` ou `Receber agora`, em vez de abrir a tela de vendas
+- `pedidos` com bloco explicito de faturamento, incluindo `Abrir venda` e `Abrir conta a receber` apenas quando ainda existir titulo pendente
 - `lancamento manual` tratado visualmente como excecao e nao como fluxo concorrente a venda
 - `producao` com destaque para impedimento por falta de material no lote atual
 - `ficha tecnica` tratada com linguagem operacional voltada a materiais, consumo padrao e custo estimado

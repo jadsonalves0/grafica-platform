@@ -5,7 +5,6 @@ import {
   authenticateAsAdmin,
   expectNoCriticalViolations,
   openAdminRoute,
-  pickFirstSearchableOption,
   pickSearchableOption,
   uniqueName,
 } from "./helpers/session";
@@ -20,7 +19,7 @@ async function createCatalogItem(page, name) {
   await expect(page).toHaveURL(/\/admin\/estoque/);
 }
 
-test("orcamento aprovado vira pedido pronto para faturamento e conclui venda vinculada", async ({ page }) => {
+test("orcamento aprovado vira pedido entregue e faturado sem abrir a tela de vendas", async ({ page }) => {
   await authenticateAsAdmin(page);
 
   const itemName = uniqueName("Item quote-order");
@@ -56,27 +55,19 @@ test("orcamento aprovado vira pedido pronto para faturamento e conclui venda vin
   await expect(page).toHaveURL(/\/admin\/pedidos\/.+/, { timeout: 30_000 });
   await expect(page.getByText("Cliente teste numero 3")).toBeVisible();
 
-  await page.getByLabel("Status de producao").selectOption("READY");
+  await page.getByLabel("Status de producao").selectOption("DELIVERED");
   await page.getByRole("button", { name: "Atualizar andamento" }).click();
 
   await expect(page.getByText("Andamento atualizado com sucesso.")).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole("link", { name: "Gerar venda" })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText("Pronto")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Faturar pedido" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Entregue")).toBeVisible();
 
-  await page.getByRole("link", { name: "Gerar venda" }).click();
-  await expect(page).toHaveURL(/\/admin\/vendas\/novo\?orderId=/, { timeout: 30_000 });
-  await expect(page.getByText("Faturamento vindo de pedido")).toBeVisible();
-  await pickFirstSearchableOption(page, "Conta financeira");
-  await pickFirstSearchableOption(page, "Categoria financeira");
-  await page.getByRole("button", { name: "Concluir venda" }).click();
+  await page.getByRole("button", { name: "Faturar pedido" }).click();
 
-  await expect(page.getByRole("heading", { name: "Venda concluida" })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole("link", { name: "Abrir conta a receber" })).toBeVisible();
-  await page.getByRole("link", { name: "Voltar para pedido" }).click();
-
-  await expect(page.getByRole("heading", { name: /Pedido/i })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("faturado com sucesso", { exact: false })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("link", { name: "Abrir venda" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Abrir conta a receber" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Faturar pedido" })).toHaveCount(0);
 
   await expectNoCriticalViolations(page, AxeBuilder);
 });

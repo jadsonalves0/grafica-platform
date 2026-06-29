@@ -134,7 +134,8 @@ No fluxo de `vendas`:
 - tratar preco do item do catalogo como somente leitura
 - esconder custo, margem detalhada e informacoes tecnicas ate quando forem realmente necessarias
 - usar alerta de saida sem salvar quando houver carrinho em andamento
-- depois de concluir, oferecer `Abrir venda` e `Abrir conta a receber`
+- depois de concluir, oferecer `Abrir venda` e `Abrir conta a receber` apenas quando o titulo permanecer em aberto
+- quando a venda for recebida no ato, trocar a acao secundaria para `Abrir financeiro`
 
 ### Feedback
 
@@ -181,12 +182,13 @@ Na area auxiliar:
 
 No detalhe de `Pedidos`:
 
-- o bloco de `Faturamento` deve existir quando o pedido estiver em revisao, pronto para venda ou ja faturado
+- o bloco de `Faturamento` deve existir quando o pedido estiver entregue, pronto para faturar ou ja faturado
 - `Pedido` continua sendo compromisso operacional
 - `Venda` continua sendo o fato comercial e financeiro
 - o usuario nao deve ir para `Financeiro` para faturar manualmente um pedido
-- quando o pedido estiver pronto, a acao principal deve ser `Gerar venda`
-- quando a venda ja existir, os atalhos devem expor `Abrir venda` e `Abrir conta a receber`
+- o usuario nao deve ser enviado para a tela de `Vendas` apenas para concluir um pedido entregue
+- quando o pedido estiver entregue, as acoes principais devem ser `Faturar pedido` e `Receber agora`
+- quando a venda ja existir, os atalhos devem expor `Abrir venda` e, se houver pendencia, `Abrir conta a receber`
 
 `Operacao`
 

@@ -1,10 +1,12 @@
 import { BaseController, type ControllerResult } from "@/controllers/base/base-controller";
 import type { OrderCreateInputDto } from "@/models/dto/order-create-input";
+import type { OrderBillingInputDto } from "@/models/dto/order-billing-input";
 import type { OrderDetailDto } from "@/models/dto/order-detail";
 import type { OrderListItemDto } from "@/models/dto/order-list-item";
 import type { OrderStatusUpdateInputDto } from "@/models/dto/order-status-update-input";
 import type { OrderUpdateInputDto } from "@/models/dto/order-update-input";
 import {
+  billOrderSchema,
   createOrderSchema,
   updateOrderSchema,
   updateOrderStatusSchema,
@@ -55,6 +57,7 @@ export class OrderController extends BaseController {
           quoteId: order.quoteId,
           hasLinkedSale: hasLinkedSale(order),
           linkedSaleEntryId: findLinkedSaleEntryId(order),
+          linkedSaleStatus: findLinkedSaleStatus(order),
           readyForSale: isReadyForSale(order),
           totalAmount: toNumber(order.totalAmount),
           deliveryDate: order.deliveryDate?.toISOString() ?? null,
@@ -112,6 +115,22 @@ export class OrderController extends BaseController {
       return this.fail(message);
     }
   }
+
+  async bill(
+    context: OrderContext,
+    companyId: string,
+    orderId: string,
+    input: OrderBillingInputDto,
+  ): Promise<ControllerResult<OrderDetailDto>> {
+    try {
+      const payload = billOrderSchema.parse(input);
+      const result = await this.orderService.billOrder(context, companyId, orderId, payload);
+      return this.ok(mapOrderDetail(result.order), result.message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected error.";
+      return this.fail(message);
+    }
+  }
 }
 
 function mapOrderDetail(order: {
@@ -155,6 +174,7 @@ function mapOrderDetail(order: {
     productionStatus: order.productionStatus,
     hasLinkedSale: hasLinkedSale(order),
     linkedSaleEntryId: findLinkedSaleEntryId(order),
+    linkedSaleStatus: findLinkedSaleStatus(order),
     readyForSale: isReadyForSale(order),
     deliveryDate: order.deliveryDate?.toISOString() ?? null,
     totalAmount: toNumber(order.totalAmount),
@@ -206,14 +226,28 @@ function findLinkedSaleEntryId(order: {
   );
 }
 
+function findLinkedSaleStatus(order: {
+  financials?: Array<{
+    id: string;
+    entryType: string;
+    status: string;
+  }>;
+}) {
+  return (
+    order.financials?.find(
+      (entry) =>
+        (entry.entryType === "INCOME" || entry.entryType === "RECEIVABLE") &&
+        entry.status !== "CANCELED",
+    )?.status ?? null
+  ) as "PENDING" | "PAID" | "OVERDUE" | "CANCELED" | null;
+}
+
 function isReadyForSale(order: {
   status: string;
   productionStatus: string;
 }) {
   return (
     order.status !== "CANCELED" &&
-    (order.productionStatus === "READY" ||
-      order.productionStatus === "DELIVERED" ||
-      order.status === "COMPLETED")
+    (order.productionStatus === "DELIVERED" || order.status === "COMPLETED")
   );
 }

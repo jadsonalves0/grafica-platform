@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:unit": "node --experimental-strip-types scripts/run-unit-tests.mjs",
-    "test:integration": "node --experimental-strip-types scripts/run-integration-tests.mjs",
+    "test:integration": "node --experimental-transform-types --import ./scripts/register-path-aliases.mjs scripts/run-integration-tests.mjs",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "inventory:diagnose": "node scripts/inventory-diagnose.mjs",

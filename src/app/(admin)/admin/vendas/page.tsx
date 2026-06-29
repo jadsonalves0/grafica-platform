@@ -177,7 +177,7 @@ export default function VendasPage() {
                       Abrir venda
                     </Link>
                     <Link href={`/admin/financeiro/lancamentos/${sale.id}`} className="admin-button admin-button--secondary">
-                      Abrir conta a receber
+                      {sale.status === "PAID" ? "Abrir financeiro" : "Abrir conta a receber"}
                     </Link>
                   </div>
                 </div>
