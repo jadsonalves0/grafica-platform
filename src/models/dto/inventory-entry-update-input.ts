@@ -8,6 +8,8 @@ export type InventoryEntryUpdateInputDto = {
     | "RETURN"
     | "BONUS"
     | "OTHER";
+  supplierId?: string;
+  supplierDocument?: string;
   supplierName?: string;
   documentNumber: string;
   entryDate: string;

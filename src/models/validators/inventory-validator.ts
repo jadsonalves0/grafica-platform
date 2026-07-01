@@ -83,7 +83,8 @@ export const createInventoryMovementSchema = z.object({
 });
 
 const inventoryEntryItemSchema = z.object({
-  productId: z.string().uuid(),
+  id: z.string().uuid().optional(),
+  productId: z.string().uuid().optional(),
   description: z.string().trim().min(2).max(255),
   unit: z
     .string()
@@ -106,6 +107,8 @@ export const createInventoryEntrySchema = z.object({
     "BONUS",
     "OTHER",
   ]),
+  supplierId: z.string().uuid().optional(),
+  supplierDocument: z.string().trim().max(30).optional().or(z.literal("")),
   supplierName: z.string().trim().max(200).optional().or(z.literal("")),
   documentNumber: z.string().trim().min(1).max(80),
   entryDate: z.string(),
@@ -129,6 +132,82 @@ export const cancelInventoryEntrySchema = z.object({
   justification: z.string().trim().min(5).max(1000),
 });
 
+export const importInventoryEntryXmlSchema = z.object({
+  companyId: z.string().uuid(),
+  xmlContent: z.string().trim().min(20),
+  fileName: z.string().trim().max(255).optional(),
+  mimeType: z.string().trim().max(120).optional(),
+});
+
+export const matchInventoryEntryItemSchema = z.object({
+  internalItemId: z.string().uuid(),
+  saveSupplierMapping: z.boolean().optional(),
+  purchaseUnit: z
+    .string()
+    .transform((value) => normalizeUnitInput(value))
+    .pipe(z.string().max(20))
+    .optional()
+    .or(z.literal("")),
+  stockUnit: z
+    .string()
+    .transform((value) => normalizeUnitInput(value))
+    .pipe(z.string().max(20))
+    .optional()
+    .or(z.literal("")),
+  conversionFactor: z.coerce.number().positive().optional(),
+  confidence: z.coerce.number().min(0).max(100).optional(),
+});
+
+export const createInventoryEntryItemProductSchema = z.object({
+  categoryId: z.string().uuid().optional(),
+  name: z.string().trim().min(2).max(200),
+  sku: z
+    .preprocess(
+      (value) => {
+        if (typeof value !== "string") return value;
+        const normalized = normalizeSkuInput(value);
+        return normalized === "" ? undefined : normalized;
+      },
+      z.string().max(40).optional(),
+    ),
+  barcode: z.preprocess(
+    (value) => {
+      if (typeof value !== "string") return value;
+      const normalized = normalizeGtinInput(value);
+      return normalized === "" ? undefined : normalized;
+    },
+    z
+      .string()
+      .refine((value) => isValidGtin(value), "Informe um EAN/GTIN valido.")
+      .optional(),
+  ),
+  type: z.enum(["RAW_MATERIAL", "SERVICE", "FINISHED_PRODUCT", "RESALE"]),
+  unit: z
+    .string()
+    .transform((value) => normalizeUnitInput(value))
+    .pipe(z.string().min(1, "Informe a unidade.").max(12)),
+  controlsStock: z.boolean().optional(),
+  desiredMargin: z.coerce.number().min(0).max(99.99).optional(),
+  costPrice: z.coerce.number().nonnegative().optional(),
+  salePrice: z.coerce.number().nonnegative().optional(),
+  minimumStock: z.coerce.number().nonnegative().optional(),
+  saveSupplierMapping: z.boolean().optional(),
+  purchaseUnit: z
+    .string()
+    .transform((value) => normalizeUnitInput(value))
+    .pipe(z.string().max(20))
+    .optional()
+    .or(z.literal("")),
+  stockUnit: z
+    .string()
+    .transform((value) => normalizeUnitInput(value))
+    .pipe(z.string().max(20))
+    .optional()
+    .or(z.literal("")),
+  conversionFactor: z.coerce.number().positive().optional(),
+  confidence: z.coerce.number().min(0).max(100).optional(),
+});
+
 export const createInventoryGroupSchema = z.object({
   companyId: z.string().uuid(),
   name: z.string().trim().min(2, "Informe o nome do grupo.").max(120),
@@ -140,4 +219,12 @@ export const createInventoryGroupSchema = z.object({
 
 export const updateInventoryGroupSchema = createInventoryGroupSchema.omit({
   companyId: true,
+});
+
+export const createInventoryPurchaseListEntrySchema = z.object({
+  companyId: z.string().uuid(),
+  productIds: z.array(z.string().uuid()).min(1, "Selecione pelo menos um item."),
+  supplierId: z.string().uuid().optional(),
+  supplierName: z.string().trim().max(200).optional().or(z.literal("")),
+  supplierDocument: z.string().trim().max(30).optional().or(z.literal("")),
 });

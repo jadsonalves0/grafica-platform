@@ -50,7 +50,7 @@ function isItemCatalogPath(pathname: string) {
     return false;
   }
 
-  return !["grupos", "entradas", "movimentar", "posicao"].includes(match[1]);
+  return !["grupos", "entradas", "movimentar", "posicao", "sugestoes-compra", "lista-compra"].includes(match[1]);
 }
 
 const navSections: NavSection[] = [
@@ -117,6 +117,16 @@ const navSections: NavSection[] = [
       {
         label: "Entradas",
         href: "/admin/estoque/entradas",
+        visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryView]),
+      },
+      {
+        label: "Sugestoes de compra",
+        href: "/admin/estoque/sugestoes-compra",
+        visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryView]),
+      },
+      {
+        label: "Lista de compra",
+        href: "/admin/estoque/lista-compra",
         visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryView]),
       },
       {
@@ -206,6 +216,11 @@ const navSections: NavSection[] = [
         PERMISSIONS.financialManage,
       ]),
     items: [
+      {
+        label: "Fornecedores",
+        href: "/admin/fornecedores",
+        visible: (viewer) => hasAnyPermission(viewer, [PERMISSIONS.inventoryView]),
+      },
       {
         label: "Produtos e servicos",
         href: "/admin/estoque",

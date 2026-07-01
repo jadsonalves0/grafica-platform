@@ -1,5 +1,6 @@
 export type InventoryEntryItemInputDto = {
-  productId: string;
+  id?: string;
+  productId?: string;
   description: string;
   unit: string;
   quantity: number;

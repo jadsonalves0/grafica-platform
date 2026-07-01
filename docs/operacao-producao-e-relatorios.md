@@ -31,6 +31,18 @@ As telas de apoio e gestao agora seguem o mesmo shell visual:
 - `empresa`
 - `parametros`
 
+## Fornecedores
+
+Agora existe um cadastro formal de `Fornecedores` em `Cadastros`.
+
+Esse cadastro serve para:
+
+- reduzir texto solto nas entradas de estoque
+- reaproveitar fornecedor por `CPF/CNPJ` ou nome na importacao de `XML`
+- vincular historico de compra ao fornecedor correto
+- melhorar sugestoes de compra e lista de compra
+- preservar nome e documento originais do proprio documento, mesmo quando o fornecedor estiver vinculado ao cadastro
+
 ## Orcamentos e pedidos
 
 - `Novo orcamento` pesquisa cliente no servidor, sem depender de lista carregada inteira na abertura
@@ -121,6 +133,93 @@ O objetivo dessa estrutura e:
 - reduzir erro de preenchimento
 - preservar os dados ao navegar entre etapas
 - deixar o impacto financeiro e de estoque visivel antes da confirmacao
+
+### Entrada inteligente por XML
+
+Agora existe tambem um caminho de `pre-entrada` a partir de `XML`:
+
+1. importar o XML da `NF-e`
+2. gerar rascunho da entrada
+3. revisar os itens importados
+4. conciliar itens pendentes com o cadastro interno
+5. confirmar a entrada
+
+Regras desta fase:
+
+- o XML original fica salvo como anexo operacional
+- o sistema tenta localizar um fornecedor cadastrado por documento ou nome antes de deixar a entrada apenas em texto
+- o detalhe da entrada aceita anexos manuais como DANFE, boleto, comprovante, recibo, foto e orcamento do fornecedor
+- o estoque nao muda na importacao
+- a confirmacao so ocorre quando todos os itens estiverem conciliados
+- a chave de acesso nao pode ser importada duas vezes
+- o detalhe da entrada permite abrir o XML salvo
+- o XML original importado nao pode ser removido pela interface
+- a conta a pagar gerada aparece no proprio detalhe apos a confirmacao
+
+Quando um item estiver com status:
+
+- `Conciliado`: ja pode seguir para confirmacao
+- `Sugestao`: exige revisao humana
+- `Pendente`: precisa de item interno selecionado e conciliado
+
+Nesta fase, o rascunho importado ja permite revisar:
+
+- fornecedor
+- numero e data do documento
+- observacoes
+- quantidade e custo das linhas importadas
+- condicao financeira
+- conta financeira
+- parcelas e vencimento
+- cadastro rapido de um novo item interno a partir da propria linha pendente
+- confirmacao em lote das sugestoes quando o usuario quiser aceitar os vinculos propostos
+
+Ainda nao e permitido adicionar ou remover linhas importadas pela interface.
+
+### Sugestoes de compra
+
+Agora existe tambem a visao `Operacao > Sugestoes de compra`.
+
+Ela usa:
+
+- estoque minimo do item
+- saldo disponivel atual
+- custo de referencia
+- ultimo vinculo conhecido com fornecedor
+- fornecedor formal, quando o mapeamento ja estiver vinculado ao cadastro
+- unidade de compra e fator de conversao, quando houver mapeamento
+
+Objetivo desta tela:
+
+- destacar rapidamente o que precisa de reposicao
+- reaproveitar o fornecedor mais recente usado na importacao ou conciliacao
+- orientar a proxima entrada, manual ou por XML
+- permitir gerar uma `pre-entrada` pronta para revisao a partir da sugestao
+
+Quando nao houver fornecedor sugerido, a tela marca o item como pendente de revisao operacional.
+
+Quando o operador usa `Gerar pre-entrada`, o sistema:
+
+- cria uma entrada em `Rascunho`
+- usa o item interno ja sugerido
+- preenche a quantidade de reposicao em unidade de estoque
+- leva o ultimo fornecedor conciliado como referencia, quando existir
+- abre a propria tela de `Entradas` para revisao antes da confirmacao
+
+Tambem existe a tela `Operacao > Lista de compra`, que:
+
+- pode nascer dos itens selecionados em `Sugestoes de compra`
+- agrupa reposicoes por fornecedor
+- destaca itens sem fornecedor definido
+- mostra total estimado por grupo
+- permite imprimir a lista
+- permite gerar `pre-entrada` diretamente de cada item listado
+- permite gerar uma unica `pre-entrada do grupo` por fornecedor, reunindo varios itens no mesmo rascunho
+
+Quando o grupo ja possui fornecedor cadastrado:
+
+- a lista permite abrir o cadastro do fornecedor
+- a pre-entrada do grupo carrega `supplierId`, nome e documento de referencia
 
 O custo unitario e os demais campos monetarios agora seguem um padrao compartilhado de digitacao:
 

@@ -1,0 +1,23 @@
+export type InventoryPurchaseSuggestionListItemDto = {
+  productId: string;
+  productName: string;
+  categoryId?: string | null;
+  categoryName?: string | null;
+  unit: string;
+  purchaseUnit?: string | null;
+  conversionFactor?: number | null;
+  currentStock: number;
+  availableStock: number;
+  minimumStock: number;
+  shortageQuantity: number;
+  suggestedPurchaseQuantity: number;
+  costPrice: number;
+  estimatedPurchaseValue: number;
+  preferredSupplierId?: string | null;
+  preferredSupplierName?: string | null;
+  preferredSupplierDocument?: string | null;
+  supplierProductCode?: string | null;
+  hasRecentSupplierMapping: boolean;
+  hasStockMismatch: boolean;
+  lastSupplierUseAt?: string | null;
+};

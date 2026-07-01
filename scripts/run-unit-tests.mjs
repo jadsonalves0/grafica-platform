@@ -11,6 +11,10 @@ const suites = [
     name: "site-lead-context",
     modulePath: "../tests/unit/site-lead-context.test.mjs",
   },
+  {
+    name: "nfe-xml-parser",
+    modulePath: "../tests/unit/nfe-xml-parser.test.mjs",
+  },
 ];
 
 let failureCount = 0;

@@ -8,7 +8,7 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from "@/components/forms/searchable-select";
-import { MoneyInput, QuantityInput } from "@/components/forms/number-inputs";
+import { MoneyInput, PercentageInput, QuantityInput } from "@/components/forms/number-inputs";
 import {
   Alert,
   Field,
@@ -21,12 +21,20 @@ import {
 } from "@/components/admin/ui";
 import {
   formatCurrencyValue,
+  normalizeGtinInput,
   normalizeDecimalInput,
+  formatCpfCnpj,
   normalizeReferenceInput,
+  normalizeSkuInput,
   normalizeUnitInput,
   parseCurrencyInput,
   parseDecimalInput,
+  parsePercentageInput,
 } from "@/lib/forms/br-utils";
+import {
+  useSupplierLookup,
+  type SupplierLookupOption,
+} from "@/lib/forms/use-supplier-lookup";
 
 type ProductOption = {
   id: string;
@@ -45,6 +53,8 @@ type AccountOption = {
   type: string;
 };
 
+type SupplierOption = SupplierLookupOption;
+
 type EntryItemState = {
   id: string;
   productId: string;
@@ -55,6 +65,17 @@ type EntryItemState = {
   priceDecision: "KEEP_CURRENT" | "APPLY_SUGGESTED" | "CUSTOM_PRICE";
   decisionJustification: string;
   customSalePrice: string;
+  supplierItemMappingId: string | null;
+  lineNumber: number | null;
+  supplierProductCode: string;
+  supplierProductName: string;
+  supplierEan: string;
+  ncm: string;
+  cfop: string;
+  purchaseUnit: string;
+  conversionFactor: string;
+  matchStatus: string | null;
+  matchConfidence: number | null;
 };
 
 type EntryFormState = {
@@ -65,6 +86,7 @@ type EntryFormState = {
     | "RETURN"
     | "BONUS"
     | "OTHER";
+  supplierId: string;
   supplierName: string;
   documentNumber: string;
   entryDate: string;
@@ -76,12 +98,35 @@ type EntryFormState = {
   items: EntryItemState[];
 };
 
-type EntryDetail = {
+type ImportedProductDraft = {
+  name: string;
+  sku: string;
+  barcode: string;
+  type: "RAW_MATERIAL" | "SERVICE" | "FINISHED_PRODUCT" | "RESALE";
+  unit: string;
+  purchaseUnit: string;
+  conversionFactor: string;
+  controlsStock: boolean;
+  desiredMargin: string;
+  costPrice: string;
+  salePrice: string;
+  minimumStock: string;
+  saveSupplierMapping: boolean;
+};
+
+export type EntryDetail = {
   id: string;
   companyId: string;
   entryType: EntryFormState["entryType"];
+  source?: string | null;
+  supplierId?: string | null;
   supplierName?: string | null;
+  supplierDocument?: string | null;
   documentNumber: string;
+  documentSeries?: string | null;
+  accessKey?: string | null;
+  issuedAt?: string | null;
+  protocol?: string | null;
   entryDate: string;
   notes?: string | null;
   financialCondition: EntryFormState["financialCondition"];
@@ -96,10 +141,41 @@ type EntryDetail = {
   cancelReason?: string | null;
   createdAt: string;
   updatedAt: string;
+  attachments?: Array<{
+    id: string;
+    fileName: string;
+    mimeType: string;
+    fileSize: number;
+    storagePath: string;
+    documentType?: string | null;
+    source?: string | null;
+    createdAt: string;
+  }>;
+  financialEntries?: Array<{
+    id: string;
+    entryType: "INCOME" | "EXPENSE" | "RECEIVABLE" | "PAYABLE" | "TRANSFER";
+    status: string;
+    amount: number;
+    dueDate: string;
+    paidAt?: string | null;
+    installmentNumber?: number | null;
+    installmentCount?: number | null;
+  }>;
   items: Array<{
     id: string;
-    productId: string;
+    productId?: string | null;
     productName: string;
+    supplierItemMappingId?: string | null;
+    lineNumber?: number | null;
+    supplierProductCode?: string | null;
+    supplierProductName?: string | null;
+    supplierEan?: string | null;
+    ncm?: string | null;
+    cfop?: string | null;
+    purchaseUnit?: string | null;
+    conversionFactor?: number | null;
+    matchStatus?: string | null;
+    matchConfidence?: number | null;
     description: string;
     unit: string;
     quantity: number;
@@ -121,6 +197,11 @@ type ApiResult<T> = {
   data?: T;
 };
 
+type CreateImportedProductResult = {
+  entry: EntryDetail;
+  product: ProductOption;
+};
+
 type EntryFormProps = {
   mode: "create" | "edit";
   entryId?: string;
@@ -129,6 +210,7 @@ type EntryFormProps = {
 
 const defaultState: EntryFormState = {
   entryType: "PURCHASE_INVOICE",
+  supplierId: "",
   supplierName: "",
   documentNumber: "",
   entryDate: new Date().toISOString().slice(0, 10),
@@ -151,12 +233,24 @@ function createEmptyItem(): EntryItemState {
     priceDecision: "KEEP_CURRENT",
     decisionJustification: "",
     customSalePrice: "0,00",
+    supplierItemMappingId: null,
+    lineNumber: null,
+    supplierProductCode: "",
+    supplierProductName: "",
+    supplierEan: "",
+    ncm: "",
+    cfop: "",
+    purchaseUnit: "",
+    conversionFactor: "",
+    matchStatus: null,
+    matchConfidence: null,
   };
 }
 
 function mapInitialDataToState(entry: EntryDetail): EntryFormState {
   return {
     entryType: entry.entryType,
+    supplierId: entry.supplierId ?? "",
     supplierName: entry.supplierName ?? "",
     documentNumber: entry.documentNumber,
     entryDate: entry.entryDate.slice(0, 10),
@@ -169,7 +263,7 @@ function mapInitialDataToState(entry: EntryDetail): EntryFormState {
       entry.items.length > 0
         ? entry.items.map((item) => ({
             id: item.id,
-            productId: item.productId,
+            productId: item.productId ?? "",
             description: item.description,
             unit: item.unit,
             quantity: normalizeDecimalInput(String(item.quantity)),
@@ -177,8 +271,40 @@ function mapInitialDataToState(entry: EntryDetail): EntryFormState {
             priceDecision: normalizePriceDecision(item.priceDecision),
             decisionJustification: item.decisionJustification ?? "",
             customSalePrice: formatCurrencyValue(item.customSalePrice ?? 0),
+            supplierItemMappingId: item.supplierItemMappingId ?? null,
+            lineNumber: item.lineNumber ?? null,
+            supplierProductCode: item.supplierProductCode ?? "",
+            supplierProductName: item.supplierProductName ?? "",
+            supplierEan: item.supplierEan ?? "",
+            ncm: item.ncm ?? "",
+            cfop: item.cfop ?? "",
+            purchaseUnit: item.purchaseUnit ?? "",
+            conversionFactor:
+              item.conversionFactor === null || item.conversionFactor === undefined
+                ? ""
+                : normalizeDecimalInput(String(item.conversionFactor)),
+            matchStatus: item.matchStatus ?? null,
+            matchConfidence: item.matchConfidence ?? null,
           }))
         : [createEmptyItem()],
+  };
+}
+
+function createImportedProductDraft(item: EntryItemState): ImportedProductDraft {
+  return {
+    name: item.supplierProductName || item.description || "",
+    sku: normalizeSkuInput(item.supplierProductCode || ""),
+    barcode: normalizeGtinInput(item.supplierEan || ""),
+    type: "RAW_MATERIAL",
+    unit: normalizeUnitInput(item.unit || "un") || "un",
+    purchaseUnit: normalizeUnitInput(item.purchaseUnit || item.unit || "un") || "un",
+    conversionFactor: item.conversionFactor || "1",
+    controlsStock: true,
+    desiredMargin: "",
+    costPrice: item.unitCost || "0,00",
+    salePrice: item.unitCost || "0,00",
+    minimumStock: "0",
+    saveSupplierMapping: true,
   };
 }
 
@@ -195,14 +321,56 @@ function normalizePriceDecision(
 export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProps>) {
   const router = useRouter();
   const [form, setForm] = useState<EntryFormState>(initialData ? mapInitialDataToState(initialData) : defaultState);
+  const [entrySnapshot, setEntrySnapshot] = useState<EntryDetail | null>(initialData ?? null);
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [isLoadingOptions, setIsLoadingOptions] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
+  const [matchingItemId, setMatchingItemId] = useState<string | null>(null);
+  const [isApplyingSuggestedMatches, setIsApplyingSuggestedMatches] = useState(false);
+  const [creatingProductItemId, setCreatingProductItemId] = useState<string | null>(null);
+  const [openProductDraftItemId, setOpenProductDraftItemId] = useState<string | null>(null);
+  const [productDrafts, setProductDrafts] = useState<Record<string, ImportedProductDraft>>({});
+  const [selectedAttachmentFile, setSelectedAttachmentFile] = useState<File | null>(null);
+  const [selectedAttachmentType, setSelectedAttachmentType] = useState("OTHER");
+  const [attachmentInputKey, setAttachmentInputKey] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const isImportedDraft = entrySnapshot?.source === "XML";
+  const initialSupplierOptions = useMemo<SupplierOption[]>(
+    () =>
+      entrySnapshot?.supplierId
+        ? [
+            {
+              id: entrySnapshot.supplierId,
+              legalName: entrySnapshot.supplierName ?? "Fornecedor",
+              displayName: entrySnapshot.supplierName ?? "Fornecedor",
+              document: entrySnapshot.supplierDocument ?? null,
+              isActive: true,
+            },
+          ]
+        : [],
+    [entrySnapshot?.supplierDocument, entrySnapshot?.supplierId, entrySnapshot?.supplierName],
+  );
+  const {
+    suppliers,
+    supplierLookupOptions,
+    isSearching: isSearchingSuppliers,
+    searchError: supplierSearchError,
+    setQuery: setSupplierSearchQuery,
+  } = useSupplierLookup({
+    initialSuppliers: initialSupplierOptions,
+    includeInactive: mode === "edit",
+  });
+  const selectedSupplier = useMemo(
+    () => suppliers.find((supplier) => supplier.id === form.supplierId) ?? null,
+    [form.supplierId, suppliers],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -292,11 +460,30 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
     [computedItems],
   );
 
+  const suggestedImportedItems = useMemo(
+    () => computedItems.filter((item) => item.matchStatus === "SUGGESTED" && item.productId),
+    [computedItems],
+  );
+
   function updateField<K extends keyof EntryFormState>(field: K, value: EntryFormState[K]) {
     setForm((current) => ({
       ...current,
       [field]: value,
     }));
+  }
+
+  function handleSupplierSelectionChange(supplierId: string) {
+    if (!supplierId) {
+      updateField("supplierId", "");
+      return;
+    }
+
+    const supplier = suppliers.find((item) => item.id === supplierId);
+    updateField("supplierId", supplierId);
+
+    if (supplier) {
+      updateField("supplierName", supplier.displayName);
+    }
   }
 
   function updateItem(itemId: string, field: keyof EntryItemState, value: string) {
@@ -306,7 +493,57 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
     }));
   }
 
+  function ensureImportedProductDraft(item: EntryItemState) {
+    setProductDrafts((current) => {
+      if (current[item.id]) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [item.id]: createImportedProductDraft(item),
+      };
+    });
+  }
+
+  function openImportedProductDraft(item: EntryItemState) {
+    ensureImportedProductDraft(item);
+    setOpenProductDraftItemId(item.id);
+  }
+
+  function updateProductDraft(
+    itemId: string,
+    field: keyof ImportedProductDraft,
+    value: string | boolean,
+  ) {
+    setProductDrafts((current) => {
+      const baseItem = form.items.find((item) => item.id === itemId) ?? createEmptyItem();
+      const baseDraft = current[itemId] ?? createImportedProductDraft(baseItem);
+      const nextDraft = {
+        ...baseDraft,
+        [field]: value,
+      } as ImportedProductDraft;
+
+      if (field === "type") {
+        if (value === "SERVICE") {
+          nextDraft.controlsStock = false;
+        } else if (baseDraft.type === "SERVICE") {
+          nextDraft.controlsStock = true;
+        }
+      }
+
+      return {
+        ...current,
+        [itemId]: nextDraft,
+      };
+    });
+  }
+
   function addItem() {
+    if (isImportedDraft) {
+      return;
+    }
+
     setForm((current) => ({
       ...current,
       items: [...current.items, createEmptyItem()],
@@ -314,10 +551,302 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
   }
 
   function removeItem(itemId: string) {
+    if (isImportedDraft) {
+      return;
+    }
+
     setForm((current) => ({
       ...current,
       items: current.items.length === 1 ? current.items : current.items.filter((item) => item.id !== itemId),
-    }));
+      }));
+  }
+
+  async function requestImportedItemMatch(item: EntryItemState) {
+    if (!entryId || !isImportedDraft || !item.productId) {
+      throw new Error("Selecione o item interno antes de conciliar a linha importada.");
+    }
+
+    const response = await fetch(`/api/inventory/entries/${entryId}/items/${item.id}/match`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        internalItemId: item.productId,
+        saveSupplierMapping: true,
+        purchaseUnit: item.purchaseUnit || item.unit,
+        stockUnit: item.unit,
+        conversionFactor: item.conversionFactor
+          ? parseDecimalInput(item.conversionFactor)
+          : 1,
+        confidence: item.matchConfidence ?? 100,
+      }),
+    });
+
+    const result = (await response.json()) as ApiResult<EntryDetail>;
+
+    if (!response.ok || !result.success || !result.data) {
+      throw new Error(result.message ?? "Nao foi possivel conciliar este item importado.");
+    }
+
+    setEntrySnapshot(result.data);
+    setForm(mapInitialDataToState(result.data));
+
+    return result.data;
+  }
+
+  async function handleMatchImportedItem(itemId: string) {
+    if (!entryId || !isImportedDraft) {
+      return;
+    }
+
+    const item = form.items.find((entryItem) => entryItem.id === itemId);
+    if (!item?.productId) {
+      setErrorMessage("Selecione o item interno antes de conciliar a linha importada.");
+      setSuccessMessage(null);
+      return;
+    }
+
+    setMatchingItemId(itemId);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      await requestImportedItemMatch(item);
+      setSuccessMessage("Item conciliado com sucesso. Voce ja pode confirmar a entrada quando terminar a revisao.");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Falha ao conciliar o item importado.",
+      );
+    } finally {
+      setMatchingItemId(null);
+    }
+  }
+
+  async function handleApplySuggestedMatches() {
+    if (!entryId || !isImportedDraft) {
+      return;
+    }
+
+    const itemsToApply = form.items.filter(
+      (item) => item.matchStatus === "SUGGESTED" && item.productId,
+    );
+
+    if (!itemsToApply.length) {
+      setSuccessMessage("Nao ha sugestoes pendentes para confirmar nesta entrada.");
+      setErrorMessage(null);
+      return;
+    }
+
+    setIsApplyingSuggestedMatches(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      for (const suggestedItem of itemsToApply) {
+        const latestItem =
+          form.items.find((item) => item.id === suggestedItem.id) ?? suggestedItem;
+        await requestImportedItemMatch(latestItem);
+      }
+
+      setSuccessMessage(
+        `${itemsToApply.length} sugest${itemsToApply.length > 1 ? "oes foram confirmadas" : "ao foi confirmada"} com sucesso.`,
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Falha ao confirmar as sugestoes de conciliacao em lote.",
+      );
+    } finally {
+      setIsApplyingSuggestedMatches(false);
+    }
+  }
+
+  async function handleCreateProductFromImportedItem(itemId: string) {
+    if (!entryId || !isImportedDraft) {
+      return;
+    }
+
+    const item = form.items.find((entryItem) => entryItem.id === itemId);
+    const draft = productDrafts[itemId] ?? (item ? createImportedProductDraft(item) : null);
+
+    if (!item || !draft) {
+      setErrorMessage("Nao foi possivel localizar a linha importada para criar o item.");
+      setSuccessMessage(null);
+      return;
+    }
+
+    if (draft.name.trim().length < 2) {
+      setErrorMessage("Informe o nome do item interno antes de cadastrar.");
+      setSuccessMessage(null);
+      return;
+    }
+
+    if (!draft.unit.trim()) {
+      setErrorMessage("Informe a unidade interna do item antes de cadastrar.");
+      setSuccessMessage(null);
+      return;
+    }
+
+    if (parseCurrencyInput(draft.costPrice) < 0 || parseCurrencyInput(draft.salePrice) < 0) {
+      setErrorMessage("Os valores do item interno nao podem ser negativos.");
+      setSuccessMessage(null);
+      return;
+    }
+
+    if (parseDecimalInput(draft.minimumStock) < 0) {
+      setErrorMessage("O estoque minimo do item interno nao pode ser negativo.");
+      setSuccessMessage(null);
+      return;
+    }
+
+    if (draft.desiredMargin && (parsePercentageInput(draft.desiredMargin) < 0 || parsePercentageInput(draft.desiredMargin) >= 100)) {
+      setErrorMessage("A margem desejada deve ficar entre 0 e 99,99%.");
+      setSuccessMessage(null);
+      return;
+    }
+
+    setCreatingProductItemId(itemId);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await fetch(`/api/inventory/entries/${entryId}/items/${itemId}/create-product`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: draft.name.trim(),
+          sku: draft.sku || undefined,
+          barcode: draft.barcode || undefined,
+          type: draft.type,
+          unit: draft.unit,
+          purchaseUnit: draft.purchaseUnit || undefined,
+          stockUnit: draft.unit,
+          conversionFactor: parseDecimalInput(draft.conversionFactor) > 0 ? parseDecimalInput(draft.conversionFactor) : undefined,
+          controlsStock: draft.type === "SERVICE" ? false : draft.controlsStock,
+          desiredMargin: draft.desiredMargin ? parsePercentageInput(draft.desiredMargin) : undefined,
+          costPrice: parseCurrencyInput(draft.costPrice),
+          salePrice: parseCurrencyInput(draft.salePrice),
+          minimumStock: parseDecimalInput(draft.minimumStock),
+          saveSupplierMapping: draft.saveSupplierMapping,
+        }),
+      });
+
+      const result = (await response.json()) as ApiResult<CreateImportedProductResult>;
+
+      if (!response.ok || !result.success || !result.data) {
+        setErrorMessage(result.message ?? "Nao foi possivel cadastrar o item a partir da linha importada.");
+        return;
+      }
+
+      setProducts((current) => {
+        const next = current.filter((product) => product.id !== result.data!.product.id);
+        return [...next, result.data!.product].sort((left, right) => left.name.localeCompare(right.name));
+      });
+      setEntrySnapshot(result.data.entry);
+      setForm(mapInitialDataToState(result.data.entry));
+      setOpenProductDraftItemId(null);
+      setProductDrafts((current) => {
+        const next = { ...current };
+        delete next[itemId];
+        return next;
+      });
+      setSuccessMessage(`Item interno ${result.data.product.name} criado e vinculado com sucesso.`);
+    } catch {
+      setErrorMessage("Falha ao cadastrar o item a partir da linha importada.");
+    } finally {
+      setCreatingProductItemId(null);
+    }
+  }
+
+  async function handleUploadAttachment() {
+    if (!entryId || !entrySnapshot) {
+      return;
+    }
+
+    if (!selectedAttachmentFile) {
+      setErrorMessage("Selecione um arquivo antes de anexar a entrada.");
+      setSuccessMessage(null);
+      return;
+    }
+
+    setIsUploadingAttachment(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const formData = new FormData();
+      formData.set("file", selectedAttachmentFile);
+      formData.set("documentType", selectedAttachmentType);
+
+      const response = await fetch(`/api/inventory/entries/${entryId}/attachments`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = (await response.json()) as ApiResult<EntryDetail>;
+
+      if (!response.ok || !result.success || !result.data) {
+        setErrorMessage(result.message ?? "Nao foi possivel anexar o arquivo a esta entrada.");
+        return;
+      }
+
+      setEntrySnapshot(result.data);
+      setForm(mapInitialDataToState(result.data));
+      setSelectedAttachmentFile(null);
+      setSelectedAttachmentType("OTHER");
+      setAttachmentInputKey((current) => current + 1);
+      setSuccessMessage("Anexo enviado com sucesso para a entrada.");
+    } catch {
+      setErrorMessage("Falha ao anexar o arquivo operacional.");
+    } finally {
+      setIsUploadingAttachment(false);
+    }
+  }
+
+  async function handleDeleteAttachment(attachmentId: string) {
+    if (!entryId || !entrySnapshot) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Deseja remover este anexo manual da entrada? O XML original importado nao pode ser excluido.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingAttachmentId(attachmentId);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await fetch(
+        `/api/inventory/entries/${entryId}/attachments/${attachmentId}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      const result = (await response.json()) as ApiResult<EntryDetail>;
+
+      if (!response.ok || !result.success || !result.data) {
+        setErrorMessage(result.message ?? "Nao foi possivel remover o anexo da entrada.");
+        return;
+      }
+
+      setEntrySnapshot(result.data);
+      setForm(mapInitialDataToState(result.data));
+      setSuccessMessage("Anexo removido com sucesso.");
+    } catch {
+      setErrorMessage("Falha ao remover o anexo operacional.");
+    } finally {
+      setDeletingAttachmentId(null);
+    }
   }
 
   function handleProductSelection(itemId: string, productId: string) {
@@ -330,9 +859,16 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
           ? {
               ...item,
               productId,
-              description: product ? product.name : item.description,
-              unit: product ? product.unit : item.unit,
-              unitCost: product ? formatCurrencyValue(product.costPrice) : item.unitCost,
+              description:
+                isImportedDraft || !product ? item.description : product.name,
+              unit:
+                isImportedDraft
+                  ? item.unit || product?.unit || item.unit
+                  : product?.unit || item.unit,
+              unitCost:
+                isImportedDraft || !product
+                  ? item.unitCost
+                  : formatCurrencyValue(product.costPrice),
             }
           : item,
       ),
@@ -415,6 +951,8 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
     try {
       const payload = {
         entryType: form.entryType,
+        supplierId: form.supplierId || undefined,
+        supplierDocument: selectedSupplier?.document ?? entrySnapshot?.supplierDocument ?? undefined,
         supplierName: form.supplierName.trim() || undefined,
         documentNumber: normalizeReferenceInput(form.documentNumber),
         entryDate: form.entryDate,
@@ -424,6 +962,7 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
         installmentCount: form.financialCondition === "TERM" ? Number(form.installmentCount) : 1,
         firstDueDate: form.financialCondition !== "NONE" ? form.firstDueDate : undefined,
         items: form.items.map((item) => ({
+          id: mode === "edit" ? item.id : undefined,
           productId: item.productId,
           description: item.description.trim(),
           unit: normalizeUnitInput(item.unit),
@@ -454,14 +993,21 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
         return;
       }
 
-      setSuccessMessage(mode === "create" ? "Entrada criada com sucesso." : "Entrada atualizada com sucesso.");
+      if (mode === "create") {
+        setSuccessMessage("Entrada criada com sucesso.");
 
-      window.setTimeout(() => {
-        router.push(
-          `/admin/estoque/entradas?feedback=${mode === "create" ? "entry-created" : "entry-updated"}`,
-        );
-        router.refresh();
-      }, 700);
+        window.setTimeout(() => {
+          router.push("/admin/estoque/entradas?feedback=entry-created");
+          router.refresh();
+        }, 700);
+
+        return;
+      }
+
+      setEntrySnapshot(result.data);
+      setForm(mapInitialDataToState(result.data));
+      setSuccessMessage("Entrada atualizada com sucesso.");
+      router.refresh();
     } catch {
       setErrorMessage("Falha ao salvar a entrada.");
     } finally {
@@ -470,7 +1016,15 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
   }
 
   async function handleConfirm() {
-    if (mode !== "edit" || !entryId || initialData?.status !== "DRAFT") {
+    if (mode !== "edit" || !entryId || entrySnapshot?.status !== "DRAFT") {
+      return;
+    }
+
+    if (suggestedImportedItems.length > 0) {
+      setErrorMessage(
+        "Ainda existem sugestoes de conciliacao aguardando confirmacao. Revise essas linhas ou use a confirmacao em lote antes de concluir a entrada.",
+      );
+      setSuccessMessage(null);
       return;
     }
 
@@ -494,7 +1048,18 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
         return;
       }
 
-      router.push("/admin/estoque/entradas?feedback=entry-confirmed");
+      if (!result.data) {
+        setErrorMessage("A entrada foi confirmada, mas nao foi possivel atualizar a tela.");
+        return;
+      }
+
+      setEntrySnapshot(result.data);
+      setForm(mapInitialDataToState(result.data));
+      setSuccessMessage(
+        result.data.financialEntries?.length
+          ? "Entrada confirmada com sucesso. O estoque foi atualizado e a conta a pagar ja foi gerada."
+          : "Entrada confirmada com sucesso. O estoque foi atualizado.",
+      );
       router.refresh();
     } catch {
       setErrorMessage("Falha ao confirmar a entrada.");
@@ -504,7 +1069,7 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
   }
 
   async function handleCancelConfirmedEntry() {
-    if (mode !== "edit" || !entryId || initialData?.status !== "CONFIRMED") {
+    if (mode !== "edit" || !entryId || entrySnapshot?.status !== "CONFIRMED") {
       return;
     }
 
@@ -537,7 +1102,14 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
         return;
       }
 
-      router.push("/admin/estoque/entradas?feedback=entry-canceled");
+      if (!result.data) {
+        setErrorMessage("A entrada foi cancelada, mas nao foi possivel atualizar a tela.");
+        return;
+      }
+
+      setEntrySnapshot(result.data);
+      setForm(mapInitialDataToState(result.data));
+      setSuccessMessage("Entrada cancelada com sucesso.");
       router.refresh();
     } catch {
       setErrorMessage("Falha ao cancelar a entrada.");
@@ -553,26 +1125,197 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
           {errorMessage}
         </Alert>
       ) : null}
+
+      {entrySnapshot?.attachments?.length ? (
+        <SectionCard
+          title="Anexos do documento"
+          description="O XML original e os demais arquivos operacionais ficam vinculados a esta entrada para consulta futura."
+        >
+          {entrySnapshot.status !== "CANCELED" ? (
+            <div className="admin-page-stack" style={{ marginBottom: 16 }}>
+              <div className="admin-form-grid admin-form-grid--3">
+                <Field label="Tipo do anexo">
+                  <select
+                    className="admin-select"
+                    value={selectedAttachmentType}
+                    onChange={(event) => setSelectedAttachmentType(event.target.value)}
+                  >
+                    <option value="DANFE_PDF">DANFE PDF</option>
+                    <option value="BOLETO">Boleto</option>
+                    <option value="PAYMENT_RECEIPT">Comprovante de pagamento</option>
+                    <option value="RECEIPT">Recibo</option>
+                    <option value="SUPPLIER_QUOTE">Orcamento do fornecedor</option>
+                    <option value="MERCHANDISE_PHOTO">Foto da mercadoria</option>
+                    <option value="OTHER">Outro documento</option>
+                  </select>
+                </Field>
+
+                <Field label="Arquivo" helpText="PDF, imagem ou documento operacional complementar.">
+                  <input
+                    key={attachmentInputKey}
+                    className="admin-input"
+                    type="file"
+                    onChange={(event) =>
+                      setSelectedAttachmentFile(event.target.files?.[0] ?? null)
+                    }
+                  />
+                </Field>
+
+                <Field label="Acao">
+                  <div className="admin-row" style={{ minHeight: 44, alignItems: "center" }}>
+                    <LoadingButton
+                      type="button"
+                      className="admin-button admin-button--secondary"
+                      isLoading={isUploadingAttachment}
+                      loadingLabel="Enviando..."
+                      onClick={handleUploadAttachment}
+                      disabled={!selectedAttachmentFile}
+                    >
+                      Anexar arquivo
+                    </LoadingButton>
+                  </div>
+                </Field>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="admin-list-stack">
+            {entrySnapshot.attachments.map((attachment) => (
+              <article key={attachment.id} className="admin-list-card">
+                <div className="admin-row admin-row--between" style={{ gap: 12, alignItems: "center" }}>
+                  <div className="admin-inline-stack">
+                    <strong>{attachment.fileName}</strong>
+                    <span className="admin-list-card__subtitle">
+                      {formatAttachmentDocumentType(attachment.documentType)} | {formatFileSize(attachment.fileSize)} | {formatDate(attachment.createdAt)}
+                    </span>
+                  </div>
+                  <div className="admin-row" style={{ gap: 10, flexWrap: "wrap" }}>
+                    <Link
+                      href={`/api/inventory/entries/${entrySnapshot.id}/attachments/${attachment.id}`}
+                      className="admin-link-button"
+                      target="_blank"
+                    >
+                      Abrir arquivo
+                    </Link>
+                    {canDeleteAttachment(entrySnapshot.status, attachment) ? (
+                      <LoadingButton
+                        type="button"
+                        className="admin-button admin-button--danger"
+                        isLoading={deletingAttachmentId === attachment.id}
+                        loadingLabel="Removendo..."
+                        onClick={() => handleDeleteAttachment(attachment.id)}
+                      >
+                        Remover
+                      </LoadingButton>
+                    ) : null}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </SectionCard>
+      ) : entrySnapshot && entrySnapshot.status !== "CANCELED" ? (
+        <SectionCard
+          title="Anexos do documento"
+          description="Anexe DANFE, boleto, comprovante, fotos ou outros arquivos operacionais desta entrada."
+        >
+          <div className="admin-form-grid admin-form-grid--3">
+            <Field label="Tipo do anexo">
+              <select
+                className="admin-select"
+                value={selectedAttachmentType}
+                onChange={(event) => setSelectedAttachmentType(event.target.value)}
+              >
+                <option value="DANFE_PDF">DANFE PDF</option>
+                <option value="BOLETO">Boleto</option>
+                <option value="PAYMENT_RECEIPT">Comprovante de pagamento</option>
+                <option value="RECEIPT">Recibo</option>
+                <option value="SUPPLIER_QUOTE">Orcamento do fornecedor</option>
+                <option value="MERCHANDISE_PHOTO">Foto da mercadoria</option>
+                <option value="OTHER">Outro documento</option>
+              </select>
+            </Field>
+
+            <Field label="Arquivo" helpText="PDF, imagem ou documento operacional complementar.">
+              <input
+                key={attachmentInputKey}
+                className="admin-input"
+                type="file"
+                onChange={(event) =>
+                  setSelectedAttachmentFile(event.target.files?.[0] ?? null)
+                }
+              />
+            </Field>
+
+            <Field label="Acao">
+              <div className="admin-row" style={{ minHeight: 44, alignItems: "center" }}>
+                <LoadingButton
+                  type="button"
+                  className="admin-button admin-button--secondary"
+                  isLoading={isUploadingAttachment}
+                  loadingLabel="Enviando..."
+                  onClick={handleUploadAttachment}
+                  disabled={!selectedAttachmentFile}
+                >
+                  Anexar arquivo
+                </LoadingButton>
+              </div>
+            </Field>
+          </div>
+        </SectionCard>
+      ) : null}
       {successMessage ? <Alert variant="success">{successMessage}</Alert> : null}
 
-      {initialData ? (
+      {entrySnapshot ? (
         <div className="admin-card-grid">
-          <MetricCard label="Status" value={formatEntryStatus(initialData.status)} />
-          <MetricCard label="Criado em" value={formatDate(initialData.createdAt)} />
-          <MetricCard label="Ultima atualizacao" value={formatDate(initialData.updatedAt)} />
+          <MetricCard label="Status" value={formatEntryStatus(entrySnapshot.status)} />
+          <MetricCard label="Criado em" value={formatDate(entrySnapshot.createdAt)} />
+          <MetricCard label="Ultima atualizacao" value={formatDate(entrySnapshot.updatedAt)} />
+          {entrySnapshot.source === "XML" ? (
+            <MetricCard label="Origem" value="XML NF-e" description={entrySnapshot.documentSeries ? `Serie ${entrySnapshot.documentSeries}` : "Pre-entrada importada"} />
+          ) : null}
         </div>
       ) : null}
 
-      {initialData?.status === "CONFIRMED" ? (
+      {entrySnapshot?.source === "XML" ? (
+        <Alert variant="info" title="Rascunho criado a partir de XML">
+          Revise a conciliacao dos itens, confirme os dados do documento e so depois conclua a entrada. O estoque ainda nao foi alterado.
+        </Alert>
+      ) : null}
+
+      {entrySnapshot?.source === "XML" && suggestedImportedItems.length > 0 ? (
+        <Alert variant="warning" title="Sugestoes aguardando confirmacao">
+          <div className="admin-page-stack">
+            <span>
+              Esta entrada possui {suggestedImportedItems.length} sugest
+              {suggestedImportedItems.length > 1 ? "oes" : "ao"} de conciliacao de baixa
+              confianca. Confirme manualmente as linhas ou aplique a confirmacao em lote antes de concluir a entrada.
+            </span>
+            <div className="admin-row" style={{ gap: 12, flexWrap: "wrap" }}>
+              <LoadingButton
+                type="button"
+                className="admin-button admin-button--secondary"
+                isLoading={isApplyingSuggestedMatches}
+                loadingLabel="Confirmando sugestoes..."
+                onClick={handleApplySuggestedMatches}
+              >
+                Confirmar sugestoes em lote
+              </LoadingButton>
+            </div>
+          </div>
+        </Alert>
+      ) : null}
+
+      {entrySnapshot?.status === "CONFIRMED" ? (
         <Alert variant="success" title="Entrada confirmada">
           O estoque ja foi atualizado. Para desfazer esta operacao, use o cancelamento com justificativa.
         </Alert>
       ) : null}
 
-      {initialData?.status === "CANCELED" ? (
+      {entrySnapshot?.status === "CANCELED" ? (
         <Alert variant="warning" title="Entrada cancelada">
-          {initialData.cancelReason
-            ? `Motivo registrado: ${initialData.cancelReason}`
+          {entrySnapshot.cancelReason
+            ? `Motivo registrado: ${entrySnapshot.cancelReason}`
             : "Esta entrada foi cancelada e nao pode mais ser alterada diretamente."}
         </Alert>
       ) : null}
@@ -600,12 +1343,53 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
               </select>
             </Field>
 
-            <Field label="Fornecedor" optional>
+            <Field
+              label="Fornecedor cadastrado"
+              optional
+              helpText={
+                supplierSearchError
+                  ? supplierSearchError
+                  : "Use o cadastro quando o fornecedor ja existir. O nome do documento continua editavel logo abaixo."
+              }
+            >
+              <div className="admin-page-stack" style={{ gap: 10 }}>
+                <SearchableSelect
+                  value={form.supplierId}
+                  onChange={handleSupplierSelectionChange}
+                  onQueryChange={setSupplierSearchQuery}
+                  options={supplierLookupOptions}
+                  placeholder="Pesquisar por nome, documento ou contato"
+                  disabled={isLoadingOptions}
+                  emptyMessage="Nenhum fornecedor encontrado."
+                  isLoading={isSearchingSuppliers}
+                  loadingMessage="Pesquisando fornecedores..."
+                  clearable
+                  inputName="inventoryEntrySupplierSearch"
+                  ariaLabel="Pesquisar fornecedor"
+                />
+                <div className="admin-row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                  <Link href="/admin/fornecedores/novo" className="admin-link-button">
+                    Cadastrar fornecedor
+                  </Link>
+                  {selectedSupplier?.document ? (
+                    <span className="admin-list-card__subtitle">
+                      Documento: {formatCpfCnpj(selectedSupplier.document)}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            </Field>
+
+            <Field
+              label="Nome do fornecedor no documento"
+              optional
+              helpText="Esse nome e salvo no historico da entrada, mesmo quando houver cadastro vinculado."
+            >
               <input
                 className="admin-input"
                 value={form.supplierName}
                 onChange={(event) => updateField("supplierName", event.target.value)}
-                placeholder="Nome do fornecedor"
+                placeholder="Nome que veio na nota, orcamento ou comprovante"
               />
             </Field>
 
@@ -648,9 +1432,11 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
           title="Etapa 2 - Itens"
           description="Cada item confirmado gera movimento de entrada e cria camada FIFO para o consumo futuro."
           actions={
-            <button type="button" className="admin-button admin-button--secondary" onClick={addItem}>
-              Adicionar item
-            </button>
+            !isImportedDraft ? (
+              <button type="button" className="admin-button admin-button--secondary" onClick={addItem}>
+                Adicionar item
+              </button>
+            ) : null
           }
         >
           <div className="admin-list-stack">
@@ -718,59 +1504,300 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
                   </Field>
                 </div>
 
-                <FormSection
-                  title="Revisao comercial do item"
-                  description="Use esta etapa para decidir como o novo custo influencia o preco de venda."
-                  defaultOpen={
-                    item.priceDecision !== "KEEP_CURRENT" ||
-                    Boolean(item.decisionJustification.trim()) ||
-                    parseCurrencyInput(item.customSalePrice) > 0
-                  }
-                >
-                  <div className="admin-form-grid admin-form-grid--4">
-                    <Field label="Tratamento do preco">
-                      <select
-                        className="admin-select"
-                        value={item.priceDecision}
-                        onChange={(event) => updateItem(item.id, "priceDecision", event.target.value)}
-                      >
-                        <option value="KEEP_CURRENT">Manter preco atual</option>
-                        <option value="APPLY_SUGGESTED">Aplicar preco sugerido</option>
-                        <option value="CUSTOM_PRICE">Informar outro preco</option>
-                      </select>
-                    </Field>
-
-                    <Field label="Novo preco de venda" optional>
-                      <MoneyInput
-                        className="admin-input"
-                        value={item.customSalePrice}
-                        onChange={(value) => updateItem(item.id, "customSalePrice", value)}
-                        disabled={item.priceDecision !== "CUSTOM_PRICE"}
-                      />
-                    </Field>
-
-                    <Field label="Justificativa" optional>
-                      <input
-                        className="admin-input"
-                        value={item.decisionJustification}
-                        onChange={(event) =>
-                          updateItem(item.id, "decisionJustification", event.target.value)
-                        }
-                        placeholder="Opcional"
-                      />
-                    </Field>
-
-                    <div className="admin-row" style={{ alignItems: "end", justifyContent: "flex-end" }}>
-                      <button
-                        type="button"
-                        className="admin-button admin-button--danger"
-                        onClick={() => removeItem(item.id)}
-                      >
-                        Remover item
-                      </button>
+                {isImportedDraft ? (
+                  <div className="admin-surface-muted">
+                    <div className="admin-row admin-row--between" style={{ alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                      <div className="admin-inline-stack">
+                        <strong>Conciliacao do XML</strong>
+                        <span className="admin-list-card__subtitle">
+                          Linha {item.lineNumber ?? "-"} | codigo {item.supplierProductCode || "sem codigo"} | EAN {item.supplierEan || "sem GTIN"}
+                        </span>
+                      </div>
+                      <div className="admin-row" style={{ gap: 10, flexWrap: "wrap" }}>
+                        <StatusBadge
+                          status={formatMatchStatus(item.matchStatus)}
+                          tone={matchStatusTone(item.matchStatus)}
+                        />
+                        <LoadingButton
+                          type="button"
+                          className="admin-button admin-button--secondary"
+                          isLoading={matchingItemId === item.id}
+                          loadingLabel="Conciliando..."
+                          onClick={() => handleMatchImportedItem(item.id)}
+                          disabled={!item.productId}
+                        >
+                          {item.matchStatus === "MATCHED" ? "Atualizar conciliacao" : "Conciliar item"}
+                        </LoadingButton>
+                        {item.matchStatus !== "MATCHED" ? (
+                          <button
+                            type="button"
+                            className="admin-button admin-button--ghost"
+                            onClick={() => openImportedProductDraft(item)}
+                          >
+                            Cadastrar novo item
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
+                    <div className="admin-list-card__meta" style={{ marginTop: 12 }}>
+                      <SmallFact label="Descricao do fornecedor" value={item.supplierProductName || item.description} />
+                      <SmallFact label="Unidade de compra" value={item.purchaseUnit || "-"} />
+                      <SmallFact label="Fator de conversao" value={item.conversionFactor || "1"} />
+                      <SmallFact label="Confianca" value={item.matchConfidence !== null ? `${item.matchConfidence}%` : "-"} />
+                    </div>
+
+                    <div className="admin-form-grid admin-form-grid--4" style={{ marginTop: 16 }}>
+                      <Field
+                        label="Unidade de compra"
+                        optional
+                        helpText="Usada para salvar o vinculo do fornecedor com a unidade que veio no XML."
+                      >
+                        <input
+                          className="admin-input"
+                          value={item.purchaseUnit}
+                          onChange={(event) =>
+                            updateItem(item.id, "purchaseUnit", normalizeUnitInput(event.target.value))
+                          }
+                          placeholder="cx, pct, resma..."
+                        />
+                      </Field>
+
+                      <Field
+                        label="Fator de conversao"
+                        optional
+                        helpText="Informe quantas unidades internas existem em cada unidade de compra, quando necessario."
+                      >
+                        <QuantityInput
+                          className="admin-input"
+                          value={item.conversionFactor}
+                          onChange={(value) => updateItem(item.id, "conversionFactor", value)}
+                        />
+                      </Field>
+                    </div>
+
+                    {openProductDraftItemId === item.id ? (
+                      <div className="admin-page-stack" style={{ marginTop: 16 }}>
+                        <FormSection
+                          title="Cadastro assistido do item interno"
+                          description="Use os dados da linha importada para criar o item no cadastro e vincular automaticamente a esta entrada."
+                          defaultOpen
+                        >
+                          <div className="admin-form-grid admin-form-grid--2">
+                            <Field label="Nome do item interno" required>
+                              <input
+                                className="admin-input"
+                                value={(productDrafts[item.id] ?? createImportedProductDraft(item)).name}
+                                onChange={(event) => updateProductDraft(item.id, "name", event.target.value)}
+                              />
+                            </Field>
+
+                            <Field label="Tipo" required>
+                              <select
+                                className="admin-select"
+                                value={(productDrafts[item.id] ?? createImportedProductDraft(item)).type}
+                                onChange={(event) =>
+                                  updateProductDraft(
+                                    item.id,
+                                    "type",
+                                    event.target.value as ImportedProductDraft["type"],
+                                  )
+                                }
+                              >
+                                <option value="RAW_MATERIAL">Materia-prima</option>
+                                <option value="SERVICE">Servico</option>
+                                <option value="FINISHED_PRODUCT">Produto final</option>
+                                <option value="RESALE">Revenda</option>
+                              </select>
+                            </Field>
+
+                            <Field label="Unidade interna" required>
+                              <input
+                                className="admin-input"
+                                value={(productDrafts[item.id] ?? createImportedProductDraft(item)).unit}
+                                onChange={(event) =>
+                                  updateProductDraft(item.id, "unit", normalizeUnitInput(event.target.value))
+                                }
+                                placeholder="un, pct, m2..."
+                              />
+                            </Field>
+
+                            <Field label="Unidade de compra" optional>
+                              <input
+                                className="admin-input"
+                                value={(productDrafts[item.id] ?? createImportedProductDraft(item)).purchaseUnit}
+                                onChange={(event) =>
+                                  updateProductDraft(item.id, "purchaseUnit", normalizeUnitInput(event.target.value))
+                                }
+                                placeholder="cx, pct, resma..."
+                              />
+                            </Field>
+
+                            <Field label="Fator de conversao" optional>
+                              <QuantityInput
+                                className="admin-input"
+                                value={(productDrafts[item.id] ?? createImportedProductDraft(item)).conversionFactor}
+                                onChange={(value) => updateProductDraft(item.id, "conversionFactor", value)}
+                              />
+                            </Field>
+
+                            <Field label="Controla estoque">
+                              <label className="admin-readonly-box" style={{ justifyContent: "flex-start", gap: 10 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={(productDrafts[item.id] ?? createImportedProductDraft(item)).type === "SERVICE" ? false : (productDrafts[item.id] ?? createImportedProductDraft(item)).controlsStock}
+                                  disabled={(productDrafts[item.id] ?? createImportedProductDraft(item)).type === "SERVICE"}
+                                  onChange={(event) => updateProductDraft(item.id, "controlsStock", event.target.checked)}
+                                />
+                                <span>
+                                  {(productDrafts[item.id] ?? createImportedProductDraft(item)).type === "SERVICE"
+                                    ? "Servico nao controla estoque"
+                                    : "Controlar estoque para este item"}
+                                </span>
+                              </label>
+                            </Field>
+
+                            <Field label="SKU" optional>
+                              <input
+                                className="admin-input"
+                                value={(productDrafts[item.id] ?? createImportedProductDraft(item)).sku}
+                                onChange={(event) => updateProductDraft(item.id, "sku", normalizeSkuInput(event.target.value))}
+                                placeholder="Codigo interno opcional"
+                              />
+                            </Field>
+
+                            <Field label="EAN / GTIN" optional>
+                              <input
+                                className="admin-input"
+                                value={(productDrafts[item.id] ?? createImportedProductDraft(item)).barcode}
+                                onChange={(event) => updateProductDraft(item.id, "barcode", normalizeGtinInput(event.target.value))}
+                                inputMode="numeric"
+                                placeholder="Codigo de barras opcional"
+                              />
+                            </Field>
+
+                            <Field label="Custo inicial">
+                              <MoneyInput
+                                className="admin-input"
+                                value={(productDrafts[item.id] ?? createImportedProductDraft(item)).costPrice}
+                                onChange={(value) => updateProductDraft(item.id, "costPrice", value)}
+                              />
+                            </Field>
+
+                            <Field label="Preco de venda">
+                              <MoneyInput
+                                className="admin-input"
+                                value={(productDrafts[item.id] ?? createImportedProductDraft(item)).salePrice}
+                                onChange={(value) => updateProductDraft(item.id, "salePrice", value)}
+                              />
+                            </Field>
+
+                            <Field label="Margem desejada (%)" optional>
+                              <PercentageInput
+                                className="admin-input"
+                                value={(productDrafts[item.id] ?? createImportedProductDraft(item)).desiredMargin}
+                                onChange={(value) => updateProductDraft(item.id, "desiredMargin", value)}
+                              />
+                            </Field>
+
+                            <Field label="Estoque minimo" optional>
+                              <QuantityInput
+                                className="admin-input"
+                                value={(productDrafts[item.id] ?? createImportedProductDraft(item)).minimumStock}
+                                onChange={(value) => updateProductDraft(item.id, "minimumStock", value)}
+                              />
+                            </Field>
+                          </div>
+
+                          <div className="admin-row admin-row--between" style={{ marginTop: 16, gap: 12, flexWrap: "wrap" }}>
+                            <label className="admin-list-card__subtitle" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <input
+                                type="checkbox"
+                                checked={(productDrafts[item.id] ?? createImportedProductDraft(item)).saveSupplierMapping}
+                                onChange={(event) => updateProductDraft(item.id, "saveSupplierMapping", event.target.checked)}
+                              />
+                              Salvar o vinculo fornecedor-item para as proximas importacoes
+                            </label>
+
+                            <div className="admin-row" style={{ gap: 10, flexWrap: "wrap" }}>
+                              <button
+                                type="button"
+                                className="admin-button admin-button--secondary"
+                                onClick={() => setOpenProductDraftItemId(null)}
+                              >
+                                Fechar
+                              </button>
+                              <LoadingButton
+                                type="button"
+                                className="admin-button admin-button--ghost"
+                                isLoading={creatingProductItemId === item.id}
+                                loadingLabel="Cadastrando..."
+                                onClick={() => handleCreateProductFromImportedItem(item.id)}
+                              >
+                                Criar e vincular item
+                              </LoadingButton>
+                            </div>
+                          </div>
+                        </FormSection>
+                      </div>
+                    ) : null}
                   </div>
-                </FormSection>
+                ) : null}
+
+                {!isImportedDraft ? (
+                  <FormSection
+                    title="Revisao comercial do item"
+                    description="Use esta etapa para decidir como o novo custo influencia o preco de venda."
+                    defaultOpen={
+                      item.priceDecision !== "KEEP_CURRENT" ||
+                      Boolean(item.decisionJustification.trim()) ||
+                      parseCurrencyInput(item.customSalePrice) > 0
+                    }
+                  >
+                    <div className="admin-form-grid admin-form-grid--4">
+                      <Field label="Tratamento do preco">
+                        <select
+                          className="admin-select"
+                          value={item.priceDecision}
+                          onChange={(event) => updateItem(item.id, "priceDecision", event.target.value)}
+                        >
+                          <option value="KEEP_CURRENT">Manter preco atual</option>
+                          <option value="APPLY_SUGGESTED">Aplicar preco sugerido</option>
+                          <option value="CUSTOM_PRICE">Informar outro preco</option>
+                        </select>
+                      </Field>
+
+                      <Field label="Novo preco de venda" optional>
+                        <MoneyInput
+                          className="admin-input"
+                          value={item.customSalePrice}
+                          onChange={(value) => updateItem(item.id, "customSalePrice", value)}
+                          disabled={item.priceDecision !== "CUSTOM_PRICE"}
+                        />
+                      </Field>
+
+                      <Field label="Justificativa" optional>
+                        <input
+                          className="admin-input"
+                          value={item.decisionJustification}
+                          onChange={(event) =>
+                            updateItem(item.id, "decisionJustification", event.target.value)
+                          }
+                          placeholder="Opcional"
+                        />
+                      </Field>
+
+                      <div className="admin-row" style={{ alignItems: "end", justifyContent: "flex-end" }}>
+                        <button
+                          type="button"
+                          className="admin-button admin-button--danger"
+                          onClick={() => removeItem(item.id)}
+                        >
+                          Remover item
+                        </button>
+                      </div>
+                    </div>
+                  </FormSection>
+                ) : null}
               </article>
             ))}
           </div>
@@ -818,14 +1845,14 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
                     className="admin-input"
                     value={form.installmentCount}
                     onChange={(event) =>
-                      updateField(
-                        "installmentCount",
-                        event.target.value.replace(/\D/g, "").slice(0, 2) || "1",
-                      )
-                    }
-                    inputMode="numeric"
-                  />
-                </Field>
+                    updateField(
+                      "installmentCount",
+                      event.target.value.replace(/\D/g, "").slice(0, 2) || "1",
+                    )
+                  }
+                  inputMode="numeric"
+                />
+              </Field>
               ) : null}
 
               {form.financialCondition === "TERM" ? (
@@ -867,6 +1894,41 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
                 <strong>{computedItems.length}</strong>
               </div>
             </div>
+
+            {entrySnapshot?.financialEntries?.length ? (
+              <div className="admin-page-stack">
+                <strong>Financeiro gerado</strong>
+                <div className="admin-list-stack">
+                  {entrySnapshot.financialEntries.map((financialEntry) => (
+                    <article key={financialEntry.id} className="admin-list-card">
+                      <div className="admin-row admin-row--between" style={{ gap: 12, alignItems: "center" }}>
+                        <div className="admin-inline-stack">
+                          <strong>{formatImportedFinancialEntryType(financialEntry.entryType)}</strong>
+                          <span className="admin-list-card__subtitle">
+                            {formatCurrency(financialEntry.amount)} | vencimento {formatDateOnly(financialEntry.dueDate)}
+                            {financialEntry.installmentCount
+                              ? ` | parcela ${financialEntry.installmentNumber ?? 1}/${financialEntry.installmentCount}`
+                              : ""}
+                          </span>
+                        </div>
+                        <div className="admin-row" style={{ gap: 10, flexWrap: "wrap" }}>
+                          <StatusBadge
+                            status={formatFinancialStatus(financialEntry.status)}
+                            tone={mapFinancialTone(financialEntry.status)}
+                          />
+                          <Link
+                            href={`/admin/financeiro/lancamentos/${financialEntry.id}`}
+                            className="admin-link-button"
+                          >
+                            Abrir conta
+                          </Link>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </SectionCard>
 
@@ -875,7 +1937,7 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
             <Link href="/admin/estoque/entradas" className="admin-button admin-button--secondary">
               Voltar para entradas
             </Link>
-            {mode === "edit" && initialData?.status === "DRAFT" ? (
+            {mode === "edit" && entrySnapshot?.status === "DRAFT" ? (
               <button
                 type="button"
                 className="admin-button admin-button--ghost"
@@ -885,7 +1947,7 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
                 {isConfirming ? "Confirmando..." : "Confirmar entrada"}
               </button>
             ) : null}
-            {mode === "edit" && initialData?.status === "CONFIRMED" ? (
+            {mode === "edit" && entrySnapshot?.status === "CONFIRMED" ? (
               <button
                 type="button"
                 className="admin-button admin-button--danger"
@@ -903,14 +1965,27 @@ export function EntryForm({ mode, entryId, initialData }: Readonly<EntryFormProp
             loadingLabel="Salvando..."
             disabled={
               isLoadingOptions ||
-              initialData?.status === "CONFIRMED" ||
-              initialData?.status === "CANCELED"
+              entrySnapshot?.status === "CONFIRMED" ||
+              entrySnapshot?.status === "CANCELED"
             }
           >
-            {mode === "create" ? "Salvar entrada" : "Salvar alteracoes"}
+            {mode === "create"
+              ? "Salvar entrada"
+              : isImportedDraft
+                ? "Salvar revisao"
+                : "Salvar alteracoes"}
           </LoadingButton>
         </StickyActionBar>
       </form>
+    </div>
+  );
+}
+
+function SmallFact({ label, value }: Readonly<{ label: string; value: string }>) {
+  return (
+    <div className="admin-inline-stack">
+      <span className="admin-list-card__subtitle">{label}</span>
+      <strong>{value}</strong>
     </div>
   );
 }
@@ -948,6 +2023,12 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function formatDateOnly(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+  }).format(new Date(value));
+}
+
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -955,6 +2036,74 @@ function formatCurrency(value: number) {
   }).format(value || 0);
 }
 
+function formatFileSize(value: number) {
+  if (value >= 1024 * 1024) {
+    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  if (value >= 1024) {
+    return `${Math.round(value / 1024)} KB`;
+  }
+
+  return `${value} B`;
+}
+
 function roundCurrency(value: number) {
   return Math.round(value * 100) / 100;
+}
+
+function formatMatchStatus(value?: string | null) {
+  if (value === "MATCHED") return "Conciliado";
+  if (value === "SUGGESTED") return "Sugestao";
+  return "Pendente";
+}
+
+function formatAttachmentDocumentType(value?: string | null) {
+  if (value === "XML_NFE") return "XML NF-e";
+  if (value === "DANFE_PDF") return "DANFE PDF";
+  if (value === "BOLETO") return "Boleto";
+  if (value === "PAYMENT_RECEIPT") return "Comprovante de pagamento";
+  if (value === "RECEIPT") return "Recibo";
+  if (value === "SUPPLIER_QUOTE") return "Orcamento do fornecedor";
+  if (value === "MERCHANDISE_PHOTO") return "Foto da mercadoria";
+  return "Documento operacional";
+}
+
+function formatFinancialStatus(value: string) {
+  if (value === "PAID") return "Pago";
+  if (value === "OVERDUE") return "Vencido";
+  if (value === "CANCELED") return "Cancelado";
+  return "Pendente";
+}
+
+function mapFinancialTone(value: string) {
+  if (value === "PAID") return "success" as const;
+  if (value === "OVERDUE") return "danger" as const;
+  if (value === "CANCELED") return "neutral" as const;
+  return "warning" as const;
+}
+
+function formatImportedFinancialEntryType(value: string) {
+  if (value === "PAYABLE") return "Conta a pagar";
+  if (value === "EXPENSE") return "Despesa paga";
+  if (value === "RECEIVABLE") return "Conta a receber";
+  if (value === "INCOME") return "Receita";
+  return "Transferencia";
+}
+
+function matchStatusTone(value?: string | null) {
+  if (value === "MATCHED") return "success" as const;
+  if (value === "SUGGESTED") return "warning" as const;
+  return "neutral" as const;
+}
+
+function canDeleteAttachment(
+  entryStatus: EntryDetail["status"],
+  attachment: NonNullable<EntryDetail["attachments"]>[number],
+) {
+  if (entryStatus === "CANCELED") {
+    return false;
+  }
+
+  return !(attachment.source === "XML_IMPORT" && attachment.documentType === "XML_NFE");
 }

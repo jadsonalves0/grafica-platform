@@ -1,0 +1,21 @@
+export type SupplierDetailDto = {
+  id: string;
+  companyId: string;
+  legalName: string;
+  tradeName?: string | null;
+  document?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  whatsapp?: string | null;
+  contactName?: string | null;
+  addressZipCode?: string | null;
+  addressStreet?: string | null;
+  addressNumber?: string | null;
+  addressDistrict?: string | null;
+  addressCity?: string | null;
+  addressState?: string | null;
+  notes?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};

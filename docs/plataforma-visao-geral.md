@@ -124,8 +124,11 @@ Os indicadores devem ser tratados como ponto de partida para o trabalho diario.
 ### Operacao e estoque
 
 - itens
+- fornecedores
 - grupos de itens
 - entradas
+- importacao inteligente de XML para entradas
+- sugestoes de compra com base em estoque minimo e ultimo fornecedor mapeado
 - estoque
 - movimentacoes
 - producao
@@ -179,6 +182,7 @@ Os indicadores devem ser tratados como ponto de partida para o trabalho diario.
 - `vendas` usando saldo vendavel por FIFO como fonte de verdade visual e transacional
 - `vendas` com reflexo de estoque para itens fisicos na mesma transacao do registro comercial
 - `vendas` com acesso direto para a conta a receber gerada ao concluir ou para o detalhe financeiro quando recebidas no ato
+- `fornecedores` com cadastro proprio em `Cadastros`, reaproveitado por entradas, XML e compras
 - `estoque` com consumo FIFO protegido por lock transacional no produto e nas camadas elegiveis
 - `estoque` com aviso explicito quando saldo registrado e saldo FIFO ainda nao coincidem
 - `estoque` com rotina de regularizacao para bases piloto que possuem movimentos confirmados sem camada FIFO correspondente
@@ -193,6 +197,19 @@ Os indicadores devem ser tratados como ponto de partida para o trabalho diario.
 - `ficha tecnica` tratada com linguagem operacional voltada a materiais, consumo padrao e custo estimado
 - `relatorios` com aba preservada na URL e exportacao com feedback visual
 - `entradas` em etapas
+- `entradas` com vinculacao opcional a fornecedor cadastrado, preservando tambem o nome e o documento do proprio documento
+- `entradas` com importacao de XML da NF-e para gerar pre-entrada revisavel
+- `entradas` com conciliacao de item importado antes da confirmacao
+- `entradas` com cadastro assistido de novo item interno a partir da linha importada
+- `entradas` com confirmacao em lote para sugestoes de conciliacao de baixa confianca
+- `entradas` com anexo operacional do XML original
+- `entradas` com upload manual de anexos operacionais no proprio detalhe
+- `entradas` importadas com revisao de documento, itens e financeiro antes da confirmacao
+- `entradas` importadas com abertura do XML e links para contas a pagar geradas
+- `sugestoes de compra` com acao de gerar pre-entrada diretamente para revisao
+- `sugestoes de compra` com fornecedor preferencial apontando para o cadastro formal quando houver mapeamento
+- `lista de compra` operacional agrupada por fornecedor e alimentada pelas sugestoes
+- `lista de compra` com geracao de pre-entrada em lote por fornecedor
 - configuracao do website em fluxo guiado
 - website publico server-side, sem depender de `fetch` client-side para montar a home
 - financeiro organizado em `a receber`, `a pagar` e `caixa e bancos`
@@ -363,3 +380,10 @@ Essa suite cobre:
 - cancelamento de entrada sem consumo previo
 - regularizacao manual incidindo no item correto
 - isolamento por empresa
+- importacao de XML criando rascunho conciliado
+- bloqueio de duplicidade por chave de acesso
+- bloqueio de confirmacao enquanto houver item importado sem conciliacao
+- bloqueio de confirmacao enquanto houver sugestao de conciliacao ainda nao confirmada
+- criacao assistida de item interno a partir da linha importada
+- revisao financeira da entrada importada gerando conta a pagar na confirmacao
+- reutilizacao de fornecedor cadastrado por documento ou nome na importacao de XML e nas sugestoes de compra

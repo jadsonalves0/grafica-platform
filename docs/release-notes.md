@@ -1,5 +1,102 @@
 # Release Notes
 
+## 2026-06-30 - Cadastro formal de fornecedores
+
+### Entregue
+
+- novo cadastro de `Fornecedores` em `Cadastros`
+- migration manual `20260630103000_suppliers_registry_foundation`
+- API, servico e paginas para criar, editar, inativar e excluir fornecedor com protecao de historico
+- vinculacao opcional de `Entradas` a fornecedor cadastrado
+- reaproveitamento de fornecedor cadastrado na importacao de XML por documento ou nome
+- mapeamento `fornecedor-item` agora apontando tambem para o cadastro formal
+- sugestoes de compra e lista de compra com link para o fornecedor quando ele estiver mapeado
+
+### Melhorado
+
+- pre-entradas geradas por sugestao ou por lista de compra carregam `supplierId`, nome e documento de referencia
+- entradas continuam preservando nome e documento do proprio documento, mesmo quando existe fornecedor cadastrado vinculado
+- testes de integracao passaram a cobrir fornecedor formal no XML e nas sugestoes de compra
+
+### Validado
+
+- `npm run prisma:apply-manual 20260630103000_suppliers_registry_foundation`
+- `lint`
+- `build`
+- `test:integration`
+
+## 2026-06-29 - Entrada Inteligente v0.4 - fundacao de XML
+
+### Entregue
+
+- migration manual `20260629213000_inventory_xml_import_foundation`
+- suporte a importacao de `XML` de `NF-e`
+- criacao de rascunho de entrada sem confirmar estoque
+- conciliacao de item importado com produto interno
+- anexo operacional do XML original
+- mapeamento persistente entre item do fornecedor e item interno
+
+### Melhorado
+
+- repositorio de entradas passou a tolerar item importado ainda sem `productId`
+- confirmacao da entrada importada bloqueia enquanto houver item sem conciliacao
+- confirmacao da entrada importada agora tambem bloqueia sugestoes de conciliacao ate a confirmacao explicita do usuario
+- consulta de entradas e detalhe passou a usar leitura segura para o novo modelo, mesmo sem regenerar o client do Prisma neste ambiente
+- nova acao `Importar XML` em `Estoque > Entradas > Nova entrada`
+- detalhe da entrada importada mostra status de conciliacao por item
+- detalhe da entrada importada agora permite revisar documento, itens e financeiro antes da confirmacao
+- detalhe da entrada importada agora permite cadastrar um novo item interno a partir da linha pendente
+- detalhe da entrada importada agora permite confirmar sugestoes de conciliacao em lote
+- detalhe da entrada agora aceita anexos manuais como DANFE, boleto, comprovante, recibo, foto e orcamento do fornecedor
+- o XML original importado passou a ficar protegido contra exclusao manual
+- anexos operacionais podem ser abertos pelo proprio detalhe da entrada
+- contas a pagar ou despesas pagas geradas pela confirmacao ficam visiveis e navegaveis no detalhe da entrada
+
+### Validado
+
+- `lint`
+- `build`
+- `test:unit`
+- `test:integration`
+- `prisma validate`
+- aplicacao local da migration manual no banco
+
+### Documentado
+
+- fluxo em `docs/entrada-inteligente-xml.md`
+
+### Pendencias reais
+
+- adicionar leitura de XML por upload mais rico
+- permitir adicionar ou remover linhas diretamente no rascunho importado
+- avaliar nova rodada de interface para a tela de entradas apos uso real
+
+## 2026-06-30 - Compras assistidas iniciais
+
+### Entregue
+
+- nova tela `Sugestoes de compra` em `Operacao`
+- API dedicada para listar reposicoes sugeridas
+- calculo baseado em estoque minimo, saldo disponivel e custo de referencia
+- reaproveitamento do ultimo fornecedor mapeado por item
+- suporte a unidade de compra e fator de conversao nas sugestoes
+- acao `Gerar pre-entrada` a partir da sugestao, abrindo o rascunho direto em `Entradas`
+- nova tela `Lista de compra`, agrupada por fornecedor
+- selecao de itens na tela de sugestoes para montar lista parcial
+- impressao simples da lista operacional
+- acao `Gerar pre-entrada do grupo`, reunindo varios itens do mesmo fornecedor em um unico rascunho
+
+### Validado
+
+- `lint`
+- `build`
+- `test:integration`
+
+### Pendencias reais
+
+- gerar lista de compra propriamente dita
+- iniciar fase de OCR para cupom, recibo e comprovante
+
 ## 2026-06-25 - Website Experience 1.0
 
 ### Entregue

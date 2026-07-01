@@ -1500,6 +1500,31 @@ summary:focus-visible {
   color: var(--muted);
 }
 
+@media print {
+  body {
+    background: #fff !important;
+  }
+
+  .admin-topbar,
+  .admin-page-header__actions,
+  .admin-section-card__actions,
+  .admin-link-button,
+  .admin-button {
+    display: none !important;
+  }
+
+  .admin-shell__main,
+  .admin-section-card,
+  .admin-list-card,
+  .admin-surface-muted {
+    box-shadow: none !important;
+  }
+
+  .admin-shell__main {
+    padding: 0 !important;
+  }
+}
+
 @media (max-width: 1024px) {
   .admin-topbar__menu-button {
     display: inline-flex !important;

@@ -3,53 +3,11 @@
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { EntryForm } from "@/app/(admin)/admin/estoque/entradas/_components/entry-form";
+import {
+  EntryForm,
+  type EntryDetail,
+} from "@/app/(admin)/admin/estoque/entradas/_components/entry-form";
 import { Alert, EmptyState, PageHeader, SectionCard, Skeleton } from "@/components/admin/ui";
-
-type EntryDetail = {
-  id: string;
-  companyId: string;
-  entryType:
-    | "PURCHASE_INVOICE"
-    | "PURCHASE_WITHOUT_INVOICE"
-    | "INITIAL_BALANCE"
-    | "RETURN"
-    | "BONUS"
-    | "OTHER";
-  supplierName?: string | null;
-  documentNumber: string;
-  entryDate: string;
-  notes?: string | null;
-  financialCondition: "NONE" | "CASH" | "TERM";
-  financialAccountId?: string | null;
-  installmentCount: number;
-  firstDueDate?: string | null;
-  status: "DRAFT" | "CONFIRMED" | "CANCELED";
-  subtotal: number;
-  totalAmount: number;
-  confirmedAt?: string | null;
-  canceledAt?: string | null;
-  cancelReason?: string | null;
-  createdAt: string;
-  updatedAt: string;
-  items: Array<{
-    id: string;
-    productId: string;
-    productName: string;
-    description: string;
-    unit: string;
-    quantity: number;
-    unitCost: number;
-    subtotal: number;
-    previousCostPrice?: number | null;
-    previousSalePrice?: number | null;
-    suggestedSalePrice?: number | null;
-    estimatedMarginPercent?: number | null;
-    priceDecision?: string | null;
-    decisionJustification?: string | null;
-    customSalePrice?: number | null;
-  }>;
-};
 
 type ApiResult<T> = {
   success: boolean;

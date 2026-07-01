@@ -7,6 +7,14 @@ const suites = [
     name: "order-billing",
     modulePath: "../tests/integration/order-billing.test.mjs",
   },
+  {
+    name: "inventory-xml-import",
+    modulePath: "../tests/integration/inventory-xml-import.test.mjs",
+  },
+  {
+    name: "purchase-suggestions",
+    modulePath: "../tests/integration/purchase-suggestions.test.mjs",
+  },
 ];
 
 let failureCount = 0;

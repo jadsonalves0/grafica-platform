@@ -2,8 +2,15 @@ export type InventoryEntryDetailDto = {
   id: string;
   companyId: string;
   entryType: string;
+  source?: string | null;
+  supplierId?: string | null;
   supplierName?: string | null;
+  supplierDocument?: string | null;
   documentNumber: string;
+  documentSeries?: string | null;
+  accessKey?: string | null;
+  issuedAt?: string | null;
+  protocol?: string | null;
   entryDate: string;
   notes?: string | null;
   financialCondition: string;
@@ -18,10 +25,41 @@ export type InventoryEntryDetailDto = {
   cancelReason?: string | null;
   createdAt: string;
   updatedAt: string;
+  attachments?: Array<{
+    id: string;
+    fileName: string;
+    mimeType: string;
+    fileSize: number;
+    storagePath: string;
+    documentType?: string | null;
+    source?: string | null;
+    createdAt: string;
+  }>;
+  financialEntries?: Array<{
+    id: string;
+    entryType: "INCOME" | "EXPENSE" | "RECEIVABLE" | "PAYABLE" | "TRANSFER";
+    status: string;
+    amount: number;
+    dueDate: string;
+    paidAt?: string | null;
+    installmentNumber?: number | null;
+    installmentCount?: number | null;
+  }>;
   items: Array<{
     id: string;
-    productId: string;
+    productId?: string | null;
     productName: string;
+    supplierItemMappingId?: string | null;
+    lineNumber?: number | null;
+    supplierProductCode?: string | null;
+    supplierProductName?: string | null;
+    supplierEan?: string | null;
+    ncm?: string | null;
+    cfop?: string | null;
+    purchaseUnit?: string | null;
+    conversionFactor?: number | null;
+    matchStatus?: string | null;
+    matchConfidence?: number | null;
     description: string;
     unit: string;
     quantity: number;

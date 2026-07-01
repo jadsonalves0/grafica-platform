@@ -5,8 +5,16 @@ import type { InventoryEntryCancelInputDto } from "@/models/dto/inventory-entry-
 import type { InventoryEntryConfirmInputDto } from "@/models/dto/inventory-entry-confirm-input";
 import type { InventoryEntryCreateInputDto } from "@/models/dto/inventory-entry-create-input";
 import type { InventoryEntryDetailDto } from "@/models/dto/inventory-entry-detail";
+import type { InventoryEntryItemCreateProductInputDto } from "@/models/dto/inventory-entry-item-create-product-input";
+import type { InventoryEntryItemCreateProductResultDto } from "@/models/dto/inventory-entry-item-create-product-result";
+import type { InventoryEntryImportXmlInputDto } from "@/models/dto/inventory-entry-import-xml-input";
+import type { InventoryEntryImportXmlResultDto } from "@/models/dto/inventory-entry-import-xml-result";
+import type { InventoryEntryItemMatchInputDto } from "@/models/dto/inventory-entry-item-match-input";
 import type { InventoryEntryListItemDto } from "@/models/dto/inventory-entry-list-item";
+import type { InventoryPurchaseListCreateEntryInputDto } from "@/models/dto/inventory-purchase-list-create-entry-input";
+import type { InventoryPurchaseListDto } from "@/models/dto/inventory-purchase-list";
 import type { InventoryEntryUpdateInputDto } from "@/models/dto/inventory-entry-update-input";
+import type { InventoryPurchaseSuggestionListItemDto } from "@/models/dto/inventory-purchase-suggestion-list-item";
 import type { InventoryGroupCreateInputDto } from "@/models/dto/inventory-group-create-input";
 import type { InventoryGroupDetailDto } from "@/models/dto/inventory-group-detail";
 import type { InventoryGroupListItemDto } from "@/models/dto/inventory-group-list-item";
@@ -26,7 +34,11 @@ import {
   createInventoryEntrySchema,
   createInventoryGroupSchema,
   createInventoryMovementSchema,
+  createInventoryEntryItemProductSchema,
   createInventoryProductSchema,
+  createInventoryPurchaseListEntrySchema,
+  importInventoryEntryXmlSchema,
+  matchInventoryEntryItemSchema,
   updateInventoryEntrySchema,
   updateInventoryGroupSchema,
   updateInventoryProductSchema,
@@ -163,6 +175,20 @@ export class InventoryController extends BaseController {
     }
   }
 
+  async importEntryXml(
+    context: InventoryContext,
+    input: InventoryEntryImportXmlInputDto,
+  ): Promise<ControllerResult<InventoryEntryImportXmlResultDto>> {
+    try {
+      const payload = importInventoryEntryXmlSchema.parse(input);
+      const result = await this.inventoryService.importEntryXml(context, payload);
+      return this.ok(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected error.";
+      return this.fail(message);
+    }
+  }
+
   async listEntries(
     context: InventoryContext,
     companyId: string,
@@ -192,6 +218,88 @@ export class InventoryController extends BaseController {
     }
   }
 
+  async showEntryAttachment(
+    context: InventoryContext,
+    companyId: string,
+    entryId: string,
+    attachmentId: string,
+  ): Promise<
+    ControllerResult<{
+      id: string;
+      fileName: string;
+      mimeType: string;
+      fileSize: number;
+      storagePath: string;
+      documentType?: string | null;
+      source?: string | null;
+      createdAt: string;
+    }>
+  > {
+    try {
+      const attachment = await this.inventoryService.getEntryAttachment(
+        context,
+        companyId,
+        entryId,
+        attachmentId,
+      );
+      return this.ok({
+        id: attachment.id,
+        fileName: attachment.fileName,
+        mimeType: attachment.mimeType,
+        fileSize: attachment.fileSize,
+        storagePath: attachment.storagePath,
+        documentType: attachment.documentType,
+        source: attachment.source,
+        createdAt: attachment.createdAt.toISOString(),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected error.";
+      return this.fail(message);
+    }
+  }
+
+  async addEntryAttachment(
+    context: InventoryContext,
+    companyId: string,
+    entryId: string,
+    input: {
+      fileName: string;
+      mimeType: string;
+      fileSize: number;
+      content: Buffer | Uint8Array;
+      documentType?: string | null;
+      source?: string | null;
+    },
+  ): Promise<ControllerResult<InventoryEntryDetailDto>> {
+    try {
+      const entry = await this.inventoryService.addEntryAttachment(context, companyId, entryId, input);
+      return this.ok(mapEntryDetail(entry));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected error.";
+      return this.fail(message);
+    }
+  }
+
+  async removeEntryAttachment(
+    context: InventoryContext,
+    companyId: string,
+    entryId: string,
+    attachmentId: string,
+  ): Promise<ControllerResult<InventoryEntryDetailDto>> {
+    try {
+      const entry = await this.inventoryService.removeEntryAttachment(
+        context,
+        companyId,
+        entryId,
+        attachmentId,
+      );
+      return this.ok(mapEntryDetail(entry));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected error.";
+      return this.fail(message);
+    }
+  }
+
   async updateEntry(
     context: InventoryContext,
     companyId: string,
@@ -202,6 +310,55 @@ export class InventoryController extends BaseController {
       const payload = updateInventoryEntrySchema.parse(input);
       const entry = await this.inventoryService.updateEntry(context, companyId, entryId, payload);
       return this.ok(mapEntryDetail(entry));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected error.";
+      return this.fail(message);
+    }
+  }
+
+  async matchEntryItem(
+    context: InventoryContext,
+    companyId: string,
+    entryId: string,
+    entryItemId: string,
+    input: InventoryEntryItemMatchInputDto,
+  ): Promise<ControllerResult<InventoryEntryDetailDto>> {
+    try {
+      const payload = matchInventoryEntryItemSchema.parse(input);
+      const entry = await this.inventoryService.matchEntryItem(
+        context,
+        companyId,
+        entryId,
+        entryItemId,
+        payload,
+      );
+      return this.ok(mapEntryDetail(entry));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected error.";
+      return this.fail(message);
+    }
+  }
+
+  async createProductFromEntryItem(
+    context: InventoryContext,
+    companyId: string,
+    entryId: string,
+    entryItemId: string,
+    input: InventoryEntryItemCreateProductInputDto,
+  ): Promise<ControllerResult<InventoryEntryItemCreateProductResultDto>> {
+    try {
+      const payload = createInventoryEntryItemProductSchema.parse(input);
+      const result = await this.inventoryService.createProductFromEntryItem(
+        context,
+        companyId,
+        entryId,
+        entryItemId,
+        payload,
+      );
+      return this.ok({
+        entry: mapEntryDetail(result.entry),
+        product: mapProduct(result.product),
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unexpected error.";
       return this.fail(message);
@@ -259,6 +416,26 @@ export class InventoryController extends BaseController {
         options,
       );
       return this.ok(products.map(mapProduct));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected error.";
+      return this.fail(message);
+    }
+  }
+
+  async listPurchaseSuggestions(
+    context: InventoryContext,
+    companyId: string,
+    search?: string,
+    categoryId?: string,
+  ): Promise<ControllerResult<InventoryPurchaseSuggestionListItemDto[]>> {
+    try {
+      const suggestions = await this.inventoryService.listPurchaseSuggestions(
+        context,
+        companyId,
+        search,
+        categoryId,
+      );
+      return this.ok(suggestions.map(mapPurchaseSuggestion));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unexpected error.";
       return this.fail(message);
@@ -324,6 +501,83 @@ export class InventoryController extends BaseController {
       return this.ok(
         movements.map(mapMovement),
       );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected error.";
+      return this.fail(message);
+    }
+  }
+
+  async createPurchaseSuggestionEntryDraft(
+    context: InventoryContext,
+    companyId: string,
+    productId: string,
+  ): Promise<ControllerResult<InventoryEntryDetailDto>> {
+    try {
+      const entry = await this.inventoryService.createPurchaseSuggestionEntryDraft(
+        context,
+        companyId,
+        productId,
+      );
+      return this.ok(mapEntryDetail(entry));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected error.";
+      return this.fail(message);
+    }
+  }
+
+  async createPurchaseListEntryDraft(
+    context: InventoryContext,
+    companyId: string,
+    input: InventoryPurchaseListCreateEntryInputDto,
+  ): Promise<ControllerResult<InventoryEntryDetailDto>> {
+    try {
+      const payload = createInventoryPurchaseListEntrySchema.parse({
+        ...input,
+        companyId,
+      });
+      const entry = await this.inventoryService.createPurchaseListEntryDraft(
+        context,
+        companyId,
+        payload,
+      );
+      return this.ok(mapEntryDetail(entry));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected error.";
+      return this.fail(message);
+    }
+  }
+
+  async showPurchaseList(
+    context: InventoryContext,
+    companyId: string,
+    options?: {
+      search?: string;
+      categoryId?: string;
+      productIds?: string[];
+    },
+  ): Promise<ControllerResult<InventoryPurchaseListDto>> {
+    try {
+      const result = await this.inventoryService.buildPurchaseList(context, companyId, options);
+      const payload: InventoryPurchaseListDto = {
+        generatedAt: result.generatedAt.toISOString(),
+        selectionMode: result.selectionMode as InventoryPurchaseListDto["selectionMode"],
+        totalItems: result.totalItems,
+        totalGroups: result.totalGroups,
+        estimatedPurchaseValue: result.estimatedPurchaseValue,
+        missingSupplierItems: result.missingSupplierItems,
+        mismatchedItems: result.mismatchedItems,
+        filters: result.filters,
+        groups: result.groups.map((group) => ({
+          supplierId: group.supplierId ?? null,
+          supplierName: group.supplierName,
+          supplierDocument: group.supplierDocument,
+          hasMappedSupplier: group.hasMappedSupplier,
+          itemsCount: group.items.length,
+          estimatedPurchaseValue: group.estimatedPurchaseValue,
+            items: group.items.map(mapPurchaseSuggestion),
+          })),
+      };
+      return this.ok(payload);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unexpected error.";
       return this.fail(message);
@@ -456,6 +710,55 @@ function mapProduct(product: {
   };
 }
 
+function mapPurchaseSuggestion(input: {
+  product: {
+    id: string;
+    name: string;
+    categoryId: string | null;
+    category?: { name: string } | null;
+    unit: string;
+    costPrice: { toNumber(): number } | number;
+  };
+  currentStock: number;
+  availableStock: number;
+  minimumStock: number;
+  shortageQuantity: number;
+  suggestedPurchaseQuantity: number;
+  estimatedPurchaseValue: number;
+  hasStockMismatch: boolean;
+  preferredSupplierId: string | null;
+  preferredSupplierName: string | null;
+  preferredSupplierDocument: string | null;
+  supplierProductCode: string | null;
+  purchaseUnit: string | null;
+  conversionFactor: number | null;
+  lastSupplierUseAt: Date | null;
+}): InventoryPurchaseSuggestionListItemDto {
+  return {
+    productId: input.product.id,
+    productName: input.product.name,
+    categoryId: input.product.categoryId,
+    categoryName: input.product.category?.name ?? null,
+    unit: input.product.unit,
+    purchaseUnit: input.purchaseUnit,
+    conversionFactor: input.conversionFactor,
+    currentStock: input.currentStock,
+    availableStock: input.availableStock,
+    minimumStock: input.minimumStock,
+    shortageQuantity: input.shortageQuantity,
+    suggestedPurchaseQuantity: input.suggestedPurchaseQuantity,
+    costPrice: toNumber(input.product.costPrice),
+    estimatedPurchaseValue: input.estimatedPurchaseValue,
+    preferredSupplierId: input.preferredSupplierId,
+    preferredSupplierName: input.preferredSupplierName,
+    preferredSupplierDocument: input.preferredSupplierDocument,
+    supplierProductCode: input.supplierProductCode,
+    hasRecentSupplierMapping: Boolean(input.preferredSupplierName || input.supplierProductCode),
+    hasStockMismatch: input.hasStockMismatch,
+    lastSupplierUseAt: input.lastSupplierUseAt ? input.lastSupplierUseAt.toISOString() : null,
+  };
+}
+
 function mapProductDetail(product: {
   id: string;
   companyId: string;
@@ -528,8 +831,12 @@ function mapProductDetail(product: {
 function mapEntryListItem(entry: {
   id: string;
   entryType: string;
+  source?: string | null;
+  supplierId?: string | null;
   supplierName: string | null;
+  supplierDocument?: string | null;
   documentNumber: string;
+  accessKey?: string | null;
   entryDate: Date;
   financialCondition: string;
   status: string;
@@ -537,19 +844,24 @@ function mapEntryListItem(entry: {
   totalAmount: { toNumber(): number } | number;
   createdAt: Date;
   confirmedAt: Date | null;
-  items: Array<unknown>;
+  items?: Array<unknown>;
+  itemsCount?: number;
 }): InventoryEntryListItemDto {
   return {
     id: entry.id,
     entryType: entry.entryType,
+    source: ("source" in entry ? entry.source : null) ?? null,
+    supplierId: ("supplierId" in entry ? entry.supplierId : null) ?? null,
     supplierName: entry.supplierName,
+    supplierDocument: ("supplierDocument" in entry ? entry.supplierDocument : null) ?? null,
     documentNumber: entry.documentNumber,
+    accessKey: ("accessKey" in entry ? entry.accessKey : null) ?? null,
     entryDate: entry.entryDate.toISOString(),
     financialCondition: entry.financialCondition,
     status: entry.status,
     subtotal: toNumber(entry.subtotal),
     totalAmount: toNumber(entry.totalAmount),
-    itemsCount: entry.items.length,
+    itemsCount: entry.itemsCount ?? entry.items?.length ?? 0,
     createdAt: entry.createdAt.toISOString(),
     confirmedAt: entry.confirmedAt?.toISOString() ?? null,
   };
@@ -559,8 +871,15 @@ function mapEntryDetail(entry: {
   id: string;
   companyId: string;
   entryType: string;
+  source?: string | null;
+  supplierId?: string | null;
   supplierName: string | null;
+  supplierDocument?: string | null;
   documentNumber: string;
+  documentSeries?: string | null;
+  accessKey?: string | null;
+  issuedAt?: Date | null;
+  protocol?: string | null;
   entryDate: Date;
   notes: string | null;
   financialCondition: string;
@@ -575,9 +894,40 @@ function mapEntryDetail(entry: {
   cancelReason: string | null;
   createdAt: Date;
   updatedAt: Date;
+  attachments?: Array<{
+    id: string;
+    fileName: string;
+    mimeType: string;
+    fileSize: number;
+    storagePath: string;
+    documentType: string | null;
+    source: string | null;
+    createdAt: Date;
+  }>;
+  financialEntries?: Array<{
+    id: string;
+    entryType: "INCOME" | "EXPENSE" | "RECEIVABLE" | "PAYABLE" | "TRANSFER";
+    status: string;
+    amount: { toNumber(): number } | number;
+    dueDate: Date;
+    paidAt: Date | null;
+    installmentNumber: number | null;
+    installmentCount: number | null;
+  }>;
   items: Array<{
     id: string;
-    productId: string;
+    productId: string | null;
+    supplierItemMappingId?: string | null;
+    lineNumber?: number | null;
+    supplierProductCode?: string | null;
+    supplierProductName?: string | null;
+    supplierEan?: string | null;
+    ncm?: string | null;
+    cfop?: string | null;
+    purchaseUnit?: string | null;
+    conversionFactor?: { toNumber(): number } | number | null;
+    matchStatus?: string | null;
+    matchConfidence?: { toNumber(): number } | number | null;
     description: string;
     unit: string;
     quantity: { toNumber(): number } | number;
@@ -590,15 +940,22 @@ function mapEntryDetail(entry: {
     priceDecision: string | null;
     decisionJustification: string | null;
     customSalePrice: { toNumber(): number } | number | null;
-    product: { name: string };
+    product?: { name: string } | null;
   }>;
 }): InventoryEntryDetailDto {
   return {
     id: entry.id,
     companyId: entry.companyId,
     entryType: entry.entryType,
+    source: ("source" in entry ? entry.source : null) ?? null,
+    supplierId: ("supplierId" in entry ? entry.supplierId : null) ?? null,
     supplierName: entry.supplierName,
+    supplierDocument: ("supplierDocument" in entry ? entry.supplierDocument : null) ?? null,
     documentNumber: entry.documentNumber,
+    documentSeries: ("documentSeries" in entry ? entry.documentSeries : null) ?? null,
+    accessKey: ("accessKey" in entry ? entry.accessKey : null) ?? null,
+    issuedAt: ("issuedAt" in entry ? entry.issuedAt?.toISOString() : null) ?? null,
+    protocol: ("protocol" in entry ? entry.protocol : null) ?? null,
     entryDate: entry.entryDate.toISOString(),
     notes: entry.notes,
     financialCondition: entry.financialCondition,
@@ -613,10 +970,41 @@ function mapEntryDetail(entry: {
     cancelReason: entry.cancelReason,
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString(),
+    attachments: (entry.attachments ?? []).map((attachment) => ({
+      id: attachment.id,
+      fileName: attachment.fileName,
+      mimeType: attachment.mimeType,
+      fileSize: attachment.fileSize,
+      storagePath: attachment.storagePath,
+      documentType: attachment.documentType,
+      source: attachment.source,
+      createdAt: attachment.createdAt.toISOString(),
+    })),
+    financialEntries: (entry.financialEntries ?? []).map((financialEntry) => ({
+      id: financialEntry.id,
+      entryType: financialEntry.entryType,
+      status: financialEntry.status,
+      amount: toNumber(financialEntry.amount),
+      dueDate: financialEntry.dueDate.toISOString(),
+      paidAt: financialEntry.paidAt?.toISOString() ?? null,
+      installmentNumber: financialEntry.installmentNumber ?? null,
+      installmentCount: financialEntry.installmentCount ?? null,
+    })),
     items: entry.items.map((item) => ({
       id: item.id,
       productId: item.productId,
-      productName: item.product.name,
+      productName: item.product?.name ?? item.description,
+      supplierItemMappingId: item.supplierItemMappingId ?? null,
+      lineNumber: item.lineNumber ?? null,
+      supplierProductCode: item.supplierProductCode ?? null,
+      supplierProductName: item.supplierProductName ?? null,
+      supplierEan: item.supplierEan ?? null,
+      ncm: item.ncm ?? null,
+      cfop: item.cfop ?? null,
+      purchaseUnit: item.purchaseUnit ?? null,
+      conversionFactor: item.conversionFactor === null || item.conversionFactor === undefined ? null : toNumber(item.conversionFactor),
+      matchStatus: item.matchStatus ?? null,
+      matchConfidence: item.matchConfidence === null || item.matchConfidence === undefined ? null : toNumber(item.matchConfidence),
       description: item.description,
       unit: item.unit,
       quantity: toNumber(item.quantity),

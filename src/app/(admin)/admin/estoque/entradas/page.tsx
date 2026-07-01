@@ -19,8 +19,11 @@ import {
 type EntryRow = {
   id: string;
   entryType: string;
+  source?: string | null;
   supplierName?: string | null;
+  supplierDocument?: string | null;
   documentNumber: string;
+  accessKey?: string | null;
   entryDate: string;
   financialCondition: string;
   status: "DRAFT" | "CONFIRMED" | "CANCELED";
@@ -122,7 +125,10 @@ export default function EntradasPage() {
         title="Entradas"
         description="Registre e acompanhe documentos que adicionam materiais e produtos ao estoque."
         primaryAction={{ href: "/admin/estoque/entradas/novo", label: "Nova entrada" }}
-        secondaryActions={[{ href: "/admin/estoque/posicao", label: "Ver estoque", variant: "secondary" }]}
+        secondaryActions={[
+          { href: "/admin/estoque/entradas/novo#importar-xml", label: "Importar XML", variant: "secondary" },
+          { href: "/admin/estoque/posicao", label: "Ver estoque", variant: "ghost" },
+        ]}
       />
 
       <section className="admin-card-grid">
@@ -197,6 +203,7 @@ export default function EntradasPage() {
                 </div>
 
                 <div className="admin-list-card__meta">
+                  <SmallStat label="Origem" value={formatEntrySource(entry.source)} />
                   <SmallStat label="Itens" value={String(entry.itemsCount)} />
                   <SmallStat label="Condicao" value={formatFinancialCondition(entry.financialCondition)} />
                   <SmallStat label="Subtotal" value={formatCurrency(entry.subtotal)} />
@@ -261,6 +268,11 @@ function formatEntryType(value: string) {
   };
 
   return labels[value] ?? value;
+}
+
+function formatEntrySource(value?: string | null) {
+  if (value === "XML") return "XML NF-e";
+  return "Manual";
 }
 
 function formatFinancialCondition(value: string) {
